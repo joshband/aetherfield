@@ -8,7 +8,7 @@ The charter governs product intent. This roadmap authorizes no work beyond the a
 
 ## NEXT
 
-**Phase 1 — Core Reverb Architecture (IN PROGRESS; evidence in decisions.md and testing.md).** Topology (ADR-002), decay/damping/numerical-bounds/lifecycle (ADR-003), and initial parameter semantics (ADR-004) are decided; the S1 skeleton is planned (phase1-s1-plan.md). The consolidated verification-case specification remains open. No reverb code is implemented.
+**Phase 1 — Core Reverb Architecture (architecture and planning rows satisfied; evidence in decisions.md and testing.md).** Topology (ADR-002), decay/damping/numerical-bounds/lifecycle (ADR-003), and initial parameter semantics (ADR-004) are decided; the S1 skeleton (phase1-s1-plan.md) and the consolidated S2/parameter verification-case specification (phase1-s2-verification-plan.md) are planned. All five table rows below are satisfied. No reverb code is implemented — Phase 1 decided and planned; it did not authorize building anything. See "Phase 1 exit" below.
 
 Objective: select the smallest coherent architecture capable of a spacious, smooth, slowly evolving ambient field. The charter's FDN proposal is a hypothesis to compare with credible alternatives, not an accepted topology.
 
@@ -17,10 +17,12 @@ Objective: select the smallest coherent architecture capable of a spacious, smoo
 | Compare late-network and diffusion approaches; select topology, feedback matrix and delay strategy | Smooth density and reduced ringing | Phase 0 loop | L | Committing to complexity without audible benefit | Sol | ADR with alternatives, mathematical rationale, and a bounded later prototype/evaluation plan (satisfied by ADR-002; see decisions.md) |
 | Define decay/damping, modulation and numerical bounds, initialization/reset and sample-rate lifecycle | Stable long tails and subtle movement | Topology decision | L | Hidden loop gain or unstable edge combinations | Sol | Explicit stability assumptions and stress-test criteria; no claim of proven sonic quality (satisfied by ADR-003; see decisions.md) |
 | Define initial parameter semantics, smoothing and automation boundaries | Playable controls without clicks | Chosen topology | M | Parameter interactions destabilize feedback | Sol | Units/ranges/mapping and transition contracts; candidate controls accepted or deferred with reasons (satisfied by ADR-004; see decisions.md) |
-| Translate accepted design into small implementation increments | Reviewable path to a working reverb | Sol decisions | M | Premature abstraction | Terra | Buildable/testable task plan with exact interfaces and ownership; implementation reserved for later authorization |
-| Specify deterministic fixtures, metrics and verification cases | Reproducible stability and regression evidence | Design contracts | M | Tests miss perceptual defects | Terra designs; Luna validates | Commands and expected bounds defined; listening review remains required |
+| Translate accepted design into small implementation increments | Reviewable path to a working reverb | Sol decisions | M | Premature abstraction | Terra | Buildable/testable task plan with exact interfaces and ownership; implementation reserved for later authorization (S1 satisfied by phase1-s1-plan.md; see decisions.md) |
+| Specify deterministic fixtures, metrics and verification cases | Reproducible stability and regression evidence | Design contracts | M | Tests miss perceptual defects | Terra designs; Luna validates | Commands and expected bounds defined; listening review remains required (satisfied by phase1-s2-verification-plan.md, covering the Fixed late network and Parameter transitions gates only) |
 
 Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the smallest subsequent DSP skeleton milestone. No pitch processing, freeze, Bloom, Texture, UI, or multi-engine implementation is implied.
+
+**Phase 1 exit criteria are met as of ADR-002/003/004 and phase1-s1-plan.md/phase1-s2-verification-plan.md.** The accepted design, its risks, and the smallest subsequent DSP skeleton milestone are all documented. Nothing above authorizes writing that skeleton's source code: the LATER table's first row ("Implement the accepted DSP skeleton...") is the next milestone and requires its own explicit authorization, per every ADR's "authorizes no implementation" statement.
 
 ## LATER
 
