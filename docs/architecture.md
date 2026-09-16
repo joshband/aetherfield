@@ -1,0 +1,36 @@
+# Architecture
+
+## Current system — IMPLEMENTED
+
+Aetherfield is a greenfield AUv3 audio effect targeting iOS/iPadOS. Phase 0 implements only a portable C++ engineering loop. It is not yet an Audio Unit or a reverb.
+
+```mermaid
+flowchart LR
+    TEST["Host tests"] --> DSP["C++ DSP library: fixed gain"]
+    RENDER["Offline renderer"] --> DSP
+    DSP --> PCM["Processed samples"]
+    PCM --> WRITER["Renderer-owned WAV writer"]
+    WRITER --> WAV["PCM WAV artifact"]
+    FUTURE["DEFERRED: AUv3 integration"] -.-> DSP
+    UI["DEFERRED: UI and parameter communication"] -.-> FUTURE
+```
+
+Solid relationships describe current code; dashed relationships describe future integration. File I/O belongs to the host renderer, never the DSP core.
+
+## Boundaries
+
+- DSP: standard C++ only; caller owns sample storage. A concrete stateless in-place gain function processes one contiguous channel. The caller determines channel layout and block size.
+- Tests: exercise actual DSP behavior without an Apple host or external test framework.
+- Renderer: constructs a deterministic fixture, invokes the same DSP library, and writes a WAV from the offline thread. Its allocation and file operations are not render-thread code.
+- Parameters: the gain scalar is a bootstrap input passed by value, fixed for each call. It is not a public Aetherfield parameter. There is no shared mutable parameter state, host/UI communication, smoothing, or automation implementation.
+- Future platform wrapper: owns Apple buffers, lifecycle, parameter events, state and UI integration. Native Apple APIs versus JUCE remains an integration decision; implementation and integration proof are deferred. The portable core must not include Apple or framework types.
+
+## Build and ownership
+
+CMake builds the DSP library and host executables; CTest runs deterministic tests. No dependency downloads or generated plugin scaffold are required. ADR-001 in [decisions.md](decisions.md) records the alternatives and rationale. Host build evidence does not prove iOS deployment or realtime performance.
+
+Astra accepts milestones and maintains scope. Sol reviews consequential architecture and realtime decisions; Terra implements approved increments; Luna independently checks builds, tests, artifacts and documentation. The charter and repository documents are durable handoffs.
+
+## Deliberately absent — DEFERRED
+
+Reverb topology, delay lines, feedback, modulation, production lifecycle APIs, lock-free parameter transport, AUv3 wrapper, containing app, UI, platform project, signing configuration, presets and external DSP dependencies. No mono-only product requirement follows from the mono bootstrap fixture.
