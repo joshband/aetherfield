@@ -8,14 +8,14 @@ The charter governs product intent. This roadmap authorizes no work beyond the a
 
 ## NEXT
 
-**Phase 1 — Core Reverb Architecture (PLANNED, not started).**
+**Phase 1 — Core Reverb Architecture (IN PROGRESS; evidence in decisions.md and testing.md).** Topology decided (ADR-002) and its S1 skeleton planned (phase1-s1-plan.md). Decay/damping/numerical-bounds/lifecycle (ADR-003), parameter semantics, and the full verification-case specification remain open. No reverb code is implemented.
 
 Objective: select the smallest coherent architecture capable of a spacious, smooth, slowly evolving ambient field. The charter's FDN proposal is a hypothesis to compare with credible alternatives, not an accepted topology.
 
 | Work | Benefit | Dependency | Complexity | Primary risk | Agent | Acceptance |
 |---|---|---|---|---|---|---|
 | Compare late-network and diffusion approaches; select topology, feedback matrix and delay strategy | Smooth density and reduced ringing | Phase 0 loop | L | Committing to complexity without audible benefit | Sol | ADR with alternatives, mathematical rationale, and a bounded later prototype/evaluation plan (satisfied by ADR-002; see decisions.md) |
-| Define decay/damping, modulation and numerical bounds, initialization/reset and sample-rate lifecycle | Stable long tails and subtle movement | Topology decision | L | Hidden loop gain or unstable edge combinations | Sol | Explicit stability assumptions and stress-test criteria; no claim of proven sonic quality |
+| Define decay/damping, modulation and numerical bounds, initialization/reset and sample-rate lifecycle | Stable long tails and subtle movement | Topology decision | L | Hidden loop gain or unstable edge combinations | Sol | Explicit stability assumptions and stress-test criteria; no claim of proven sonic quality (satisfied by ADR-003; see decisions.md) |
 | Define initial parameter semantics, smoothing and automation boundaries | Playable controls without clicks | Chosen topology | M | Parameter interactions destabilize feedback | Sol | Units/ranges/mapping and transition contracts; candidate controls accepted or deferred with reasons |
 | Translate accepted design into small implementation increments | Reviewable path to a working reverb | Sol decisions | M | Premature abstraction | Terra | Buildable/testable task plan with exact interfaces and ownership; implementation reserved for later authorization |
 | Specify deterministic fixtures, metrics and verification cases | Reproducible stability and regression evidence | Design contracts | M | Tests miss perceptual defects | Terra designs; Luna validates | Commands and expected bounds defined; listening review remains required |

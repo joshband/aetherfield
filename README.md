@@ -2,7 +2,7 @@
 
 A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable product and engineering charter is [AETHERFIELD_SPEC.md](AETHERFIELD_SPEC.md).
 
-**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No reverb, AUv3 extension or UI exists. Phase 1 develops the core reverb design and a bounded implementation handoff; planned DSP is not implemented DSP.
+**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No reverb, AUv3 extension or UI exists. **Phase 1 is in progress**: the reverb topology is decided (ADR-002 in [docs/decisions.md](docs/decisions.md)) and its first implementation increment is planned ([docs/phase1-s1-plan.md](docs/phase1-s1-plan.md)); planned DSP is not implemented DSP.
 
 ## Build, test, render, inspect
 

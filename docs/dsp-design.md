@@ -14,7 +14,7 @@ The fixture's fixed gain is not a product parameter. Changing it discontinuously
 
 ## PLANNED: Phase 1 architecture
 
-The late-network topology is now **decided but unimplemented** (ADR-002, [decisions.md](decisions.md)). The charter's FDN, diffusion, modulation, damping and stereo concepts are hypotheses. Sol must compare alternatives and document stability assumptions before Terra implements reverb components.
+The late-network topology, its damping filter, denormal mitigation, numerical bounds, and full-network initialization/reset/sample-rate lifecycle are now **decided but unimplemented** (ADR-002 and ADR-003, [decisions.md](decisions.md)). Modulation, stereo extraction, and parameter semantics remain hypotheses and are explicitly not authorized by either ADR. Terra implements reverb components only under separate authorization; see [phase1-s1-plan.md](phase1-s1-plan.md) for the first bounded increment.
 
 No feedback network, decay calculation, freeze state, Bloom, Texture, pitch or spectral processor exists. Therefore RT60, feedback stability, tail quality, stereo decorrelation and mobile CPU suitability have not been measured. Phase 0 proves an engineering loop, not sonic quality.
 
