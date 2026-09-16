@@ -14,7 +14,7 @@ Objective: select the smallest coherent architecture capable of a spacious, smoo
 
 | Work | Benefit | Dependency | Complexity | Primary risk | Agent | Acceptance |
 |---|---|---|---|---|---|---|
-| Compare late-network and diffusion approaches; select topology, feedback matrix and delay strategy | Smooth density and reduced ringing | Phase 0 loop | L | Committing to complexity without audible benefit | Sol | ADR with alternatives, mathematical rationale, and a bounded later prototype/evaluation plan |
+| Compare late-network and diffusion approaches; select topology, feedback matrix and delay strategy | Smooth density and reduced ringing | Phase 0 loop | L | Committing to complexity without audible benefit | Sol | ADR with alternatives, mathematical rationale, and a bounded later prototype/evaluation plan (satisfied by ADR-002; see decisions.md) |
 | Define decay/damping, modulation and numerical bounds, initialization/reset and sample-rate lifecycle | Stable long tails and subtle movement | Topology decision | L | Hidden loop gain or unstable edge combinations | Sol | Explicit stability assumptions and stress-test criteria; no claim of proven sonic quality |
 | Define initial parameter semantics, smoothing and automation boundaries | Playable controls without clicks | Chosen topology | M | Parameter interactions destabilize feedback | Sol | Units/ranges/mapping and transition contracts; candidate controls accepted or deferred with reasons |
 | Translate accepted design into small implementation increments | Reviewable path to a working reverb | Sol decisions | M | Premature abstraction | Terra | Buildable/testable task plan with exact interfaces and ownership; implementation reserved for later authorization |
