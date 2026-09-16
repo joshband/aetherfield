@@ -8,7 +8,7 @@ The charter governs product intent. This roadmap authorizes no work beyond the a
 
 ## NEXT
 
-**Phase 1 — Core Reverb Architecture (IN PROGRESS; evidence in decisions.md and testing.md).** Topology decided (ADR-002) and its S1 skeleton planned (phase1-s1-plan.md). Decay/damping/numerical-bounds/lifecycle (ADR-003), parameter semantics, and the full verification-case specification remain open. No reverb code is implemented.
+**Phase 1 — Core Reverb Architecture (IN PROGRESS; evidence in decisions.md and testing.md).** Topology (ADR-002), decay/damping/numerical-bounds/lifecycle (ADR-003), and initial parameter semantics (ADR-004) are decided; the S1 skeleton is planned (phase1-s1-plan.md). The consolidated verification-case specification remains open. No reverb code is implemented.
 
 Objective: select the smallest coherent architecture capable of a spacious, smooth, slowly evolving ambient field. The charter's FDN proposal is a hypothesis to compare with credible alternatives, not an accepted topology.
 
