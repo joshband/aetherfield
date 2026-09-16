@@ -2,7 +2,7 @@
 
 A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable product and engineering charter is [AETHERFIELD_SPEC.md](AETHERFIELD_SPEC.md).
 
-**IMPLEMENTED: Phase 0 only.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No reverb, AUv3 extension or UI exists. Phase 1 is planned, not started.
+**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No reverb, AUv3 extension or UI exists. Phase 1 develops the core reverb design and a bounded implementation handoff; planned DSP is not implemented DSP.
 
 ## Build, test, render, inspect
 
@@ -17,13 +17,13 @@ mkdir -p artifacts
 file artifacts/phase0-gain.wav
 ```
 
-On the bootstrap Mac, the selected Xcode installation requires license acceptance. Use the separately installed Command Line Tools for the host loop by running this first in the same shell:
+The bootstrap host loop uses the separately installed Command Line Tools, as requested. Select them in the current shell:
 
 ```sh
 export DEVELOPER_DIR=/Library/Developer/CommandLineTools
 ```
 
-This does not change the system's Xcode selection or validate iOS builds. Other hosts with a configured compiler should omit it. The commands above use a single-configuration build; multi-configuration generators require their corresponding configuration options and executable paths.
+The Xcode license issue encountered in Phase 0 is resolved: Xcode 27.0 (27A266a) was verified on 2026-09-16. Selecting Command Line Tools does not change the system's Xcode selection or validate iOS builds. Other hosts with a configured compiler should omit it. The commands above use a single-configuration build; multi-configuration generators require their corresponding configuration options and executable paths.
 
 The renderer writes a fixed 16-frame, 48 kHz, mono, signed 16-bit PCM fixture at gain 0.5. It is a structural/sample correctness artifact, not a musical audition. It requires an existing output directory and replaces the named output file. Build products and generated artifacts are ignored by Git.
 
