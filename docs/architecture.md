@@ -31,6 +31,15 @@ CMake builds the DSP library and host executables; CTest runs deterministic test
 
 Astra accepts milestones and maintains scope. Sol reviews consequential architecture and realtime decisions; Terra implements approved increments; Luna independently checks builds, tests, artifacts and documentation. The charter and repository documents are durable handoffs.
 
+These four roles are a division of responsibility and review discipline, not a binding to any specific AI vendor, tool or model. Any sufficiently capable coding agent or model may execute a role, and the project has in practice been continued across more than one tool. Whichever tool is in use should assign each role capability and reasoning effort commensurate with the consequence of its decisions, not uniformly:
+
+- **Sol** carries the highest bar. Its decisions are architectural and safety-consequential (topology, stability proofs, numerical bounds) and are expensive to unwind once implementation builds on them; it should run the most capable model/effort the executing tool offers.
+- **Terra** needs strong implementation and design-translation ability, but works from decisions Sol has already made; a capable general-purpose coding model at standard effort is typically sufficient.
+- **Luna** performs independent, mostly mechanical verification (rerunning commands, checking claims against files on disk, spot-checking arithmetic and citations); a fast, lighter model is usually adequate, provided it still checks primary sources rather than trusting another agent's self-report.
+- **Astra** performs lightweight scope/milestone gatekeeping against the roadmap and charter; a fast, lighter model is typically adequate here too, since the judgment required is narrow (in-scope or not) rather than open-ended.
+
+A session's actual model/tool choices are an execution detail of that session, not part of this document; they belong in that session's own commit messages or logs, not here.
+
 ## Deliberately absent — DEFERRED
 
 Reverb topology, delay lines, feedback, modulation, production lifecycle APIs, lock-free parameter transport, AUv3 wrapper, containing app, UI, platform project, signing configuration, presets and external DSP dependencies. No mono-only product requirement follows from the mono bootstrap fixture.
