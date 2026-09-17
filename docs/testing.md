@@ -95,13 +95,34 @@ Checked and passed:
 
 No sonic, stability, or performance claim is verified by this pass — none exists yet. This review confirms only that the architecture decision is internally consistent, honestly scoped, and free of unauthorized implementation; it is a documentation and scope audit, not a build/test/render verification like Phase 0's.
 
+## IMPLEMENTED: Phase 1 S1 — delay/lifecycle skeleton (2026-09-16)
+
+Terra implemented `DelayLine` (`src/dsp/DelayLine.h`/`.cpp`) exactly per docs/phase1-s1-plan.md's interface, plus `tests/DelayLineTests.cpp` covering all 9 named cases from the plan's table, and wired a new `aetherfield_dsp_delay_tests` CTest target mirroring the existing pattern (separate executable, same `-Wall -Wextra -Wpedantic -Werror`, own `add_test`).
+
+Terra's own build/test evidence, from a clean build directory:
+
+```sh
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+ctest --test-dir build --output-on-failure   # repeated, to check determinism
+```
+
+Results: fresh configure/build succeeded with all warning flags on; `2/2` tests passed (`aetherfield_dsp_tests`, `aetherfield_dsp_delay_tests`); the repeated `ctest` run produced identical pass results.
+
+**Independent verification (Luna, 2026-09-16).** Luna re-read docs/phase1-s1-plan.md and diffed the actual `DelayLine.h`/`.cpp` against its exact interface block; confirmed all 9 named test cases exist and test what the plan's table specifies (including the `operator new`/`operator delete` allocation-instrumentation case); confirmed none of the plan's explicit non-goals were violated (no feedback matrix, no multiple lines, no damping filter, no runtime-adjustable length/pre-delay/modulation/interpolation, no denormal/NaN/Inf mitigation code); and independently reran the full build and test suite from a separate clean build directory, twice, confirming identical passing results before deleting that directory. Luna also confirmed `CMakeLists.txt`'s new test target matches the plan's "Build wiring" section (separate executable, not merged into `aetherfield_dsp_tests`; same warning flags; own CTest registration). All checks passed; no spec deviation was found.
+
+This closes the "Delay/lifecycle skeleton" gate below. No feedback, decay, damping, matrix, stereo, parameter, or sonic-quality claim follows from it — `DelayLine` alone is not a reverb.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
 
 | Gate | Required evidence | Ownership |
 |---|---|---|
-| Delay/lifecycle skeleton | Exact impulse positions and wraparound; rejected invalid preparation; repeatable reset; all buffer extents respected; zero-frame calls safe; allocation occurs only during preparation | Terra implements; Luna verifies |
+| Delay/lifecycle skeleton | Exact impulse positions and wraparound; rejected invalid preparation; repeatable reset; all buffer extents respected; zero-frame calls safe; allocation occurs only during preparation | **Satisfied 2026-09-16; see "IMPLEMENTED: Phase 1 S1" above** |
 | Fixed late network | Independently computed matrix orthogonality and damping bounds; finite deterministic impulse/silence/noise renders; double-precision reference comparison; long zero-input decay; rate/block partition coverage. Concrete bounds NS-1…NS-11 are defined in ADR-003 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phase1-s2-verification-plan.md | Sol reviews math; Terra implements diagnostics; Luna executes |
 | Parameter transitions | Endpoints, invalid values, repeated retargeting and changing block partitions; no discontinuity from smoother state reset; signal-transition metrics plus audition; no allocation or blocking on render path. Concrete cases PT-1…PT-9 are defined in ADR-004 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phase1-s2-verification-plan.md | Sol approves semantics; Terra implements; Luna verifies |
 | Modulation experiment | Fixed baseline retained; endpoint/rate stress; interpolation boundary tests; measured decay and output growth under worst-case combinations; explicit approval before enabling | Sol reviews stability limits; Terra experiments; Luna reproduces |

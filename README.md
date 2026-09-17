@@ -2,7 +2,7 @@
 
 A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable product and engineering charter is [AETHERFIELD_SPEC.md](AETHERFIELD_SPEC.md).
 
-**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No reverb, AUv3 extension or UI exists. **Phase 1 is in progress**: the reverb topology is decided (ADR-002 in [docs/decisions.md](docs/decisions.md)) and its first implementation increment is planned ([docs/phase1-s1-plan.md](docs/phase1-s1-plan.md)); planned DSP is not implemented DSP.
+**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No AUv3 extension or UI exists. **Phase 1 is in progress**: the reverb topology is decided (ADR-002 in [docs/decisions.md](docs/decisions.md)), and its first implementation increment, S1 (`DelayLine`: a single fixed-length delay line, no feedback/matrix/damping), is implemented under separate authorization ([docs/phase1-s1-plan.md](docs/phase1-s1-plan.md), evidence in [docs/testing.md](docs/testing.md)). The fixed late network (S2) and every later reverb behavior remain planned, not implemented.
 
 ## Build, test, render, inspect
 
@@ -32,8 +32,9 @@ See [testing.md](docs/testing.md) for decoded-sample inspection and actual verif
 ## Durable project context
 
 - [Architecture](docs/architecture.md): current boundaries and Mermaid diagram.
-- [DSP design](docs/dsp-design.md): gain contract and explicit unimplemented reverb scope.
+- [DSP design](docs/dsp-design.md): gain and S1 delay-line contracts, and explicit unimplemented reverb scope beyond them.
 - [Decisions](docs/decisions.md): build/framework alternatives and accepted ADR.
 - [Roadmap](docs/roadmap.md): Phase 1 scope, agent routing and deferred recommendations.
+- [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and any metrics actually reported. Read this, alongside the roadmap and decisions, before resuming work in a new session or a different tool.
 
 The source layout is deliberately small: `src/dsp/`, `tests/`, and `tools/render/`. Git is local; no remote or distribution license has been selected.

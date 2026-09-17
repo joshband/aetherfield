@@ -6,7 +6,7 @@ Aetherfield is a greenfield AUv3 audio effect targeting iOS/iPadOS. Phase 0 impl
 
 ```mermaid
 flowchart LR
-    TEST["Host tests"] --> DSP["C++ DSP library: fixed gain"]
+    TEST["Host tests"] --> DSP["C++ DSP library: fixed gain, DelayLine"]
     RENDER["Offline renderer"] --> DSP
     DSP --> PCM["Processed samples"]
     PCM --> WRITER["Renderer-owned WAV writer"]
@@ -15,11 +15,11 @@ flowchart LR
     UI["DEFERRED: UI and parameter communication"] -.-> FUTURE
 ```
 
-Solid relationships describe current code; dashed relationships describe future integration. File I/O belongs to the host renderer, never the DSP core.
+Solid relationships describe current code; dashed relationships describe future integration. File I/O belongs to the host renderer, never the DSP core. `DelayLine` (Phase 1 S1) is exercised only by its own test executable so far; the renderer still uses only the Phase 0 gain fixture.
 
 ## Boundaries
 
-- DSP: standard C++ only; caller owns sample storage. A concrete stateless in-place gain function processes one contiguous channel. The caller determines channel layout and block size.
+- DSP: standard C++ only; caller owns sample storage. A concrete stateless in-place gain function processes one contiguous channel, and a small stateful `DelayLine` class (single fixed-length line, no feedback) owns its own delay-history storage internally, allocated only in `prepare()`. The caller determines channel layout and block size.
 - Tests: exercise actual DSP behavior without an Apple host or external test framework.
 - Renderer: constructs a deterministic fixture, invokes the same DSP library, and writes a WAV from the offline thread. Its allocation and file operations are not render-thread code.
 - Parameters: the gain scalar is a bootstrap input passed by value, fixed for each call. It is not a public Aetherfield parameter. There is no shared mutable parameter state, host/UI communication, smoothing, or automation implementation.
@@ -38,8 +38,8 @@ These four roles are a division of responsibility and review discipline, not a b
 - **Luna** performs independent, mostly mechanical verification (rerunning commands, checking claims against files on disk, spot-checking arithmetic and citations); a fast, lighter model is usually adequate, provided it still checks primary sources rather than trusting another agent's self-report.
 - **Astra** performs lightweight scope/milestone gatekeeping against the roadmap and charter; a fast, lighter model is typically adequate here too, since the judgment required is narrow (in-scope or not) rather than open-ended.
 
-A session's actual model/tool choices are an execution detail of that session, not part of this document; they belong in that session's own commit messages or logs, not here.
+A session's actual model/tool choices are an execution detail of that session, not part of this document; they belong in that session's own commit messages or logs, not here. [docs/agent-log.md](agent-log.md) derives a consolidated, per-milestone index from that history, for any tool or human resuming the project cold (see AETHERFIELD_SPEC.md §25 "Resuming work / session handoff").
 
 ## Deliberately absent — DEFERRED
 
-Reverb topology, delay lines, feedback, modulation, production lifecycle APIs, lock-free parameter transport, AUv3 wrapper, containing app, UI, platform project, signing configuration, presets and external DSP dependencies. No mono-only product requirement follows from the mono bootstrap fixture.
+The feedback network (matrix, multiple coupled lines, per-line damping and decay), modulation, production lifecycle APIs, lock-free parameter transport, AUv3 wrapper, containing app, UI, platform project, signing configuration, presets and external DSP dependencies. A single fixed-length `DelayLine` primitive (Phase 1 S1) is implemented, but it is not wired into any feedback path and is not a reverb. No mono-only product requirement follows from the mono bootstrap fixture.

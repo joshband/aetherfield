@@ -8,7 +8,7 @@ The charter governs product intent. This roadmap authorizes no work beyond the a
 
 ## NEXT
 
-**Phase 1 — Core Reverb Architecture (architecture and planning rows satisfied; evidence in decisions.md and testing.md).** Topology (ADR-002), decay/damping/numerical-bounds/lifecycle (ADR-003), and initial parameter semantics (ADR-004) are decided; the S1 skeleton (phase1-s1-plan.md) and the consolidated S2/parameter verification-case specification (phase1-s2-verification-plan.md) are planned. All five table rows below are satisfied. No reverb code is implemented — Phase 1 decided and planned; it did not authorize building anything. See "Phase 1 exit" below.
+**Phase 1 — Core Reverb Architecture (architecture and planning rows satisfied; evidence in decisions.md and testing.md).** Topology (ADR-002), decay/damping/numerical-bounds/lifecycle (ADR-003), and initial parameter semantics (ADR-004) are decided; the S1 skeleton (phase1-s1-plan.md) and the consolidated S2/parameter verification-case specification (phase1-s2-verification-plan.md) are planned. All five table rows below are satisfied. **S1 (`DelayLine`: a single fixed-length delay line, no feedback/matrix/damping) is implemented and independently verified; see testing.md.** No feedback network, decay, or other reverb behavior is implemented — S1 is a lifecycle/primitive skeleton, not a reverb. See "Phase 1 exit" below.
 
 Objective: select the smallest coherent architecture capable of a spacious, smooth, slowly evolving ambient field. The charter's FDN proposal is a hypothesis to compare with credible alternatives, not an accepted topology.
 
@@ -22,13 +22,13 @@ Objective: select the smallest coherent architecture capable of a spacious, smoo
 
 Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the smallest subsequent DSP skeleton milestone. No pitch processing, freeze, Bloom, Texture, UI, or multi-engine implementation is implied.
 
-**Phase 1 exit criteria are met as of ADR-002/003/004 and phase1-s1-plan.md/phase1-s2-verification-plan.md.** The accepted design, its risks, and the smallest subsequent DSP skeleton milestone are all documented. Nothing above authorizes writing that skeleton's source code: the LATER table's first row ("Implement the accepted DSP skeleton...") is the next milestone and requires its own explicit authorization, per every ADR's "authorizes no implementation" statement.
+**Phase 1 exit criteria are met as of ADR-002/003/004 and phase1-s1-plan.md/phase1-s2-verification-plan.md.** The accepted design, its risks, and the smallest subsequent DSP skeleton milestone are all documented. The owner separately authorized implementing that S1 skeleton; it is now implemented and independently verified (testing.md). This authorized S1 alone, not the rest of the LATER table's first row: the fixed late network (ADR-002's S2), core reverb behavior, and everything after it still require their own explicit authorization, per every ADR's "authorizes no implementation" statement.
 
 ## LATER
 
 | Objective | Benefit | Dependency | Complexity | Primary risk | Agent | Acceptance |
 |---|---|---|---|---|---|---|
-| Implement the accepted DSP skeleton, then core reverb in bounded increments | First audible ambient field | Phase 1 approval | L | Stable math fails perceptually | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence |
+| Implement the accepted DSP skeleton, then core reverb in bounded increments | First audible ambient field | Phase 1 approval | L | Stable math fails perceptually | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence (S1 skeleton satisfied; see testing.md. S2 fixed late network and beyond remain unauthorized) |
 | Expand corpus and analysis when real decay exists | Detect ringing, stereo and decay regressions | Core DSP | M | Metrics mistaken for listening | Terra; Luna | Repeatable impulse/noise/musical fixtures and justified baselines; never refresh merely to pass |
 | Decide native Apple APIs versus JUCE, then implement iOS/iPadOS AUv3 wrapper and eventual UI | Playable host integration with appropriate maintenance cost | Proven DSP and parameter contracts | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration comparison/implementation; Luna verification | Integration ADR comparing lifecycle, automation/state, UI, device/host validation, build complexity, licensing and actual format needs; then device/host evidence and measured CPU |
 | Mobile performance and render-thread instrumentation | Reliable audio on supported devices | Nontrivial DSP and Apple integration | M | Host smoke tests overstate realtime safety | Terra; Luna; Sol review | Measured deadlines, allocation checks and documented supported configurations |

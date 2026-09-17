@@ -1040,6 +1040,22 @@ Architectural Decision Records.
 
 Current and future development direction.
 
+### `docs/agent-log.md`
+
+Per-milestone index of which tool, agent role, model and reasoning effort executed each task, and whatever quantitative metrics that tool actually reported (tokens, subagent duration, tool-call counts). A derived convenience index only: the commit message for a given milestone remains the primary record, and this log must never contain a number or attribution that commit message doesn't already support. A blank cell means unmeasured, not zero — never fabricate a metric to fill one in.
+
+### Resuming work / session handoff
+
+Any agent or human picking up this project cold — in Claude Code, Codex, or any other tool — should reconstruct state in this order before proposing or authorizing new work:
+
+1. `README.md` for the current one-paragraph status.
+2. `docs/roadmap.md`'s NOW/NEXT/LATER tables for what is authorized versus merely planned — the binding scope boundary.
+3. `docs/decisions.md`'s most recent ADRs for the accepted design.
+4. `docs/agent-log.md` for who (which tool/role/model) last touched the project and what they did.
+5. `docs/testing.md` for what evidence actually exists versus what is still a PLANNED gate.
+
+Append a row to `docs/agent-log.md` at the same time any milestone-level commit lands, per that file's own "Maintenance" section. This is what lets the next session — on any tool — resume without re-deriving context from scratch or re-litigating a decision an ADR already settled.
+
 Documentation must distinguish:
 
 - **IMPLEMENTED**

@@ -1,5 +1,14 @@
 # Phase 1 S1 — Delay and lifecycle skeleton: implementation task plan
 
+**STATUS: Implemented and independently verified, 2026-09-16.** This document
+was written, and remains preserved below, as the pre-implementation task plan
+that Sol/Terra's implementation was required to follow exactly. It is a
+historical design record, not a live status page; for current implementation
+and verification evidence see [testing.md](testing.md)'s "IMPLEMENTED: Phase 1
+S1" section. Every "not created by this plan" / "future implementation" /
+"not authorized" statement below describes this document's status at the time
+it was written, before the owner separately authorized S1 implementation.
+
 This is the deliverable for roadmap.md Phase 1 row 4 ("Translate accepted design
 into small implementation increments"), covering only ADR-002's S1 milestone
 ("Delay and lifecycle skeleton", decisions.md). It targets exactly
