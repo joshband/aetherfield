@@ -231,7 +231,7 @@ resuming session doesn't have to guess it):**
 
 | Role | Model (as of this writing) | Effort |
 |---|---|---|
-| Astra | Fable 5.1 | Light/fast — narrow scope-gatekeeping and orchestration, not open-ended reasoning |
+| Astra | Fable 5.1 | Orchestration-matched — Fable is built for coordination/agentic-synthesis work; this is the right tool for cross-domain synthesis and conflict resolution on its own terms, not a cost-driven "light" tier alongside Luna's mechanical verification |
 | Sol | Opus 5 | Highest — architectural/safety-consequential, expensive to unwind |
 | Terra | Sonnet 5 | Standard — capable general-purpose implementation from decisions Sol already made |
 | Luna | Haiku 4.5 | Light/fast — mechanical, independent verification against files on disk |
@@ -1061,6 +1061,10 @@ Per-milestone index of which tool, agent role, model and reasoning effort execut
 ### `docs/phases/`
 
 Milestone-scoped implementation task plans and verification-case specifications (e.g. `phase1-s1-plan.md`, `phase1-s2-plan.md`, `phase1-s2-verification-plan.md`, `phase1-pt-plan.md`), kept separate from the durable documents above to avoid bloating them. Each such plan carries its own status banner once implemented (see any existing file there for the pattern) rather than being deleted or rewritten after the fact — they remain the historical record of what an implementation was required to follow. A new milestone's task plan belongs here, named `phaseN-<milestone>-plan.md`.
+
+### `docs/site/index.html`
+
+A single-file visual summary of the durable documents above (status, architecture, ADRs, roadmap, testing evidence, agent log), maintained alongside them rather than living only on an external host. This file is the canonical source; a published copy is kept in sync at a shareable URL recorded in README.md, but the local file is what gets edited and reviewed via git — republishing is a one-way action *from* this file, never the reverse. Regenerate its content from the current state of the other durable documents at the same cadence they change, not on a separate schedule.
 
 ### Resuming work / session handoff
 

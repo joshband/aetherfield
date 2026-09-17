@@ -44,5 +44,6 @@ See [testing.md](docs/testing.md) for decoded-sample inspection and actual verif
 - [Decisions](docs/decisions.md): build/framework alternatives and accepted ADR.
 - [Roadmap](docs/roadmap.md): Phase 1 scope, agent routing and deferred recommendations.
 - [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and any metrics actually reported. Read this, alongside the roadmap and decisions, before resuming work in a new session or a different tool.
+- [Field Notes site](docs/site/index.html): a visual summary of the above (status, architecture, ADRs, roadmap, testing evidence, agent log) as a single local HTML file — open it directly in a browser. It is the canonical source for the published copy at https://claude.ai/artifact/KzdPDSvRqQCKJYysPuHnkT; edit the local file and republish to that same URL, never the reverse. One caveat: the two Mermaid diagrams on the Architecture page only render on the published copy (they depend on a runtime the hosting platform injects) — opened as a local file they show as plain text, which is expected, not a bug.
 
-The source layout is deliberately small: `src/dsp/`, `tests/`, `tools/render/`, and `tools/render_reverb/`. Git is local; no remote or distribution license has been selected.
+The source layout is deliberately small: `src/dsp/`, `tests/`, `tools/render/`, `tools/render_reverb/`, and `docs/site/` (the documentation website's canonical source). Git is local; no remote or distribution license has been selected.

@@ -1,0 +1,980 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Aetherfield Field Notes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #14161c;
+    --surface: #1b1e26;
+    --surface-2: #232733;
+    --border: #333949;
+    --border-soft: #262a35;
+    --text: #e9e6df;
+    --text-dim: #9ba0ae;
+    --text-faint: #676d7c;
+    --accent: #e0a458;
+    --accent-soft: #e0a45822;
+    --accent-2: #6fa8b5;
+    --accent-2-soft: #6fa8b522;
+    --good: #7fb88a;
+    --good-soft: #7fb88a22;
+    --danger: #c97064;
+    --danger-soft: #c9706422;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'SF Mono', Consolas, monospace;
+  }
+
+  /* This page commits to one dark, instrument-panel world; the palette above
+     is the whole system, not a light-mode default swapped out. */
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 0 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  ::selection { background: var(--accent-soft); }
+
+  code, .mono { font-family: var(--font-mono); }
+
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+
+  .shell {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 0;
+    min-height: 100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+
+  .sidebar {
+    padding: 28px 20px 28px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .brand .mark {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  .brand .mark em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .brand .tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  nav.pages {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  nav.pages button {
+    all: unset;
+    cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 7px;
+    color: var(--text-dim);
+    font-size: 13.5px;
+    font-weight: 500;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  nav.pages button .n {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    width: 16px;
+  }
+
+  nav.pages button:hover { background: var(--surface); color: var(--text); }
+  nav.pages button[aria-current="true"] {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  nav.pages button[aria-current="true"] .n { color: var(--accent); }
+
+  .sidebar-foot {
+    margin-top: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    line-height: 1.7;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .sidebar-foot .stat { display: flex; justify-content: space-between; gap: 8px; }
+  .sidebar-foot .stat b { color: var(--text-dim); font-weight: 500; }
+
+  /* ---------- Main ---------- */
+
+  main {
+    padding: 40px 8px 80px 40px;
+    border-left: 1px solid var(--border-soft);
+    min-width: 0;
+  }
+
+  .page { display: none; }
+  .page.active { display: block; animation: rise 0.35s ease both; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .page.active { animation: none; }
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent-2);
+    margin-bottom: 10px;
+  }
+
+  .page > h1 { font-size: 34px; margin-bottom: 10px; }
+  .page > .lede { color: var(--text-dim); max-width: 62ch; font-size: 15.5px; margin-bottom: 34px; }
+
+  section.block { margin-bottom: 44px; }
+  section.block > h2 { font-size: 20px; margin-bottom: 4px; }
+  section.block > .sub { color: var(--text-faint); font-size: 13px; margin-bottom: 18px; }
+
+  /* ---------- Reusable bits ---------- */
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .pill.good { background: var(--good-soft); color: var(--good); }
+  .pill.pending { background: var(--accent-soft); color: var(--accent); }
+  .pill.deferred { background: var(--danger-soft); color: var(--danger); }
+  .pill.neutral { background: var(--surface-2); color: var(--text-dim); }
+  .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .grid {
+    display: grid;
+    gap: 14px;
+  }
+  .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 18px 20px;
+  }
+
+  .stat-tile .num {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-tile .label { font-size: 12.5px; color: var(--text-dim); }
+  .stat-tile .detail { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); margin-top: 8px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    text-align: left;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-faint);
+    font-weight: 500;
+    padding: 0 12px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface); }
+  .table-wrap table { min-width: 560px; }
+
+  /* ---------- Overview hero ---------- */
+
+  .hero {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    padding: 26px 28px;
+    margin-bottom: 34px;
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 24px;
+    align-items: center;
+  }
+  .hero-copy .status-line { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .hero-copy p { color: var(--text-dim); font-size: 14.5px; max-width: 46ch; }
+  .hero canvas { width: 100%; height: 140px; display: block; }
+  .hero-scope figcaption { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); margin-top: 6px; text-align: center; }
+
+  /* ---------- ADR cards ---------- */
+
+  .adr {
+    border: 1px solid var(--border-soft);
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .adr-head { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+  .adr-head .id { font-family: var(--font-mono); color: var(--accent); font-size: 13px; font-weight: 600; }
+  .adr-head h3 { font-size: 17px; flex: 1; min-width: 200px; }
+  .adr .decision { font-size: 14px; color: var(--text); margin-bottom: 12px; }
+  .adr .decision b { color: var(--accent-2); font-weight: 600; }
+  .adr-meta { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); }
+  .adr-meta span b { color: var(--text-dim); font-weight: 500; }
+
+  /* ---------- Roles ---------- */
+
+  .roles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .role-card { border: 1px solid var(--border-soft); background: var(--surface); border-radius: 12px; padding: 18px; border-top: 3px solid var(--role-color, var(--accent)); }
+  .role-card h3 { font-size: 16px; margin-bottom: 4px; }
+  .role-card .role-tag { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+  .role-card p { font-size: 13px; color: var(--text-dim); margin: 0 0 12px; }
+  .role-model {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    font-family: var(--font-mono); font-size: 11px;
+    background: var(--surface-2); border: 1px solid var(--border-soft);
+    border-radius: 7px; padding: 7px 10px; margin-top: auto;
+  }
+  .role-model .m-name { color: var(--text); font-weight: 600; }
+  .role-model .m-effort { color: var(--role-color, var(--accent)); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .role-card { display: flex; flex-direction: column; }
+
+  .mermaid { background: transparent !important; }
+
+  /* ---------- Timeline (agent log) ---------- */
+
+  .timeline { display: flex; flex-direction: column; }
+  .tl-item {
+    display: grid;
+    grid-template-columns: 90px 20px 1fr;
+    gap: 4px;
+  }
+  .tl-item .tl-date { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); padding-top: 3px; }
+  .tl-rail { display: flex; flex-direction: column; align-items: center; }
+  .tl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent-2); margin-top: 5px; flex-shrink: 0; }
+  .tl-line { width: 1px; flex: 1; background: var(--border); margin-top: 2px; }
+  .tl-item:last-child .tl-line { display: none; }
+  .tl-body { padding-bottom: 22px; }
+  .tl-body .title { font-size: 14px; font-weight: 500; margin-bottom: 6px; }
+  .tl-body .roles-line { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-faint); margin-bottom: 4px; }
+  .tl-body .roles-line .sol { color: #c98ad9; }
+  .tl-body .roles-line .terra { color: var(--accent-2); }
+  .tl-body .roles-line .luna { color: var(--good); }
+  .tl-body .roles-line .astra { color: var(--accent); }
+  .tl-body .metrics { font-family: var(--font-mono); font-size: 11px; color: var(--text-faint); }
+  .tl-body .commit {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-faint);
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  .phase-track { display: flex; gap: 10px; margin-bottom: 24px; }
+  .phase-node { flex: 1; border-radius: 10px; padding: 14px 16px; border: 1px solid var(--border-soft); position: relative; }
+  .phase-node.done { background: var(--good-soft); border-color: #7fb88a44; }
+  .phase-node.active { background: var(--accent-soft); border-color: #e0a45844; }
+  .phase-node.future { background: var(--surface); opacity: 0.6; }
+  .phase-node .pn-label { font-family: var(--font-mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
+  .phase-node .pn-title { font-size: 14px; font-weight: 600; }
+
+  blockquote {
+    margin: 14px 0;
+    padding: 10px 16px;
+    border-left: 2px solid var(--accent-2);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-size: 13.5px;
+    border-radius: 0 8px 8px 0;
+  }
+
+  .note {
+    font-size: 12.5px;
+    color: var(--text-faint);
+    border-top: 1px dashed var(--border);
+    padding-top: 12px;
+    margin-top: 18px;
+  }
+
+  /* ---------- Gate progress bar (roadmap) ---------- */
+
+  .gate-progress { display: flex; gap: 6px; margin-bottom: 10px; }
+  .gate-seg { flex: 1; height: 34px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 10px; text-align: center; padding: 0 4px; line-height: 1.2; }
+  .gate-seg.closed { background: var(--good-soft); color: var(--good); border: 1px solid #7fb88a44; }
+  .gate-seg.partial { background: var(--accent-soft); color: var(--accent); border: 1px solid #e0a45844; }
+  .gate-seg.open { background: var(--surface); color: var(--text-faint); border: 1px solid var(--border-soft); }
+  .gate-progress-label { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); margin-bottom: 8px; }
+
+  /* ---------- Decay-rate bars (testing) ---------- */
+
+  .decay-bars { display: flex; align-items: flex-end; gap: 16px; height: 130px; padding: 0 6px 22px; position: relative; }
+  .decay-bars .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; position: relative; }
+  .decay-bars .bar { width: 100%; max-width: 46px; background: linear-gradient(180deg, var(--accent-2), var(--accent-2-soft)); border-radius: 5px 5px 0 0; }
+  .decay-bars .bar-val { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-dim); margin-bottom: 6px; }
+  .decay-bars .bar-label { position: absolute; bottom: -20px; font-family: var(--font-mono); font-size: 10.5px; color: var(--text-faint); }
+
+  /* ---------- Listening matrix (testing) ---------- */
+
+  .listen-matrix { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .listen-cell { border: 1px solid var(--border-soft); background: var(--surface); border-radius: 10px; padding: 12px 10px; text-align: center; }
+  .listen-cell .lc-id { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); margin-bottom: 6px; }
+  .listen-cell .lc-var { font-size: 12.5px; font-weight: 600; margin-bottom: 8px; }
+  .listen-cell .lc-result { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; padding: 3px 6px; border-radius: 5px; display: inline-block; }
+  .listen-cell .lc-result.clear { background: var(--good-soft); color: var(--good); }
+  .listen-cell .lc-result.subtle { background: var(--accent-soft); color: var(--accent); }
+  .listen-cell.wide { grid-column: span 1; }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { position: relative; height: auto; padding: 20px 16px; }
+    main { padding: 24px 4px 60px; border-left: none; border-top: 1px solid var(--border-soft); }
+    .hero { grid-template-columns: 1fr; }
+    .roles { grid-template-columns: repeat(2, 1fr); }
+    .grid.cols-3 { grid-template-columns: 1fr 1fr; }
+    .phase-track { flex-direction: column; }
+    .listen-matrix { grid-template-columns: repeat(2, 1fr); }
+    .decay-bars { gap: 8px; }
+  }
+  @media (max-width: 480px) {
+    .roles { grid-template-columns: 1fr; }
+    .grid.cols-3, .grid.cols-2 { grid-template-columns: 1fr; }
+    .listen-matrix { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">Aether<em>field</em></div>
+      <div class="tag">Field Notes · Phase 1</div>
+    </div>
+
+    <nav class="pages" id="nav"></nav>
+
+    <div class="sidebar-foot">
+      <div class="stat"><span>Phase</span><b>1 of 6</b></div>
+      <div class="stat"><span>ADRs accepted</span><b>5</b></div>
+      <div class="stat"><span>Gates closed</span><b>3 / 5</b></div>
+      <div class="stat"><span>Tests passing</span><b>4 / 4</b></div>
+    </div>
+  </aside>
+
+  <main>
+
+    <!-- ============ OVERVIEW ============ -->
+    <section class="page active" data-page="overview">
+      <div class="eyebrow">Project · Status</div>
+      <h1>An ambient reverb, built one proof at a time.</h1>
+      <p class="lede">Aetherfield is a greenfield AUv3 reverb for iOS/iPadOS. Nothing ships until it's decided in writing, translated into an exact interface, implemented, and independently re-verified from disk — by a different pass than the one that wrote it.</p>
+
+      <div class="hero">
+        <div class="hero-copy">
+          <div class="status-line">
+            <span class="pill good">Phase 0 — implemented</span>
+            <span class="pill pending">Phase 1 — in progress</span>
+          </div>
+          <p>Three DSP components exist and pass their tests today: <code>DelayLine</code>, <code>FeedbackDelayNetwork</code> (eight lines through an orthogonal feedback matrix with per-line damping), and <code>ParameterAutomation</code> (Mix/Decay/Damp, lock-free and click-free). A first rendered impulse response exists too, with one real owner listening round on record.</p>
+        </div>
+        <figure class="hero-scope">
+          <canvas id="decayCanvas" width="600" height="280"></canvas>
+          <figcaption>FDN energy decay, N=8, T60=1.0s — the actual homogeneous decay law, not a stock waveform</figcaption>
+        </figure>
+      </div>
+
+      <section class="block">
+        <h2>Where the year is at</h2>
+        <div class="sub">roadmap.md — NOW / NEXT</div>
+        <div class="phase-track">
+          <div class="phase-node done">
+            <div class="pn-label">Phase 0</div>
+            <div class="pn-title">Bootstrap loop</div>
+          </div>
+          <div class="phase-node active">
+            <div class="pn-label">Phase 1</div>
+            <div class="pn-title">Core reverb architecture</div>
+          </div>
+          <div class="phase-node future">
+            <div class="pn-label">Later</div>
+            <div class="pn-title">AUv3 integration</div>
+          </div>
+          <div class="phase-node future">
+            <div class="pn-label">Research</div>
+            <div class="pn-title">Bloom · Freeze · Texture</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>By the numbers</h2>
+        <div class="sub">what's actually built, not what's planned</div>
+        <div class="grid cols-3">
+          <div class="card stat-tile">
+            <div class="num">5</div>
+            <div class="label">Accepted ADRs</div>
+            <div class="detail">topology → damping → parameters → fixture</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">3/5</div>
+            <div class="label">Verification gates closed</div>
+            <div class="detail">delay/lifecycle · fixed late network · parameter transitions</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">6.6e-8</div>
+            <div class="label">Float vs. double divergence (NS-10)</div>
+            <div class="detail">tolerance was 1e-3</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">8</div>
+            <div class="label">Coupled lines, N_fixture</div>
+            <div class="detail">bracketed by 4 and 16 (ADR-005)</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">186.6s</div>
+            <div class="label">T60_max at 48kHz</div>
+            <div class="detail">stability margin ≥ 1e-3, not a sound target</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">1</div>
+            <div class="label">Listening round on record</div>
+            <div class="detail">5 isolation renders — Decay confirmed, Mix/Damp inconclusive by test design, not by DSP</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>How to read this project</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <b>Nothing is implied.</b>
+            <p style="color:var(--text-dim); font-size:13.5px; margin-top:8px;">Every ADR states exactly what it does <em>not</em> decide. A topology choice never quietly becomes a stability claim.</p>
+          </div>
+          <div class="card">
+            <b>Plans before code.</b>
+            <p style="color:var(--text-dim); font-size:13.5px; margin-top:8px;">Every implementation increment gets a written interface plan first, independently verified, before a line of C++ is authorized.</p>
+          </div>
+          <div class="card">
+            <b>Verified, not vouched for.</b>
+            <p style="color:var(--text-dim); font-size:13.5px; margin-top:8px;">A second pass re-derives evidence from disk — rebuilding, recomputing arithmetic by hand — rather than trusting a summary.</p>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <!-- ============ ARCHITECTURE ============ -->
+    <section class="page" data-page="architecture">
+      <div class="eyebrow">System · Roles</div>
+      <h1>Four roles, one accountable line.</h1>
+      <p class="lede">Astra, Sol, Terra and Luna are a division of responsibility, not a product name or a vendor binding — any capable model can execute a role, matched to what that role's mistakes would cost.</p>
+
+      <section class="block">
+        <h2>The roster</h2>
+        <div class="sub">docs/architecture.md + AETHERFIELD_SPEC.md §7 — recommended model/effort mapping, current as of this writing, not a permanent binding</div>
+        <div class="roles">
+          <div class="role-card" style="--role-color:#e0a458">
+            <h3>Astra</h3>
+            <div class="role-tag">Technical director</div>
+            <p>Orchestration, cross-domain synthesis, scope gatekeeping, reconciling the other three roles' outputs — not a uniformly narrow job.</p>
+            <div class="role-model"><span class="m-name">Fable 5.1</span><span class="m-effort">Orchestration-matched</span></div>
+          </div>
+          <div class="role-card" style="--role-color:#c98ad9">
+            <h3>Sol</h3>
+            <div class="role-tag">Architect · critical review</div>
+            <p>Makes the architectural, safety-consequential calls — topology, stability proofs, numerical bounds.</p>
+            <div class="role-model"><span class="m-name">Opus 5</span><span class="m-effort">Highest</span></div>
+          </div>
+          <div class="role-card" style="--role-color:#6fa8b5">
+            <h3>Terra</h3>
+            <div class="role-tag">Default engineer</div>
+            <p>Translates Sol's decisions into exact, buildable interfaces and implements them.</p>
+            <div class="role-model"><span class="m-name">Sonnet 5</span><span class="m-effort">Standard</span></div>
+          </div>
+          <div class="role-card" style="--role-color:#7fb88a">
+            <h3>Luna</h3>
+            <div class="role-tag">Independent verification</div>
+            <p>Rebuilds from a clean directory, re-derives arithmetic, checks claims against files on disk.</p>
+            <div class="role-model"><span class="m-name">Haiku 4.5</span><span class="m-effort">Light / fast</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>The decision pipeline</h2>
+        <div class="sub">every implemented component takes the same four steps</div>
+        <pre class="mermaid">
+flowchart LR
+  A["Sol decides<br/>(ADR, accepted)"] --> B["Terra plans<br/>(exact interface)"]
+  B --> C["Luna verifies<br/>the plan"]
+  C --> D{"Owner<br/>authorizes?"}
+  D -- yes --> E["Terra implements"]
+  E --> F["Luna independently<br/>rebuilds &amp; verifies"]
+  F --> G["Owner authorizes<br/>the commit"]
+  D -. no .-> H["Stays a plan"]
+        </pre>
+      </section>
+
+      <section class="block">
+        <h2>Current signal path</h2>
+        <div class="sub">docs/architecture.md — solid = implemented, dashed = deferred</div>
+        <pre class="mermaid">
+flowchart LR
+    TEST["Host tests"] --> DSP["C++ DSP library:<br/>GainProcessor, DelayLine,<br/>FeedbackDelayNetwork,<br/>ParameterAutomation"]
+    RENDER["Offline renderers"] --> DSP
+    DSP --> PCM["Processed samples"]
+    PCM --> WRITER["Renderer-owned<br/>WAV writer"]
+    WRITER --> WAV["PCM WAV artifact"]
+    DIFF["Input/output diffusion,<br/>stereo tap (deferred)"] -.-> DSP
+    FUTURE["AUv3 integration<br/>(deferred)"] -.-> DSP
+    UI["UI + parameter comms<br/>(deferred)"] -.-> FUTURE
+        </pre>
+      </section>
+
+      <section class="block">
+        <h2>What's deliberately absent</h2>
+        <p style="color:var(--text-dim); font-size:14px; max-width:60ch;">Modulation of any kind, input/output diffusion, stereo extraction, the AUv3 wrapper, presets, and external DSP dependencies. Three DSP components exist — a delay line, an 8-line network, and its parameter automation — none wired into a product signal path yet.</p>
+      </section>
+    </section>
+
+    <!-- ============ DECISIONS ============ -->
+    <section class="page" data-page="decisions">
+      <div class="eyebrow">Architecture · Decision Records</div>
+      <h1>Five decisions, each closing exactly one door.</h1>
+      <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-001</span>
+          <h3>Portable C++ host loop; AUv3 framework deferred</h3>
+          <span class="pill good">Accepted</span>
+        </div>
+        <div class="decision">Use <b>C++20 + CMake</b> for a portable static DSP library, CTest, and an offline WAV renderer — no third-party DSP dependency. The eventual AUv3 wrapper framework (native Apple APIs vs. JUCE) stays open.</div>
+        <div class="adr-meta"><span><b>Rejected:</b> Xcode-only, SPM, JUCE-now</span><span><b>Why:</b> prove the engineering loop before committing to a deployment framework</span></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-002</span>
+          <h3>Late reverb network: FDN, orthogonal matrix, per-line damping</h3>
+          <span class="pill good">Accepted</span>
+        </div>
+        <div class="decision">A <b>Feedback Delay Network</b> with a normalized Hadamard matrix beats Schroeder/Moorer comb+allpass, an allpass diffusion tank, and a general waveguide network — on echo-density growth, provable stability, and per-line frequency-dependent decay.</div>
+        <div class="adr-meta"><span><b>Rejected:</b> comb+allpass, diffusion tank, general waveguide</span><span><b>Proves:</b> ‖ΓA‖₂ ≤ max(gᵢ) &lt; 1, for any delay lengths</span><span><b>Explicitly not proven:</b> that it sounds good, or that N=8 is final</span></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-003</span>
+          <h3>Damping filter, denormal handling, full-network lifecycle</h3>
+          <span class="pill good">Accepted</span>
+        </div>
+        <div class="decision">A unity-DC-gain one-pole damping filter, bounded-real <b>by construction</b>. Denormals handled by a deterministic <code>ε = 1e-20</code> cutoff, not by relying on ARM's per-thread <code>FPCR.FZ</code> (which a host-created render thread doesn't inherit).</div>
+        <div class="adr-meta"><span><b>Rejected:</b> first-order shelf, additive dither noise</span><span><b>Guarantees:</b> exact silence in bounded time</span><span><b>Names:</b> NS-1…NS-11, the fixed-network test gate</span></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-004</span>
+          <h3>Initial parameters: Mix, Decay, Damp — and the automation/modulation line</h3>
+          <span class="pill good">Accepted</span>
+        </div>
+        <div class="decision">Three controls only. Decay is exponential (constant-JND), Damp is linear-dB, Mix is equal-power. A single-writer/single-reader atomic transport with a 20ms linear ramp — <b>automation is proven safe; modulation remains prohibited</b>, because no accepted control can reach the delay lengths or the matrix.</div>
+        <div class="adr-meta"><span><b>Deferred:</b> Size, pre-delay, Mod Depth/Rate — 10 candidates in total</span><span><b>Names:</b> PT-1…PT-9, the parameter-transition test gate</span></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-005</span>
+          <h3>S2 fixture: line count and the concrete delay-length set</h3>
+          <span class="pill good">Accepted</span>
+        </div>
+        <div class="decision">Broke ADR-002's own deadlock — "defer N to measured evidence" needs the network built to measure it. Splits <b>N_fixture = 8</b> (decided, for testing) from <b>N_product</b> (still deferred). Delay lengths: 8 primes, geometrically spaced 27–81ms, nearest-prime snapped, co-primality checked by direct gcd.</div>
+        <div class="adr-meta"><span><b>Fixture (48kHz):</b> 1297, 1511, 1777, 2069, 2423, 2843, 3323, 3889 samples</span><span><b>Honest finding:</b> Schroeder-Logan density criterion holds only to T60≈2.66s, not indefinitely</span></div>
+      </div>
+
+      <div class="note">Three task plans followed the same rigor without needing a fresh ADR — all now in <code>docs/phases/</code> (moved there from <code>docs/</code> root to keep the durable documents from bloating): <code>phase1-s1-plan.md</code> (<code>DelayLine</code>), <code>phase1-s2-plan.md</code> (<code>FeedbackDelayNetwork</code>), and <code>phase1-pt-plan.md</code> (<code>ParameterAutomation</code>) — each a Terra-authored translation of already-decided math, each independently verified by Luna before implementation, each now marked implemented in place rather than deleted or rewritten after the fact.</div>
+    </section>
+
+    <!-- ============ ROADMAP ============ -->
+    <section class="page" data-page="roadmap">
+      <div class="eyebrow">Roadmap · Verification Gates</div>
+      <h1>What's authorized is exactly what's tested.</h1>
+      <p class="lede">The roadmap authorizes no work beyond the active milestone. Five verification gates cover Phase 1; three are closed, one is in progress, one hasn't started.</p>
+
+      <section class="block">
+        <h2>Gate progress</h2>
+        <div class="sub">docs/testing.md — five gates, in order</div>
+        <div class="gate-progress-label"><span>Delay/lifecycle</span><span>Fixed network</span><span>Parameters</span><span>Modulation</span><span>Sonic acceptance</span></div>
+        <div class="gate-progress">
+          <div class="gate-seg closed">Closed</div>
+          <div class="gate-seg closed">Closed</div>
+          <div class="gate-seg closed">Closed</div>
+          <div class="gate-seg open">Not started</div>
+          <div class="gate-seg partial">In progress</div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>The five gates</h2>
+        <div class="sub">docs/testing.md — each gate closes only on independently-verified evidence</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Gate</th><th>Covers</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Delay / lifecycle skeleton</td><td>Impulse position, wraparound, buffer safety, alloc-only-at-prepare</td><td><span class="pill good">Closed</span></td></tr>
+              <tr><td>Fixed late network (NS-1…NS-11)</td><td>Matrix orthogonality, bounded-realness, decay law, denormal cost, determinism</td><td><span class="pill good">Closed</span></td></tr>
+              <tr><td>Parameter transitions (PT-1…PT-9)</td><td>Endpoint exactness, torn reads, retargeting, no allocation on render path</td><td><span class="pill good">Closed</span></td></tr>
+              <tr><td>Modulation experiment</td><td>Fixed baseline retained, worst-case combinations, explicit approval to enable</td><td><span class="pill deferred">Not started</span></td></tr>
+              <tr><td>Sonic acceptance</td><td>Peak/RMS/decay/stereo measurements + human listening review</td><td><span class="pill pending">In progress — impulse render + round-1 listening done; musical corpus and Sol's review outstanding</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>NOW → NEXT → LATER</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <div class="pill good" style="margin-bottom:10px;">Now — done</div>
+            <b>Phase 0: bootstrap loop</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">CODE → BUILD → TEST → RENDER → INSPECT, proven on a trivial gain fixture.</p>
+          </div>
+          <div class="card">
+            <div class="pill pending" style="margin-bottom:10px;">Next — in progress</div>
+            <b>Phase 1: core reverb architecture</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Topology, damping, parameters decided; S1 + S2 + parameter automation all implemented and verified; first render and listening round done.</p>
+          </div>
+          <div class="card">
+            <div class="pill neutral" style="margin-bottom:10px;">Later</div>
+            <b>Diffusion, stereo, AUv3 integration</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Native Apple APIs vs. JUCE is still an open comparison. Diffusion/stereo topology needs its own ADR before any plan or implementation.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Explicitly not planned</h2>
+        <blockquote>Speculative plugin/UI directories, production parameter trees, preset libraries, CI machinery without demonstrated need, and copied proprietary algorithms — rejected for Phase 0 because they don't help prove the engineering loop.</blockquote>
+        <blockquote>CLAP support — an additional plugin format, not a substitute for the specified AUv3 target. Reconsider only if desktop CLAP becomes an explicit product objective.</blockquote>
+      </section>
+    </section>
+
+    <!-- ============ TESTING ============ -->
+    <section class="page" data-page="testing">
+      <div class="eyebrow">Evidence · Not Vouching</div>
+      <h1>Measured, or marked unmeasured — never assumed.</h1>
+      <p class="lede">testing.md's own rule, applied everywhere in this project: a missing measurement is unmeasured, never a pass. Every claim below traces to a rerun-able command.</p>
+
+      <section class="block">
+        <h2>What's implemented and verified today</h2>
+        <div class="grid cols-3">
+          <div class="card">
+            <div class="adr-head" style="margin-bottom:8px;"><span class="id" style="color:var(--accent-2);">DelayLine</span><span class="pill good">S1</span></div>
+            <p style="color:var(--text-dim); font-size:13.5px;">One fixed-length line: <code>y[n] = x[n−N]</code>. 9 named tests: exact impulse position, wraparound, rejected invalid preparation, allocation only at <code>prepare()</code>.</p>
+          </div>
+          <div class="card">
+            <div class="adr-head" style="margin-bottom:8px;"><span class="id" style="color:var(--accent-2);">FeedbackDelayNetwork</span><span class="pill good">S2</span></div>
+            <p style="color:var(--text-dim); font-size:13.5px;">8 coupled lines, Hadamard matrix, per-line damping. 11 named tests, NS-1…NS-11 — orthogonality, bounded-realness, margin, decay law, worst-case stress.</p>
+          </div>
+          <div class="card">
+            <div class="adr-head" style="margin-bottom:8px;"><span class="id" style="color:var(--accent-2);">ParameterAutomation</span><span class="pill good">PT</span></div>
+            <p style="color:var(--text-dim); font-size:13.5px;">Mix/Decay/Damp, lock-free transport, 20ms ramp. 9 named tests, PT-1…PT-9 — endpoint exactness, torn reads, retargeting stress, zero-allocation render path.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Headline numbers from the test suites</h2>
+        <div class="grid cols-3">
+          <div class="card stat-tile">
+            <div class="num">23.56×</div>
+            <div class="label">NS-7 peak, worst-case stress</div>
+            <div class="detail">identical across all 5 block partitions — partition-independence confirmed</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">1.18M</div>
+            <div class="label">Samples to sustained silence (NS-8)</div>
+            <div class="detail">≈24.5s after a full-scale impulse at T60=4s</div>
+          </div>
+          <div class="card stat-tile">
+            <div class="num">6.6e-8</div>
+            <div class="label">Float vs. double divergence (NS-10)</div>
+            <div class="detail">tolerance was 1e-3 — three orders of magnitude to spare</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Sonic acceptance: round 1</h2>
+        <div class="sub">the impulse render's own measured decay, plus the owner's first listening pass</div>
+
+        <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:14px;">A single deterministic impulse response (N=8, Decay=0.6 → T60₀=3.056s, Damp=0.3) was rendered and its RMS measured in 1-second windows — real audio, not a unit test:</p>
+        <div class="decay-bars">
+          <div class="bar-col"><div class="bar-val">867</div><div class="bar" style="height:100%"></div><div class="bar-label">0–1s</div></div>
+          <div class="bar-col"><div class="bar-val">84</div><div class="bar" style="height:22%"></div><div class="bar-label">1–2s</div></div>
+          <div class="bar-col"><div class="bar-val">7.5</div><div class="bar" style="height:6%"></div><div class="bar-label">2–3s</div></div>
+          <div class="bar-col"><div class="bar-val">0.7</div><div class="bar" style="height:2%"></div><div class="bar-label">3–4s</div></div>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:20px; margin-bottom:24px;">≈20 dB/s measured decay, matching the T60₀=3.056s setting's theoretical −19.6dB/s rate. End-to-end confirmation the decay law holds in rendered audio, not only in the unit test suite — a numeric check, not a listening judgment.</p>
+
+        <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:14px;">Five follow-up renders isolated one control each; the owner listened to all five:</p>
+        <div class="listen-matrix">
+          <div class="listen-cell"><div class="lc-id">01</div><div class="lc-var">Baseline</div><span class="lc-result subtle">Reference</span></div>
+          <div class="listen-cell"><div class="lc-id">02</div><div class="lc-var">Damp off</div><span class="lc-result subtle">Subtle</span></div>
+          <div class="listen-cell"><div class="lc-id">03</div><div class="lc-var">Short decay</div><span class="lc-result clear">Clear</span></div>
+          <div class="listen-cell"><div class="lc-id">04</div><div class="lc-var">Long decay</div><span class="lc-result clear">Clear</span></div>
+          <div class="listen-cell"><div class="lc-id">05</div><div class="lc-var">Mix blend</div><span class="lc-result subtle">Inconclusive</span></div>
+        </div>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:14px;">Decay length (03 vs. 04) was unambiguous — the ear and the number agree. Mix (01 vs. 05) and Damp (01 vs. 02) were inconclusive, traced to identified test-design issues (a single-sample dry impulse masked by per-file normalization; a moderate 14.4dB damping setting compared without instant A/B toggling) — not DSP defects. A corrected round is planned, not yet run.</p>
+      </section>
+
+      <section class="block">
+        <h2>What this deliberately does not claim</h2>
+        <blockquote>"Sonic quality is explicitly not claimed at S2 — any listening note taken at S2 is an observation, not an acceptance." <span style="color:var(--text-faint);">— ADR-002</span></blockquote>
+        <blockquote>The S2 fixture's onset is <b>structurally certain</b> to sound like sparse, discrete echoes — no pre-delay, no diffusion exists yet. This is exactly what round 1's listening found; it is a property of the fixture, not evidence against the topology.</blockquote>
+        <p style="font-size:13px; color:var(--text-faint); margin-top:14px;">Implementation-time corrections are documented rather than hidden throughout: S2's delay-line capacity design and missing coefficient accessors (fixed), and PT's endpoint bit-exactness requirement and two vacuous-comparison test bugs (also fixed, caught by noticing an implausible exact-zero result rather than trusting a green checkmark). All recorded in their respective plan documents in <code>docs/phases/</code>, not silently patched.</p>
+      </section>
+    </section>
+
+    <!-- ============ WORKFLOW ============ -->
+    <section class="page" data-page="workflow">
+      <div class="eyebrow">Agent Log · Session Handoff</div>
+      <h1>Every session, cold, and back up to speed.</h1>
+      <p class="lede">docs/agent-log.md is a derived index, not a new source of truth — every row traces to a real commit and a real, harness-reported number, or is left blank rather than guessed at.</p>
+
+      <section class="block">
+        <h2>Resuming cold</h2>
+        <div class="sub">AETHERFIELD_SPEC.md §25 — the read order any tool or human follows</div>
+        <div class="grid cols-3">
+          <div class="card"><b>1 · README</b><p style="color:var(--text-dim); font-size:13px; margin-top:6px;">Current one-paragraph status.</p></div>
+          <div class="card"><b>2 · Roadmap</b><p style="color:var(--text-dim); font-size:13px; margin-top:6px;">What's authorized vs. merely planned.</p></div>
+          <div class="card"><b>3 · Decisions</b><p style="color:var(--text-dim); font-size:13px; margin-top:6px;">The accepted design, most recent ADRs first.</p></div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>The last twelve milestones</h2>
+        <div class="sub">who touched it, at what model tier, with what independently-measured cost</div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="block">
+        <h2>On tooling</h2>
+        <p style="color:var(--text-dim); font-size:13.5px; max-width:60ch;">The project has run on more than one coding tool — a 2026-09-16 commit records switching this agent roster onto Claude models "in place of the prior tool's stack, to spread usage across both tools." Which tool produced the very first bootstrap commit isn't independently confirmable from tracked history, and the log says so plainly rather than guessing.</p>
+      </section>
+    </section>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var PAGES = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'architecture', label: 'Architecture' },
+    { id: 'decisions', label: 'Decisions' },
+    { id: 'roadmap', label: 'Roadmap' },
+    { id: 'testing', label: 'Testing' },
+    { id: 'workflow', label: 'Agent Log' }
+  ];
+
+  var nav = document.getElementById('nav');
+  PAGES.forEach(function (p, i) {
+    var btn = document.createElement('button');
+    btn.dataset.target = p.id;
+    btn.innerHTML = '<span class="n">' + String(i + 1).padStart(2, '0') + '</span><span>' + p.label + '</span>';
+    btn.addEventListener('click', function () { goTo(p.id); });
+    nav.appendChild(btn);
+  });
+
+  function goTo(id) {
+    document.querySelectorAll('.page').forEach(function (el) {
+      el.classList.toggle('active', el.dataset.page === id);
+    });
+    document.querySelectorAll('#nav button').forEach(function (b) {
+      b.setAttribute('aria-current', b.dataset.target === id ? 'true' : 'false');
+    });
+    try { localStorage.setItem('aetherfield-docs-page', id); } catch (e) {}
+    window.scrollTo(0, 0);
+  }
+
+  var initial = 'overview';
+  try {
+    var saved = localStorage.getItem('aetherfield-docs-page');
+    if (saved && PAGES.some(function (p) { return p.id === saved; })) initial = saved;
+  } catch (e) {}
+  goTo(initial);
+
+  // ---- Decay-curve hero: the real ADR-002/003 homogeneous decay law,
+  // gamma^n where gamma = 10^(-3/(fs*T60)), drawn as an actual signal, not
+  // a decorative waveform.
+  var canvas = document.getElementById('decayCanvas');
+  if (canvas && canvas.getContext) {
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || 600, cssH = canvas.clientHeight || 140;
+    canvas.width = cssW * dpr;
+    canvas.height = cssH * dpr;
+    ctx.scale(dpr, dpr);
+
+    var fs = 48000, T60 = 1.0;
+    var gamma = Math.pow(10, -3 / (fs * T60));
+    var totalSamples = fs * 1.4;
+    var w = cssW, h = cssH;
+    var mid = h / 2;
+
+    function draw(t) {
+      ctx.clearRect(0, 0, w, h);
+
+      // faint grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      for (var gy = 0; gy <= 4; gy++) {
+        var y = (h / 4) * gy;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+
+      // envelope (dashed)
+      ctx.strokeStyle = 'rgba(224,164,88,0.5)';
+      ctx.setLineDash([3, 4]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (var x = 0; x <= w; x++) {
+        var n = (x / w) * totalSamples;
+        var env = Math.pow(gamma, n);
+        var y2 = mid - env * (mid - 10);
+        if (x === 0) ctx.moveTo(x, y2); else ctx.lineTo(x, y2);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // decaying oscillation, phase-swept for a subtle "alive" feel
+      ctx.strokeStyle = '#6fa8b5';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      var freq = 5.5;
+      for (var x2 = 0; x2 <= w; x2++) {
+        var n2 = (x2 / w) * totalSamples;
+        var env2 = Math.pow(gamma, n2);
+        var phase = (x2 / w) * Math.PI * 2 * freq + t;
+        var y3 = mid + Math.sin(phase) * env2 * (mid - 10);
+        if (x2 === 0) ctx.moveTo(x2, y3); else ctx.lineTo(x2, y3);
+      }
+      ctx.stroke();
+    }
+
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) {
+      draw(0);
+    } else {
+      var start = null;
+      function frame(ts) {
+        if (!start) start = ts;
+        var t = (ts - start) / 4000;
+        draw(t);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+  }
+
+  // ---- Agent log timeline ----
+  var LOG = [
+    { date: '2026-09-16', title: 'Resolve Xcode license blocker; record Phase 1 validation gates', roles: [['Luna','luna']], metrics: 'No metrics recorded', commit: '43db7a9' },
+    { date: '2026-09-16', title: 'ADR-002: decide reverb topology; plan S1 skeleton', roles: [['Sol · Opus','sol'],['Terra · Sonnet','terra'],['Luna · Haiku','luna']], metrics: 'No metrics recorded', commit: 'c4cd61a' },
+    { date: '2026-09-16', title: 'ADR-003: damping, denormal handling, full-network lifecycle', roles: [['Sol · Opus','sol'],['Luna · Haiku','luna']], metrics: 'No metrics recorded', commit: 'f852f79' },
+    { date: '2026-09-16', title: 'ADR-004: initial parameter surface + automation boundary', roles: [['Sol · Opus','sol'],['Luna · Haiku','luna']], metrics: 'No metrics recorded', commit: '27f8e75' },
+    { date: '2026-09-16', title: 'Consolidate NS/PT verification cases into one spec', roles: [['Terra · Sonnet','terra'],['Luna · Haiku','luna']], metrics: 'No metrics recorded', commit: '8ecf15b' },
+    { date: '2026-09-16', title: 'Mark Phase 1 exit criteria met; implementation still unauthorized', roles: [['Astra','astra']], metrics: 'No metrics recorded', commit: 'adba640' },
+    { date: '2026-09-16', title: 'S1: implement DelayLine + agent-log / handoff protocol', roles: [['Terra · Sonnet 5','terra'],['Luna · Haiku','luna']], metrics: 'Luna: 43,571 tok · 14 calls · 83.4s', commit: '61143c7' },
+    { date: '2026-09-16', title: 'ADR-005: S2 fixture line count + delay-length set', roles: [['Sol · Opus','sol'],['Luna · Haiku','luna']], metrics: 'Sol: 200,645 tok · 47 calls · 949.6s · Luna: 95,150 tok · 20 calls · 216.5s', commit: '0c2a413' },
+    { date: '2026-09-16', title: 'S2 task plan: FeedbackDelayNetwork interface, NS-1..11 mapping', roles: [['Terra · Sonnet 5','terra'],['Luna · Haiku','luna']], metrics: 'Luna: 104,600 tok · 18 calls · 145.6s', commit: '7119779' },
+    { date: '2026-09-16', title: 'S2: implement FeedbackDelayNetwork + DelayLine peek()/push()', roles: [['Terra · Sonnet 5','terra'],['Luna · Haiku','luna']], metrics: 'Luna: 112,211 tok · 29 calls · 160.1s', commit: 'd532f3e' },
+    { date: '2026-09-17', title: 'Parameter-transitions task plan: ParameterAutomation interface', roles: [['Terra · Sonnet 5','terra'],['Luna · Haiku','luna']], metrics: 'Luna: 110,066 tok · 28 calls · 157.2s', commit: 'b3e9fb0' },
+    { date: '2026-09-17', title: 'PT: implement ParameterAutomation + 3 additive FeedbackDelayNetwork methods', roles: [['Terra · Sonnet 5','terra'],['Luna · Haiku','luna']], metrics: 'Luna: 108,910 tok · 40 calls · 195.4s', commit: 'cfdd951' },
+    { date: '2026-09-17', title: 'Sonic acceptance: first impulse render of S2+PT (impulse component only)', roles: [['Terra · Sonnet 5','terra'],['Luna · Haiku','luna']], metrics: 'Luna: 62,800 tok · 33 calls · 185.5s', commit: '95a8c68' },
+    { date: '2026-09-17', title: 'Record round-1 owner listening notes; render tool CLI args', roles: [['Terra · Sonnet 5','terra']], metrics: 'No subagent — owner supplied the listening judgments directly', commit: '84f6c66' },
+    { date: '2026-09-17', title: 'Move phase-plan docs into docs/phases/ to avoid doc bloat', roles: [['Terra · Sonnet 5','terra']], metrics: 'No metrics recorded', commit: '0b4d8f0' },
+    { date: '2026-09-17', title: 'Record recommended Astra/Sol/Terra/Luna model + effort mapping', roles: [['Terra · Sonnet 5','terra']], metrics: 'No metrics recorded', commit: '42c725b' }
+  ];
+
+  var tl = document.getElementById('timeline');
+  LOG.slice().reverse().forEach(function (item) {
+    var el = document.createElement('div');
+    el.className = 'tl-item';
+    var rolesHtml = item.roles.map(function (r) {
+      return '<span class="' + r[1] + '">' + r[0] + '</span>';
+    }).join(' &middot; ');
+    el.innerHTML =
+      '<div class="tl-date">' + item.date + '</div>' +
+      '<div class="tl-rail"><div class="tl-dot"></div><div class="tl-line"></div></div>' +
+      '<div class="tl-body">' +
+        '<div class="title">' + item.title + '</div>' +
+        '<div class="roles-line">' + rolesHtml + '</div>' +
+        '<div class="metrics">' + item.metrics + ' <span class="commit">' + item.commit + '</span></div>' +
+      '</div>';
+    tl.appendChild(el);
+  });
+})();
+</script>
+
+</body></html>
