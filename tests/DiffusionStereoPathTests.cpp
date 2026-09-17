@@ -17,6 +17,7 @@
 #include <limits>
 #include <new>
 #include <numeric>
+#include <string>
 #include <vector>
 
 namespace {
@@ -863,13 +864,20 @@ int testDs5AdversarialPeakAcrossBracket() {
 int testDs6EchoDensityRecorded() {
     struct Checkpoint {
         double seconds;
-        const char* label;
+        std::string label;
     };
-    const std::array<Checkpoint, 4> checkpoints {{
-        {0.001, "1ms"}, {0.010, "10ms"}, {0.027, "27ms (t_min)"}, {0.030, "30ms"},
-    }};
 
     for (const double rate : kBracketRates) {
+        FeedbackDelayNetwork fdn;
+        if (!buildFdnFixture(rate, fdn)) return fail("DS-6 FDN first-arrival fixture preparation failed");
+        const std::size_t firstFdnArrival = fdn.delaySamples(0);
+        const std::vector<Checkpoint> checkpoints {
+            {0.001, "1ms"},
+            {0.010, "10ms"},
+            {static_cast<double>(firstFdnArrival) / rate,
+             "first FDN arrival m_0=" + std::to_string(firstFdnArrival) + " samples"},
+            {0.030, "30ms"},
+        };
         for (const std::size_t kIn : kBracketKIn) {
             auto cascade = buildCascade(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn),
                                         kGoldenCoefficient);
@@ -886,6 +894,11 @@ int testDs6EchoDensityRecorded() {
             }
             if (!hasNonzeroSample(response)) return fail("DS-6 anti-vacuity: rendered fixture was all silence");
 
+            double peak = 0.0;
+            for (const float sample : response) peak = std::max(peak, std::abs(static_cast<double>(sample)));
+            const double amplitudeThreshold = peak * 1e-6;
+            if (!(amplitudeThreshold > 0.0)) return fail("DS-6 amplitude-density threshold was vacuous");
+
             // `crossingCount` is a sign-flip (zero-crossing) count between
             // consecutive nonzero samples of the rendered impulse response --
             // it does NOT count same-sign consecutive arrivals the way the
@@ -895,8 +908,10 @@ int testDs6EchoDensityRecorded() {
             // them side by side is expected to show a divergence; that is not
             // itself evidence of a bug.
             std::size_t crossingCount = 0;
+            std::size_t thresholdedSampleCount = std::abs(static_cast<double>(response[0])) >= amplitudeThreshold ? 1 : 0;
             float previousNonzero = response[0];
             std::vector<std::size_t> crossingsAtCheckpoint(checkpoints.size(), 0);
+            std::vector<std::size_t> thresholdedSamplesAtCheckpoint(checkpoints.size(), 0);
             std::size_t checkpointIndex = 0;
             for (std::size_t n = 1; n < response.size(); ++n) {
                 if (previousNonzero != 0.0F && response[n] != 0.0F
@@ -904,14 +919,19 @@ int testDs6EchoDensityRecorded() {
                     ++crossingCount;
                 }
                 if (response[n] != 0.0F) previousNonzero = response[n];
+                if (std::abs(static_cast<double>(response[n])) >= amplitudeThreshold) {
+                    ++thresholdedSampleCount;
+                }
                 while (checkpointIndex < checkpoints.size()
                        && static_cast<double>(n) >= checkpoints[checkpointIndex].seconds * rate) {
                     crossingsAtCheckpoint[checkpointIndex] = crossingCount;
+                    thresholdedSamplesAtCheckpoint[checkpointIndex] = thresholdedSampleCount;
                     ++checkpointIndex;
                 }
             }
             while (checkpointIndex < checkpoints.size()) {
                 crossingsAtCheckpoint[checkpointIndex] = crossingCount;
+                thresholdedSamplesAtCheckpoint[checkpointIndex] = thresholdedSampleCount;
                 ++checkpointIndex;
             }
 
@@ -921,10 +941,14 @@ int testDs6EchoDensityRecorded() {
                 const double idealized = rate * std::pow(n, static_cast<double>(kIn) - 1.0)
                                         / (std::tgamma(static_cast<double>(kIn)) * delayProduct);
                 const double measuredRate = static_cast<double>(crossingsAtCheckpoint[i]) / checkpoints[i].seconds;
+                const double amplitudeAwareRate =
+                    static_cast<double>(thresholdedSamplesAtCheckpoint[i]) / checkpoints[i].seconds;
                 std::cout << checkpoints[i].label << "(idealized=" << idealized
-                          << "/s, measured zero-crossing rate=" << measuredRate << "/s) ";
+                          << "/s, amplitude-aware sample density=" << amplitudeAwareRate
+                          << "/s at |x| >= " << amplitudeThreshold
+                          << ", zero-crossing proxy=" << measuredRate << "/s) ";
             }
-            std::cout << '\n';
+            std::cout << " [input-diffuser-only response; FDN first-arrival checkpoint is a timing marker]\n";
         }
     }
     return 0;
@@ -1072,7 +1096,17 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         }
         if (measuredTapPeak <= 0.0) return fail("DS-10 anti-vacuity: tap-peak measurement fixture never went nonzero");
 
-        const double g = kGoldenCoefficient;
+        const float storedCoefficient = measure.allpassCoefficient();
+        const double g = static_cast<double>(storedCoefficient);
+        if (storedCoefficient != static_cast<float>(kGoldenCoefficient)) {
+            return fail("DS-10 proof template fixture did not retain the expected stored float q_j");
+        }
+        FeedbackDelayNetwork controlNetwork;
+        ParameterAutomation defaultControls;
+        if (!buildFdnFixture(rate, controlNetwork) || !defaultControls.prepare(controlNetwork, rate, kDMaxFixture)) {
+            return fail("DS-10 default-control fixture preparation failed");
+        }
+        const double realizedDefaultT60 = std::sqrt(defaultControls.t60Min() * defaultControls.t60Max());
         const double sqrt5 = std::sqrt(5.0);
         const std::array<std::size_t, 4> inputDelays {
             measure.inputDelaySamples(0), measure.inputDelaySamples(1),
@@ -1097,16 +1131,23 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         }
 
         std::size_t maxDrain = 0;
-        std::cout << std::setprecision(10) << "DS-10 proof template @ " << rate << "Hz (q_j=" << g
-                  << ", measured tap peak=" << measuredTapPeak << "):\n";
+        std::cout << std::setprecision(10) << "DS-10 proof-template illustration @ " << rate
+                  << "Hz (stored float q_j=" << storedCoefficient
+                  << ", wrapper defaults: Decay=0.5, Damp=0, Mix=1, realized T60_0="
+                  << realizedDefaultT60 << "s; measured-window tap peak=" << measuredTapPeak << "):\n";
         for (const Section& section : sections) {
             std::size_t k = 1;
-            while (std::pow(g, static_cast<double>(k)) * section.stateBound >= 1e-20) ++k;
+            while (std::pow(g, static_cast<double>(k)) * section.stateBound >= static_cast<double>(1e-20F)) ++k;
             const std::size_t drain = (k + 1) * section.delay;
             maxDrain = std::max(maxDrain, drain);
-            std::cout << "  " << section.label << " d_j=" << section.delay << " S_j=" << section.stateBound
+            const bool isInput = std::string(section.label) == "input";
+            std::cout << "  " << section.label << " d_j=" << section.delay << " q_j=" << storedCoefficient
+                      << " S_j=" << section.stateBound << (isInput ? " (analytic input-cessation bound)"
+                                                                   : " (measured-window illustration; not a proved cessation bound)")
                       << " k_j=" << k << " D_j=(k_j+1)*d_j=" << drain << '\n';
         }
+        std::cout << "  C3 qualification: no whole-chain cessation-state bound is established; output-section "
+                     "rows are measured-window illustrations, not a propagated proof.\n";
 
         // Separately measured actual full-path silence -- NOT compared to any
         // historical additive timeout (ADR-006 correction note C3 forbids
@@ -1132,9 +1173,19 @@ int testDs10ProofTemplateAndMeasuredSilence() {
             if (left[n] != 0.0F || right[n] != 0.0F) { lastNonzero = n; sawNonzero = true; }
         }
         if (!sawNonzero) return fail("DS-10 anti-vacuity: full-scale impulse produced no nonzero wet sample");
+        constexpr std::size_t kRequiredObservedSilentSuffix = 20000;
+        if (lastNonzero + 1 >= renderLength) {
+            return fail("DS-10 measured-silence fixture ended before any exact silent sample was observed");
+        }
+        const std::size_t observedSilentSuffix = renderLength - (lastNonzero + 1);
+        if (observedSilentSuffix < kRequiredObservedSilentSuffix) {
+            return fail("DS-10 measured-silence fixture did not observe the required trailing exact-silence interval");
+        }
         std::cout << std::setprecision(10) << "DS-10 @ " << rate << "Hz: measured full-path exact silence from sample "
                   << (lastNonzero + 1) << " onward, through the end of a " << renderLength
-                  << "-sample render (proof-template max D_j=" << maxDrain << "; not compared to any historical "
+                  << "-sample render (observed exact-silence suffix=" << observedSilentSuffix
+                  << " samples; required >= " << kRequiredObservedSilentSuffix
+                  << "; proof-template max D_j=" << maxDrain << "; not compared to any historical "
                      "additive bound)\n";
     }
     return 0;
@@ -2244,47 +2295,16 @@ int testDs8MonoCompatibilityAcrossMixSweep() {
 }
 
 // ---------------------------------------------------------------------------
-// DS-9 -- channel balance, arrivals and energy centroids.
+// DS-9 -- channel-power measurements, arrivals and energy centroids.
 //
 // ADR-006 correction note C5: the 126-sample (48 kHz) / 122-sample (44.1 kHz)
 // figure describes only the ISOLATED output diffuser chains and is not a
-// whole-path onset, balance or centroid bound. Both are measured here and
-// reported separately; any full-path centroid difference beyond the isolated
-// figure is recorded as a new finding, not explained.
-//
-// Stated L/R RMS tolerance: 1.0 dB, declared before the measurement was run.
-// Reasoning: each output allpass cascade has |A(e^jw)| = 1 at every frequency,
-// so it cannot change its channel's power at all; any L/R RMS difference must
-// come from the even/odd tap sums themselves, which ADR-006 (e) constructs
-// with equal norm and equal line count. 1 dB is a loose engineering gate sized
-// to catch a structural error (a channel built from the wrong lines, a missing
-// tap scale) rather than to assert a perceptual balance claim, which C5 says
-// may not be set before these results are reviewed.
-//
-// That reasoning bounds the *output* cascades only, and equal tap-vector norm
-// is not the same thing as equal tap-vector power once the tapped FDN lines
-// themselves carry unequal energy. The measured imbalance below is 0.630 dB
-// @48kHz / 0.586 dB @44.1kHz on the noise fixture -- real and repeatable, only
-// ~37% of the 1.0 dB gate's margin, not the near-total margin the |A|=1
-// argument alone would suggest. DS-8 shows the same asymmetry pre-Mix
-// (E[y_L'^2]=0.0642 vs E[y_R'^2]=0.0556 at Decay=1s, printed above): the
-// per-line gains g_i = gamma_0^(m_i) that give each FDN line its T60 differ
-// line to line, and at a fixed T60 target a *shorter* delay line decays less
-// per sample than a longer one, so it carries systematically more energy at
-// any instant. ADR-006 (e)'s even/odd tap split assigns the network's
-// shortest lines to the even (L) set, so the even-tap sum draws
-// disproportionately on the higher-energy lines -- equal tap count and equal
-// tap-vector norm say nothing about this, because norm is a property of the
-// tap coefficients, not of the per-line signal power they multiply. This is a
-// recorded, expected-nonzero finding, not a bug and not something to tighten
-// the test around. It is also not rate- or decay-independent: the 1 dB gate
-// here is only exercised at T60_0=1s (kComparabilityT60Seconds); a shorter
-// T60_0 widens the per-line gain spread at a given delay-length difference,
-// so the imbalance is expected to grow as T60_0 shrinks, and 1 dB is a gate
-// sized for this fixture's operating point, not a general bound.
+// whole-path onset, channel-power or centroid bound. Both are measured here
+// and reported separately. A measured L/R difference is not gated or assigned
+// a cause: this harness does not decompose the tapped-line variances and
+// cross-covariances needed to support a causal explanation, and ADR-006 C5
+// forbids a pre-review channel-balance/perceptual tolerance.
 // ---------------------------------------------------------------------------
-
-constexpr double kChannelBalanceToleranceDb = 1.0;
 
 int testDs9ChannelBalanceAndCentroids() {
     for (const double rate : kBracketRates) {
@@ -2368,7 +2388,7 @@ int testDs9ChannelBalanceAndCentroids() {
                   << "  channel balance, " << kAnalysisRecordSamples
                   << "-sample noise record after a one-T60_0 warm-up: RMS_L=" << noiseRmsLeft
                   << ", RMS_R=" << noiseRmsRight << ", 20log10(L/R)=" << noiseImbalanceDb
-                  << "dB (stated tolerance " << kChannelBalanceToleranceDb << "dB)\n"
+                  << "dB (recorded only; no channel-balance tolerance)\n"
                   << "  channel balance, " << impulseLength << "-sample impulse response: RMS_L="
                   << impulseRmsLeft << ", RMS_R=" << impulseRmsRight
                   << ", 20log10(L/R)=" << impulseImbalanceDb << "dB\n"
@@ -2392,7 +2412,7 @@ int testDs9ChannelBalanceAndCentroids() {
                   << "ms); ADR-006 (f) chain-length difference sum(d_R)-sum(d_L)=" << expectedDifference
                   << " samples\n";
 
-        // Derivation for the 0.5-sample gate below: a Schroeder allpass
+        // Derivation for the 0.5-sample numerical cross-check below: a Schroeder allpass
         // section's energy centroid equals its own delay length exactly, so a
         // cascade's centroid equals the sum of its delays. For one section
         // with delay d and coefficient g, the impulse response is
@@ -2408,15 +2428,10 @@ int testDs9ChannelBalanceAndCentroids() {
         //                   = d * (1-g^2)^2 * 1/(1-g^2)^2 = d,
         // using sum_{k>=1} k*x^(k-1) = 1/(1-x)^2 for x = g^2. So the centroid
         // of a unit-energy allpass section is exactly its delay d, independent
-        // of g -- this is the section's group delay, and group delays add
-        // across a cascade, so a cascade's centroid is exactly the sum of its
-        // sections' delays: leftDelaySum / rightDelaySum here. The 0.5-sample
-        // tolerance below covers only the finite-drain-window truncation of
-        // the measurement (isolatedLength samples is not infinite), not any
-        // slack in the theorem itself: the actual measured residual is on the
-        // order of 7e-6 samples, so 0.5 carries roughly five orders of
-        // magnitude of margin over the observed truncation error -- the same
-        // level of justification kChannelBalanceToleranceDb gets above.
+        // of g. This is the frequency-averaged group delay; those averages add
+        // across a cascade, so the centroid is the sum of its delays. The
+        // 0.5-sample numerical tolerance covers the finite drain and float
+        // arithmetic residual, not a channel-power or perceptual criterion.
         if (std::abs(isolatedCentroidLeft - static_cast<double>(leftDelaySum)) > 0.5
             || std::abs(isolatedCentroidRight - static_cast<double>(rightDelaySum)) > 0.5) {
             return fail("DS-9 isolated output-diffuser centroid did not reproduce its chain's total delay");
@@ -2424,19 +2439,9 @@ int testDs9ChannelBalanceAndCentroids() {
         if (std::abs(isolatedDifference - expectedDifference) > 0.5) {
             return fail("DS-9 isolated output-diffuser centroid difference did not match ADR-006 (f)");
         }
-        // See the comment block above this function for why a nonzero
-        // imbalance (up to ~0.63 dB measured, against this 1.0 dB gate) is
-        // expected here rather than the near-zero implied by |A(e^jw)|=1
-        // alone: per-line FDN gains differ by delay length, and ADR-006 (e)'s
-        // even/odd split correlates that difference with channel.
-        if (std::abs(noiseImbalanceDb) > kChannelBalanceToleranceDb
-            || std::abs(impulseImbalanceDb) > kChannelBalanceToleranceDb) {
-            return fail("DS-9 L/R RMS imbalance exceeded the stated 1.0 dB tolerance");
-        }
         std::cout << "  NOTE: any full-path centroid difference beyond the isolated-chain figure above is "
-                     "recorded, not explained; ADR-006 correction note C5 states the isolated figure is not "
-                     "a whole-path onset, balance or centroid bound, and this test is not designed to "
-                     "attribute a difference to a cause.\n";
+                     "recorded, not explained; the same holds for measured L/R RMS differences. ADR-006 "
+                     "correction note C5 supplies no channel-balance acceptance value.\n";
     }
     return 0;
 }

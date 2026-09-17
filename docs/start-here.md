@@ -13,30 +13,40 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   diffusion, FDN pre-step taps, output diffusion and Mix.
 - **DS-B Task 3:** wrapper-owned aggregate fault detection and next-block
   whole-path recovery.
+- **DS-B Task 4:** partial measured DS-1..12 evidence (energy/pole/magnitude bounds,
+  echo density, full-path decay, interchannel coherence, mono compatibility,
+  channel balance/centroids, numerical-safety proof template, determinism,
+  cost) against the Task 1-3 baseline, per ADR-006's correction note.
 
 The latest recorded baseline is a Release configure/build and CTest result from
-2026-09-17: **6/6 suites passed**, including DS-B Task 3 fault/recovery coverage.
+2026-09-17: **6/6 suites passed**, including DS-B Task 4's measurement suite.
 Read [testing.md](testing.md) for commands, diagnostics, scope limits,
-renderer evidence and the standalone DS-A measurements.
+renderer evidence, the standalone DS-A measurements, and DS-B Task 4's full
+measured record (including open findings review has not yet interpreted).
 
 ## What is decided, and what is not
 
 ADR-001 through ADR-005 are accepted decisions with bounded implementation status described in each record's YAML metadata and review summary. A fixed FDN is implemented; that does not mean a complete audible product signal path, diffusion, stereo output, host integration, UI, modulation, Freeze, Bloom, Texture, or a final product line count is implemented.
 
 ADR-006 accepts an input-diffusion, injection, output-tap, and stereo
-architecture as an **evaluation baseline**, with **Task 1
-lifecycle/preparation, Task 2a's read-only FDN pre-step taps, Task 2b's
-one-sample route, and Task 3 recovery implemented**. Its
-[review](phases/phase1-ds-review.md) corrections are resolved by an explicit
-contract and the bounded [DS-B integration plan](phases/phase1-ds-integration-plan.md).
-Full-chain decay, coherence, silence and channel measurements remain
-unimplemented.
+architecture as an **evaluation baseline**, with **Tasks 1-3 implemented and
+Task 4 partially measured**:
+Task 1 lifecycle/preparation, Task 2a's read-only FDN pre-step taps, Task 2b's
+one-sample route, Task 3 recovery, and Task 4's partial DS-1..12 evidence.
+Its [review](phases/phase1-ds-review.md) corrections are resolved by an
+explicit contract and the bounded [DS-B integration plan](phases/phase1-ds-integration-plan.md).
+Full-chain decay, coherence, silence and channel measurements are partially
+implemented and recorded in `testing.md`; bracket-wide independent-reference,
+per-Mix RMS/arrival/centroid, and propagated DS-10 cessation-bound coverage
+remain incomplete. **Measuring them is not sonic acceptance**, which remains a
+separate, unmet gate (roadmap).
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
 **implemented** and independently covered by the fifth CTest suite. It does
 not authorize or complete full diffusion/stereo integration. Its primitive
 response, energy, allocation and partition evidence is recorded in
-`testing.md`; the full-chain DS evaluation plan remains unimplemented.
+`testing.md`; it is distinct from the partial full-chain DS-B evidence and
+does not close that plan's remaining gaps.
 
 ## Lean resume loop
 

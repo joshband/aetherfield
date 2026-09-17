@@ -368,6 +368,305 @@ summary showing only the Task 2/3 files (`FeedbackDelayNetwork.h/.cpp`,
 rendering or undisclosed production drift. Overall verdict: **PASS**, no
 deviation from this entry's claims found.
 
+## PARTIALLY IMPLEMENTED: Phase 1 DS-B Task 4 — DS-1..12 measured evidence (2026-09-17)
+
+**Historical scope:** measured evidence for ADR-006's DS-1..12 verification cases against
+the Task 1-3 wrapper baseline, per the 2026-09-17 correction note's corrected
+contracts (C1-C5). No `src/` file changed; this task is test-only. Split into
+two sub-tasks that landed as four commits on `ds-b-task4`, each independently
+spec-compliance-reviewed and code-quality-reviewed before the next began:
+`e239e5e`/`7469a71` (4a: anti-vacuity infrastructure, DS-1/2/3/5/6/10/11/12)
+and `d02b15d`/`0ed0803` (4b: DS-4/7/8/9). `tests/DiffusionStereoAnalysis.h`
+(new, 432 lines) holds shared test-only FFT, Welch/MSC coherence, noise,
+number-theory and anti-vacuity helpers; `tests/DiffusionStereoPathTests.cpp`
+grew from 441 to 2494 lines. Both reviews independently flagged this growth as
+large but justified by genuine per-case measurement work, and recommended
+splitting the file at the 4a/4b seam (bracket-swept algebra vs. fixed-config
+full-wet-path measurement) as a follow-up refactor — **not done here,
+recorded as an open item below.**
+
+**Verification commands (fresh Release build, this entry's HEAD):**
+```sh
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+git diff --check
+```
+Build succeeded with zero warnings under `-Wall -Wextra -Wpedantic -Werror`.
+All **6/6** CTest suites passed, **3.90 s** total (`aetherfield_dsp_diffusion_stereo_tests`
+alone: **2.07 s**, up from Task 3's 0.32 s — expected, since this suite now
+performs real spectral/statistical measurement rather than algebra alone).
+`git diff --check` exited zero. The code-quality review for 4b additionally
+built and ran the suite under `-fsanitize=address,undefined` independently
+(clean) and confirmed zero warnings under `-Wall -Wextra -Wshadow`.
+
+### DS-1 — coefficient and pole bound
+40 sections checked (14 input + 6 output sections × 2 rates), built directly
+from `SchroederAllpass` across the full bracket `K_in∈{2,3,4,5}`,
+`K_out∈{1,2}` (never through `DiffusionStereoConfig`, which stays fixed at
+`K_in=4,K_out=2`). `g_ap=0.6180339887` held finite and in `[0,0.9]`
+throughout. **Largest pole radius `g_ap^(1/d) = 0.9989958869`** (< 1
+everywhere).
+
+### DS-2 — allpass magnitude, falsification
+16 full cascades (8 input + 8 output, bracket × rate), each with FFT size
+≥131072 (≥65537 bins on `[0,π]`). **Max `||A(e^jω)|-1| = 1.733594716e-07`**
+(limit `1e-6`).
+
+### DS-3 — delay-length derivation
+16 `(K_in,K_out,rate)` combinations: every diffusion delay prime, strictly
+increasing, pairwise co-prime with every other diffusion delay and every FDN
+line (direct gcd), below FDN `m_min`. The nearest-prime tie-break was
+independently re-derived (not compared against ADR-006's hardcoded numbers)
+and confirmed to fire at the same four points ADR-006 (c) predicts: input
+stage 3 @44.1kHz, input stage 4 @44.1kHz, output stage 1/L @48kHz, output
+stage 1/L @44.1kHz.
+
+### DS-4 — energy conservation and full-path decay-law regression
+**Energy conservation** (tolerance `1e-5` relative, reusing DS-A's own
+single-section limit): worst impulse error **1.227764512e-08**, worst
+4096-sample noise error **5.277049398e-09**, across the input K_in=4 chain and
+both K_out=2 output chains at both rates.
+
+**Full-path decay** (NS-6's exact fit method — log10|sample| vs. sample-index
+linear regression, skipping onset, stopping before the `1e-20` denormal
+floor — reproduced independently in this file, NS-6 itself untouched).
+**Per ADR-006 correction note C1, no equality or inequality claim is made
+against NS-6; both numbers are reported side by side only:**
+
+- **Minimum Decay, high Damp** (T60_0 realized ≈0.0064s both rates), full-scale
+  impulse: out_L slope **-4.329246522e-04** (implied T60 0.1443669s) @48kHz,
+  out_R **-4.218867928e-04** (T60 0.1481440s); @44.1kHz out_L
+  **-4.710116529e-04** (T60 0.1444279s), out_R **-4.553526625e-04** (T60
+  0.1493946s). For context only (not a gate): the network's own T60_min slope
+  is -9.75e-03 @48kHz, and the slowest input-diffusion pole's own slope is
+  -4.363e-04 — the full-path minimum-Decay slope sits within ~1% of that
+  diffusion pole and roughly 22x from the network's own T60_min, consistent
+  with C1's point that external allpass stages have their own poles.
+- **T60_0 = 1.0s, Damp bypassed** (NS-6's own fixture target): full path
+  out_L/out_R **-6.259314537e-05 / -6.212046379e-05** @48kHz (implied T60
+  0.9985/1.0061s), **-6.755951137e-05 / -6.810432187e-05** @44.1kHz; bare
+  network fitted in both NS-6's own window and this task's full-path window
+  (**-6.160978934e-05** / **-6.147574602e-05** @48kHz respectively); the
+  homogeneous-decay-law ideal is -6.25e-05 @48kHz. All values reported only.
+
+### DS-5 — peak (ℓ1) headroom
+Full bracket: largest measured peak **33.36115265** against largest checked
+bound **55.90169944** (`√5^5`, the K_in=5 case). The fixed wrapper
+configuration's bounds, `√5^4=25.000` (K_in=4) and `√5^2=5.000` (K_out=2),
+match ADR-006 exactly. No overshoot beyond bound+1e-5 anywhere.
+
+### DS-6 — echo density (recorded, not gated)
+Measured via a zero-crossing-rate proxy on real rendered cascade output
+(explicitly labelled "measured zero-crossing rate", not a literal arrival
+count, after code review flagged the original "measured" label as
+ambiguous), at 1/10/27(`t_min`)/30ms, K_in∈{2,3,4,5}, both rates, against the
+idealized amplitude-blind lattice-count formula. The two diverge sharply at
+1ms (expected — the lattice model is asymptotic) and converge to the same
+order of magnitude by 27-30ms. No pass/fail gate, per ADR-006.
+
+### DS-7 — interchannel coherence (recorded, no coherence-value gate)
+A from-scratch Welch magnitude-squared-coherence (MSC) estimator was built in
+`tests/DiffusionStereoAnalysis.h` (periodic Hann window, 50% overlap, DC/Nyquist
+excluded, silent-bin floor) and independently validated against three
+known-answer cases before use: identical channels → MSC=1 exactly; a
+17-sample pure delay → MSC median 0.99978 (theory: 1, confirming the estimator
+measures coherence, not time-domain correlation); independent noise → mean
+0.01717 vs. theoretical bias `1/63=0.01587`. Both spec and code-quality review
+independently re-derived this estimator's math (window formula, PSD
+normalization, MSC formula, segment/overlap bookkeeping including the
+untested partial-trailing-segment branch, later covered by a dedicated
+boundary test in commit `0ed0803`) and found it correct.
+
+Measured at 3 T60_0 values (0.25/1.0/3.0s) × 2 rates × 2 excitations = 12
+fixtures, each recording segment count/length, window, overlap, FFT length
+and silent-bin floor as C2 requires. **MSC is segment-length-limited for a
+seconds-long impulse response measured with an 85ms (4096-sample) segment**
+— e.g. 48kHz/T60_0=1s/noise: median 0.19129 @4096 samples (63 segments) vs.
+**0.60853 @16384 samples** (15 segments); a diagnostic extending one fixture
+to 65536 samples (7 segments) reached median **0.95235**, demonstrating
+convergence toward ADR-006 C2's ideal (MSC=1 for a fixed linear mono-input
+path) as segment length grows relative to T60_0, not a genuine incoherence
+finding. Zero-lag normalized cross-correlation and a declared ±5ms short-lag
+range are reported separately at every fixture (e.g. 48kHz/T60_0=0.25s/noise:
+ρ(0)=0.010545, max|ρ| over ±5ms = 0.058743 at lag 2 samples).
+
+### DS-8 — mono compatibility and the Mix consequence (48kHz, T60_0=1s, recorded/conditional only)
+Mix swept at {0, 0.25, 0.5, 0.75, 1.0} via a manual reference harness
+(`OrderedReferencePath`, extended with `processSampleDetailed()` to expose
+pre-Mix wet channels and Mix gains — verified by both reviews to preserve
+bit-exactness against production `DiffusionStereoPath::processSample()`; no
+`DiffusionStereoPath` accessor was added). At each point: `E[L^2]`, `E[R^2]`,
+`E[L*R]`, `E[(L+R)^2]` all recorded (e.g. Mix=0.5: 0.12541075 / 0.12181167 /
+0.09494510 / 0.43711262); the `(L+R)` level relative to out_L falls from
++6.0206dB (Mix=0, dry-only, perfectly coherent) to +2.888216dB (Mix=1,
+wet-only) — a 3.13dB swing, consistent with ADR-006 (g)'s predicted 3.01dB
+dry-bias mechanism. Mix-independent dry/wet correlation: ρ_L=-0.0034005,
+ρ_R=+0.0035824. The conditional `+3.01dB` incoherent-sum figure, checked on
+pre-Mix wet channels only: measured **+3.191836dB** against the +3.01dB
+prediction — reported as conditional per correction note C5, not gated.
+Measured at 48kHz only (ADR-006's DS-8 definition names no rate requirement,
+unlike DS-7); extending to 44.1kHz is a small, undone follow-up.
+
+### DS-9 — channel balance, arrival timing, energy centroids
+**L/R RMS** (declared 1.0dB tolerance, both rates, noise+impulse): measured
+imbalance **0.6300719dB @48kHz / 0.5860281dB @44.1kHz** (noise) — within the
+declared gate but only ~37% margin, not the near-zero the "each output
+allpass has `|A|=1`" reasoning alone implies. **This is a recorded finding,
+not a bug**: per-line FDN gains `g_i=γ_0^m_i` differ by delay length at a
+fixed T60, and ADR-006 (e)'s even/odd tap split assigns the network's
+shortest (higher-energy) lines to the L channel — equal tap-vector *norm*
+does not guarantee equal channel *power* once tapped lines carry different
+decay gains. Only exercised at T60_0=1s; expected to widen as T60_0 shrinks,
+so 1.0dB is not a rate/decay-independent bound.
+
+**First nonzero arrival**: L at exactly `m_0` (1297 samples/27.02ms @48kHz,
+1193/27.05ms @44.1kHz), R at exactly `m_1` (1511/31.48ms @48kHz,
+1399/31.72ms @44.1kHz) — **R arrives ~4.5ms later than L**, a full-path
+consequence of the even/odd interleave (L gets the network's shortest line)
+that ADR-006 (f)'s "both channels respond at the same sample" claim does not
+cover (that claim is about the output diffusers alone, in isolation, which
+correction note C5 already restricts).
+
+**Full-path energy centroid** (window=3×T60_0): R−L difference **254.69
+samples (5.31ms) @48kHz, 184.25 samples (4.18ms) @44.1kHz** — roughly 2x and
+1.5x the isolated-chain figure below. Recorded and explicitly not attributed
+further; window-dependent for a decaying response.
+
+**Isolated output-diffuser-only centroid** (output cascades alone, no FDN,
+matched impulse excitation): L/R = 498.000007/624.0000088 samples @48kHz,
+454.0000064/576.0000081 @44.1kHz — reproducing each chain's own total delay
+(`Σd`) to within 9e-06 samples. **Difference: 126.0000018 @48kHz,
+122.0000017 @44.1kHz, exactly matching ADR-006 (f)'s algebraic 126/122-sample
+figure** — an independent numerical confirmation, not a restatement, of that
+arithmetic. Code review requested (and commit `0ed0803` added) the underlying
+derivation: a unit-energy allpass section's energy centroid equals its delay
+`d` exactly (independent of `g_ap`), and centroids add across a cascade.
+
+### DS-10 — numerical safety extension
+Non-finite substitution confirmed at the head of the input chain (NaN at
+sample 0 of a block produces exactly one wrapper fault; samples 1..4095
+bit-identical to an all-zero control). `reset();reset()` bit-indistinguishable
+from one `reset()`. Whole-path silence-in/silence-out bit-exact (8192 zero
+samples in → exactly 0.0F both channels, zero faults). Proof-template `S_j`
+(input-chain: derived bound `√5^j/(1-g)`; output-chain: measured tap-peak ×
+`√5^j/(1-g)`, explicitly labelled as fixture-measured since ADR-006 supplies
+no closed form for FDN peak propagation) and `D_j=(k_j+1)d_j` recorded per
+section, both rates. Actual full-path silence measured separately (**321,914
+samples @48kHz, 297,234 @44.1kHz**, over a 1.4M-sample render, after an
+initial 300k-sample window was caught by self-review as vacuously short) —
+**explicitly not compared to the proof-template `D_j` or any historical
+additive bound**, per correction note C3; the FDN's own decay, not the
+diffusion sections' drain, dominates this figure.
+
+### DS-11 — determinism and block partitions
+Repeated identical-script renders bit-identical; ragged `{7,29,3,211,5}`
+partition bit-identical to whole-buffer render, extending the existing
+`{1,13,64,512,3}` fixed-partition coverage — together covering DS-11's full
+required `{1,13,64,512,ragged}` set.
+
+### DS-12 — cost and realtime safety (counts, not cycles, not a CPU budget)
+12 bracket configurations (standalone cascades) prepared and ran fault-free
+with zero allocation delta. Wall-clock, reported as observation only: full
+wrapper (diffusion+FDN) ≈67-69ns/sample vs. bare FDN alone ≈26-27ns/sample
+(±2ns run-to-run jitter observed, as expected for wall-clock).
+
+### Known open items
+- The Task 4a/4b seam in `tests/DiffusionStereoPathTests.cpp` (2402 lines) and
+  `tests/DiffusionStereoAnalysis.h` (426 lines) should be split into separate
+  fixture/analysis/measurement files — recommended by the 4b code-quality
+  review as a dedicated, no-behavior-change refactor commit; not done in this
+  task.
+- DS-8 is measured at 48kHz only; a 44.1kHz leg is a small follow-up.
+- The L/R power imbalance (DS-9), the R-later-arrival asymmetry (DS-9), and
+  the DS-7 segment-length coherence sensitivity are measured findings this
+  task deliberately leaves uninterpreted, per the plan's "leave interpretation
+  to review" instruction (DS-4) and correction notes C2/C5's conditional
+  framing. None is gated as a pass/fail failure.
+- This task establishes measured evidence only. It does not establish sonic
+  acceptance (see roadmap's Sonic acceptance gate) and does not itself
+  authorize any successor topology, tap, or control decision named in
+  ADR-006's "Revisit When" section.
+
+### Task 4 correction round 1 — current status and reproducible evidence (2026-09-17)
+
+This correction supersedes conflicting Task 4 completion, coverage, balance-gate
+and DS-10-proof claims above. The focused target was rebuilt and run after the
+test-only corrections:
+
+```sh
+cmake --build build --target aetherfield_dsp_diffusion_stereo_tests --parallel
+./build/aetherfield_dsp_diffusion_stereo_tests
+```
+
+It exited 0. The complete focused output was captured during the run; the
+values below are the durable measurement record. Full CTest and diff checks
+are recorded with this correction's completion report rather than inferred
+from the earlier historical command block.
+
+- **I1 / DS-8/9:** the 1 dB L/R balance failure was removed. At Mix=1,
+  48 kHz noise/impulse records measured +0.63007195/+0.62488842 dB L/R;
+  44.1 kHz measured +0.58602810/+0.56900547 dB. These are recorded values,
+  not an acceptance threshold. The harness does not attribute their cause;
+  equal per-sample T60 contraction does not establish unequal line energy or
+  a shorter-line causal explanation.
+- **I2 / DS-10:** every row uses stored `float q_j=0.6180340052` widened only
+  for analysis, with `epsilon_float=1e-20F`. The wrapper's actual defaults are
+  Decay=0.5, Damp=0, Mix=1, giving `T60_0=1.093397417 s` at 48 kHz and
+  `1.093721826 s` at 44.1 kHz; `validConfig().t60ZeroSeconds=4` is not the
+  realized automation control state. Input `S_j` is an analytic
+  input-cessation bound. Output `S_j` is only a measured-window illustration
+  derived from the observed tap peak, not a proved downstream cessation bound.
+  Consequently no whole-chain propagated cessation-state bound is claimed.
+
+  | Rate | input `(d,S,k,D)` | output L `(d,S,k,D)` | output R `(d,S,k,D)` |
+  | --- | --- | --- | --- |
+  | 48 kHz | (47,2.618034101,98,4653); (103,5.854102218,100,10403); (223,13.09017051,102,22969); (479,29.27051109,103,49816) | (191,0.1379010778,92,17763); (307,0.3083561842,94,29165) | (241,0.1379010778,92,22413); (383,0.3083561842,94,36385) |
+  | 44.1 kHz | (43,2.618034101,98,4257); (97,5.854102218,100,9797); (199,13.09017051,102,20497); (439,29.27051109,103,45656) | (173,0.0947513633,91,15916); (281,0.2118704893,93,26414) | (223,0.0947513633,91,20516); (353,0.2118704893,93,33182) |
+
+  The separate full-path impulse render is finite and is not compared to a
+  historical additive timeout. It observed exact silence from sample 321914
+  through 1,400,000 at 48 kHz (1,078,086-sample suffix), and from 297234
+  through 1,400,000 at 44.1 kHz (1,102,766-sample suffix). The test requires
+  at least 20,000 trailing observed zero samples, so ending a render while
+  still nonzero is a failure.
+- **I3 / DS-6:** the prior amplitude-blind zero-crossing proxy remains a
+  secondary diagnostic. A distinct amplitude-aware density now counts real
+  input-diffuser response samples above `1e-6` of that response's peak and is
+  reported next to the idealized lattice count. It is explicitly input-diffuser
+  scope, not full-path echo density. Its checkpoints include the actual FDN
+  first-arrival marker: `m_0=1297` at 48 kHz and `m_0=1193` at 44.1 kHz.
+  Example K_in=4 values at that marker are 17,949.113/s (threshold
+  1.4900367e-7) at 48 kHz and 16,708.466/s (threshold 1.4589804e-7) at
+  44.1 kHz; no density result is gated.
+- **I4 / coverage:** this entry is partial. The bracket code does not provide
+  an independent double recurrence, and energy, partition/determinism and
+  allocation coverage is not cross-product coverage over every cascade/rate.
+  DS-8 records powers and covariance at every Mix point, but channel RMS,
+  first nonzero arrival, full-path centroid and isolated-diffuser centroid are
+  currently recorded only at Mix=1. The integration plan checklist is left
+  unchecked for those incomplete requirements.
+- **I5:** the measured-silence guard now proves an observed trailing interval,
+  not merely that some nonzero sample occurred earlier in a finite render.
+- **I6 / DS-4:** full-path impulse fits use log10(abs(sample)) regression,
+  stride 64, after onset and before the `1e-18` floor. At minimum Decay/high
+  Damp, 48 kHz fits are L `[4070,42515)` / R `[4070,43500)` and 44.1 kHz fits
+  are L `[3740,38820)` / R `[3740,40038)`; their slopes are respectively
+  -4.329246522e-4/-4.218867928e-4 and -4.710116529e-4/-4.553526625e-4
+  log10/sample. At T60_0=1 s, Damp=0, the full-path windows are
+  `[4070,144000)` at 48 kHz and `[3740,132300)` at 44.1 kHz. No full-path
+  result is compared as an equality or inequality acceptance test with NS-6.
+  The 4096-sample, 48 kHz/default-control impulse comparison is the only
+  direct bit-exact production-wrapper/reference check. Longer or different
+  control/rate `OrderedReferencePath` measurements are controlled-reference
+  measurements, not separately direct production-wrapper observations.
+
+Remaining Task 4 gaps are deliberate recorded incompleteness, not pass
+criteria: independent double recurrence and complete bracket coverage;
+per-Mix DS-8/9 RMS/arrival/centroid coverage; and a propagated C3
+cessation-state proof for output stages. No sonic acceptance follows.
+
 ## IMPLEMENTED: Phase 1 parameter transitions (2026-09-17)
 
 Terra implemented `ParameterAutomation` (`src/dsp/ParameterAutomation.h`/`.cpp`) per docs/phases/phase1-pt-plan.md's interface, plus three small additive methods on `FeedbackDelayNetwork` (`processSample()`, `setLineGain()`, `setDampingCoefficientC()` — S2's own 11 tests and `process(count)` contract are unchanged), `tests/ParameterTransitionTests.cpp` covering one named case per PT-1 through PT-9, and wired a new `aetherfield_dsp_param_tests` CTest target mirroring the existing pattern.

@@ -25,13 +25,18 @@ test-local double analysis and FFT/Welch helpers.
 
 ## Status and authorization
 
-**Task 1, Task 2a's read-only tap accessor, Task 2b's one-sample audio
-routing, and Task 3's aggregate detector/block recovery are implemented,
-2026-09-17; Task 4 remains plan only.** ADR-006 remains an accepted
-architecture and evaluation baseline. Task 3 adds only the documented block
-boundary and fault/recovery behavior; it does not add product controls,
-modulation or sonic acceptance. Do not combine it with Task 4 measurements or
-alter standalone FDN semantics.
+**Tasks 1-4 are implemented, 2026-09-17.** Task 1's transactional preparation,
+Task 2a's read-only tap accessor, Task 2b's one-sample audio routing, Task 3's
+aggregate detector/block recovery, and Task 4's DS-1..12 measured evidence
+(split into sub-tasks 4a and 4b — see `docs/testing.md`'s DS-B Task 4 entry
+for the full measured record, methodology and known open findings) are all
+implemented and independently spec- and code-quality-reviewed. ADR-006 remains
+an accepted architecture and evaluation baseline: Task 4 measures the fixed,
+unmodulated evaluation-baseline path decided there; it adds no product
+controls, no modulation, and Task 4's measured pass does not itself establish
+sonic acceptance (see roadmap/Sonic acceptance gate). Task 3 added only the
+documented block boundary and fault/recovery behavior and did not alter
+standalone FDN semantics; Task 4 does not alter it either.
 
 ## Global constraints
 
@@ -261,7 +266,7 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
 
 **Produces:** measured DS-1…DS-12 evidence with each prior overclaim removed.
 
-- [ ] Start with failing anti-vacuity checks: fixtures must contain nonzero wet
+- [x] Start with failing anti-vacuity checks: fixtures must contain nonzero wet
   samples before a decay/correlation/centroid result is accepted; test helpers
   must reject a single-segment coherence estimate.
 - [ ] DS-1/2/3/5/6/11/12: extend DS-A's independent recurrence, FFT, energy,
@@ -270,11 +275,15 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
   `(K_in,K_out)` bracket. Check all time-derived lengths, increasing guards and
   direct gcds against FDN lengths. Record amplitude-aware density separately
   from lattice counts and report cost rather than using it as a budget.
-- [ ] DS-4: preserve bare-FDN NS-6 untouched. Fit and record full-path decay
+  **Partial:** FFT, magnitude, peak, direct-gcd, runnable bracket and an
+  amplitude-threshold density are present; the current reference is not an
+  independent double recurrence, and energy/determinism/allocation are not
+  covered across every bracket/rate configuration.
+- [x] DS-4: preserve bare-FDN NS-6 untouched. Fit and record full-path decay
   for a declared impulse/noise fixture at minimum Decay and high Damp, including
   fit window and method. Assert neither equality nor inequality with NS-6;
   report the measured result and leave interpretation to review.
-- [ ] DS-7: use deterministic broadband noise and Welch PSDs averaged over at
+- [x] DS-7: use deterministic broadband noise and Welch PSDs averaged over at
   least two complete segments. Record segment count/length, window, overlap,
   FFT length and silent-bin floor. Report MSC only at retained bins and report
   normalized cross-correlation at lag zero plus a declared symmetric short-lag
@@ -283,15 +292,20 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
   `E[(L+R)^2]`, channel RMS, first nonzero arrival, full-path energy centroid,
   and isolated output-diffuser centroid. Label `+3.01 dB` as conditional on
   all-lag uncorrelatedness; do not set a channel-balance/perceptual tolerance
-  before reviewing results.
+  before reviewing results. **Partial:** powers/covariance are recorded across
+  the Mix sweep, but RMS, first arrival and both centroids are currently
+  measured only at Mix=1.
 - [ ] DS-10: demonstrate cutoff only at diffusion recursive-memory writes,
   wrapper fault aggregation, repeated full reset equivalence and
   silence-in/silence-out. For every section record stored float `q_j`, an
   explicit cessation-state bound `S_j`, and integer drain
   `D_j=(k_j+1)d_j` with `k_j=min{k>=1:q_j^k*S_j<1e-20F}`. Treat this as a
   proof template; separately measure actual full-path silence and do not
-  compare it to the historical additive timeout.
-- [ ] Run the focused target, all CTest suites, allocation instrumentation and
+  compare it to the historical additive timeout. **Partial:** stored float
+  `q_j`, input-chain analytic bounds, output measured-window illustrations,
+  drains and an observed trailing exact-silence interval are recorded; no
+  propagated whole-chain cessation-state proof exists.
+- [x] Run the focused target, all CTest suites, allocation instrumentation and
   `git diff --check`. Update `docs/testing.md` with commands, exit status,
   numeric results, fixtures, analysis settings and remaining gaps. The pass
   does not establish sonic acceptance.

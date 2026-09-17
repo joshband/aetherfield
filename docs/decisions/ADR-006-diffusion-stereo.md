@@ -1,7 +1,7 @@
 ---
 id: "ADR-006"
 status: accepted
-implementation: task-1-lifecycle-preparation-task-2a-read-only-taps-task-2b-routing-and-task-3-recovery
+implementation: task-1-lifecycle-preparation-task-2a-read-only-taps-task-2b-routing-task-3-recovery-and-task-4-partial-measured-evidence
 review: resolved-by-contract
 review_document: "../phases/phase1-ds-review.md"
 depends_on: [ADR-002, ADR-003, ADR-004, ADR-005]
@@ -13,7 +13,7 @@ depends_on: [ADR-002, ADR-003, ADR-004, ADR-005]
 
 - **Decision:** accept an input-diffusion, injection, output-tap, and stereo architecture as an **evaluation baseline**.
 - **Why:** it supplies a bounded candidate product path around the fixed FDN without changing FDN internals.
-- **Implementation:** **DS-B Task 1 lifecycle/preparation, Task 2a's read-only FDN pre-step tap accessor, Task 2b's one-sample route, and Task 3 aggregate detection/block recovery are implemented.** Task 2b routes through input diffusion, normalized FDN injection, pre-advance even/odd taps, output diffusion and Mix without altering FDN internals. Task 3 adds wrapper-owned saturated fault accounting and next-nonempty-block recovery without changing standalone FDN behavior. Task 4's measured full-chain acceptance remains unimplemented.
+- **Implementation:** **DS-B Task 1 lifecycle/preparation, Task 2a's read-only FDN pre-step tap accessor, Task 2b's one-sample route, and Task 3 aggregate detection/block recovery are implemented. Task 4 has partial measured evidence, corrected 2026-09-17.** Task 2b routes through input diffusion, normalized FDN injection, pre-advance even/odd taps, output diffusion and Mix without altering FDN internals. Task 3 adds wrapper-owned saturated fault accounting and next-nonempty-block recovery without changing standalone FDN behavior. Task 4 records useful DS-1..12 measurements, but does **not** yet close every named case: its bracket checks do not use an independent double recurrence or cover per-cascade energy/determinism/allocation; DS-8/9 applies RMS/arrival/full-path-centroid/isolated-centroid measurement only at Mix=1; and DS-10 output `S_j` rows are measured-window illustrations rather than propagated cessation-state proofs. See `docs/testing.md` for the exact current evidence and gaps. No Task 4 measurement establishes sonic acceptance or authorizes successor topology/tap/control work.
 - **Review status:** **resolved-by-contract, 2026-09-17.** The five algebraic/acceptance corrections below replace the superseded claims in the historical ADR record. They permit a bounded integration plan; they do not authorize implementation or establish product quality.
 
 ## Correction note — contracts replacing superseded claims (2026-09-17)
