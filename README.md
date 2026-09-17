@@ -2,7 +2,16 @@
 
 A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable product and engineering charter is [AETHERFIELD_SPEC.md](AETHERFIELD_SPEC.md).
 
-**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No AUv3 extension or UI exists. **Phase 1 is in progress**: the reverb topology is decided (ADR-002 in [docs/decisions.md](docs/decisions.md)), and all three implementation increments are implemented under separate authorization: S1 (`DelayLine`), S2 (`FeedbackDelayNetwork`: the fixed late network), and parameter transitions (`ParameterAutomation`: Mix/Decay/Damp automation and smoothing over the S2 network, no modulation, no diffusion, no stereo) — see [docs/phases/phase1-s1-plan.md](docs/phases/phase1-s1-plan.md)/[docs/phases/phase1-s2-plan.md](docs/phases/phase1-s2-plan.md)/[docs/phases/phase1-pt-plan.md](docs/phases/phase1-pt-plan.md) and evidence in [docs/testing.md](docs/testing.md). Diffusion, stereo, and every other reverb behavior remain planned, not implemented.
+**Start here:** [Current state and task-specific reading guide](docs/start-here.md).
+For decisions, use the [ADR index](docs/decisions/index.md); each record has a
+short review summary, machine-readable metadata, and its complete original reasoning.
+
+**Implemented:** the portable C++ host loop, `DelayLine`, fixed
+`FeedbackDelayNetwork`, Mix/Decay/Damp `ParameterAutomation`, a standalone
+fixed `SchroederAllpass`, and a mono impulse renderer. Five host test suites
+cover these increments. Full diffusion and stereo remain planned; ADR-006 needs the corrections recorded in its
+[readiness review](docs/phases/phase1-ds-review.md). AUv3 and UI are deferred.
+See the current-state guide for the active plan and supporting evidence.
 
 ## Build, test, render, inspect
 
@@ -40,10 +49,10 @@ See [testing.md](docs/testing.md) for decoded-sample inspection and actual verif
 ## Durable project context
 
 - [Architecture](docs/architecture.md): current boundaries and Mermaid diagram.
-- [DSP design](docs/dsp-design.md): gain and S1 delay-line contracts, and explicit unimplemented reverb scope beyond them.
-- [Decisions](docs/decisions.md): build/framework alternatives and accepted ADR.
+- [DSP design](docs/dsp-design.md): implemented gain, delay, fixed network and automation contracts, with planned diffusion/stereo scope.
+- [Decision index](docs/decisions/index.md): individual ADRs, status, dependencies, and implementation/review state. [Legacy links](docs/decisions.md) remain available.
 - [Roadmap](docs/roadmap.md): Phase 1 scope, agent routing and deferred recommendations.
-- [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and any metrics actually reported. Read this, alongside the roadmap and decisions, before resuming work in a new session or a different tool.
+- [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and measured metrics. Consult it when attribution or historical verification matters.
 - [Field Notes site](docs/site/index.html): a visual summary of the above (status, architecture, ADRs, roadmap, testing evidence, agent log) as a single local HTML file — open it directly in a browser. It is the canonical source for the published copy at https://claude.ai/artifact/KzdPDSvRqQCKJYysPuHnkT; edit the local file and republish to that same URL, never the reverse. One caveat: the two Mermaid diagrams on the Architecture page only render on the published copy (they depend on a runtime the hosting platform injects) — opened as a local file they show as plain text, which is expected, not a bug.
 
 The source layout is deliberately small: `src/dsp/`, `tests/`, `tools/render/`, `tools/render_reverb/`, and `docs/site/` (the documentation website's canonical source). Git is local; no remote or distribution license has been selected.

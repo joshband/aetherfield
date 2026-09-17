@@ -139,7 +139,234 @@ Results: fresh configure/build succeeded with all warning flags on; `3/3` tests 
 
 **Independent verification (Luna, 2026-09-16).** Luna independently rebuilt from a separate clean build directory (deleted afterward), confirmed identical pass results across two `ctest` runs, and confirmed the recorded diagnostics (NS-7 peak ≈23.561× identical across all five block partitions with `nonFiniteCount() == 0`; NS-8 time-to-silence 1,177,358 samples; NS-10 divergence 6.64e-08) by rerunning the binary directly. Luna quoted the exact source lines implementing ADR-003 (b)'s denormal cutoff at both, and only, its two named placements (`FeedbackDelayNetwork.cpp`: the damping-state write and the delay-line push), and confirmed the non-finite handling asymmetry (input substituted; internally-arising non-finite values stored as-is, never corrected). Luna independently reasoned through the fast-Hadamard-transform-plus-folded-gain render path against the separately-constructed diagnostic matrix and found them mathematically equivalent. Luna confirmed `DelayLine::process()`'s refactor into `peek()` then `push()` preserves its original behavior and that all 9 S1 tests still pass unmodified. Luna independently re-verified both implementation-time corrections (the capacity-design fix and the four coefficient accessors) against `DelayLine.h`'s actual contract and the NS-2/NS-3/NS-5 requirements, confirming both were real, correctly-diagnosed problems with correct fixes. Scope compliance confirmed via `git diff --stat`/`git status --short`: no parameter-transport, modulation, or diffusion code exists. All checks passed; no deviation found.
 
-This closes the "Fixed late network" gate below for the NS-1…NS-11 cases. No parameter-transport layer, diffusion, stereo strategy, or sonic-quality claim follows from it — `FeedbackDelayNetwork` alone is not a reverb, and its NS-test injection/output-tap convention is explicitly a test-only convention (docs/phases/phase1-s2-plan.md), never a product decision.
+This closes the "Fixed late network" gate below for the NS-1…NS-11 cases. No parameter-transport layer, diffusion, stereo strategy, or sonic-quality claim follows from it — `FeedbackDelayNetwork` alone is not a reverb, and its NS-test injection/output-tap convention is explicitly a test-only convention (docs/phases/phase1-s2-plan.md), never a product decision. ADR-006 now decides the product injection vector and output tap design that will replace it, and its DS-1…DS-12 cases; nothing here implements or measures either.
+
+## IMPLEMENTED: Phase 1 DS-A — fixed Schroeder allpass primitive (2026-09-17)
+
+**Scope:** the standalone allpass section only. This does not close the DS
+diffusion/stereo gate or authorize full-chain integration. The primitive uses
+the existing `DelayLine`, derives nearest-prime lengths from time-domain
+inputs, applies the inherited memory cutoff, and reports exceptional values.
+
+**TDD and verification:** the focused test was first run against the missing
+source and failed at CMake generation. After the minimal implementation was
+added, a fresh Release build and focused CTest passed. The full fresh Release
+build then ran all five suites — gain, delay, FDN, parameter and allpass —
+with **5/5 passed**, total test time 1.80 s. The focused tests cover the
+analytic impulse response, nearest-prime derivation, `g=0` pure-delay
+behavior, reset, failed-prepare rollback and non-finite reporting. They do
+not claim cascade, stereo, full-path decay, coherence or aggregate-detector
+evidence.
+
+**Independent verification (Luna, 2026-09-17):** from a separate fresh
+Release build directory, Luna reconfigured, rebuilt and reran all five suites;
+all passed in 1.81 s. Luna independently checked the recurrence ordering,
+nearest-prime tie behavior, rollback-on-failed-prepare, fault preservation and
+reset semantics.
+
+**Task 2 section evidence (Terra, 2026-09-17):** a fresh Release configure in
+`build/ds-a-task2` built successfully. The focused CTest passed in **0.06 s**;
+the full suite passed **5/5** in **1.89 s**. The allpass executable directly
+measured **0.05 s real time** on this host; this is observational only, not a
+CPU budget. A test-local double recurrence, using the section's stored float
+coefficient and the same `1e-20` memory cutoff, compared separate impulse and
+fixed-seed bounded-noise renders over all eight ADR-006 delay targets at both
+fixture rates: maximum absolute error was **1.02533175e-07** (limit `2e-5`).
+The test-local radix-2 double FFT reproduced an impulse exactly and a delayed
+impulse with maximum phase error **2.762268411e-12**. Measured impulse responses
+were drained for `128*d`, zero-padded to at least 131072, and checked over
+65537 bins from zero through pi for all 16 configured sections: maximum
+magnitude error was **3.974004226e-08** (limit `1e-6`).
+
+Double-accumulated relative energy error was at most **1.624351376e-08** for
+an impulse and **3.249906728e-09** for 4096 samples of fixed-seed noise plus
+`128*d` zeros (limit `1e-5`). The prescribed reversed-sign, `M=64*d`
+single-section input measured peak **2.23606801** against the stored-coefficient
+bound **2.23606801** plus `1e-5`; this is not a cascade 25x/5x measurement.
+For every configured length, both the derived coefficient and `g=0.9` reached
+exact silence from the stated conservative cutoff bound through two additional
+delay cycles; `g=0` ended after `d+1`. Finite `FLT_MAX` sustained for more than
+two cycles at `g=0.9`, NaN, and infinity each raised the sample fault flag;
+reset then restored exact silent, no-fault output. Test-local regular, array,
+and aligned allocation overrides recorded a **zero** process/reset allocation
+delta after preallocation. Two identical scripts and partitions
+`{1,13,64,512,ragged}` produced float-bit-identical output.
+
+This closes only standalone section portions of DS-1/2/4/5/10/11/12. It does
+not measure allpass cascades, FDN interaction, stereo taps/coherence, full-path
+decay or silence, shared aggregate fault ownership, host-block processing, or
+product CPU/perceptual behavior; the full-chain follow-up remains required.
+
+## IMPLEMENTED: Phase 1 DS-B Task 1 — transactional lifecycle/preparation (2026-09-17)
+
+**Scope:** `DiffusionStereoPath` owns and transactionally prepares the four
+input, two-left-output and two-right-output allpass sections, existing FDN and
+`ParameterAutomation`. Its aggregate-fault count/latch/reset-pending storage is
+created with lifecycle semantics: reset clears current latches/recovery state
+while preserving the cumulative count. This task intentionally has no audio
+`process` API, FDN pre-step tap accessor, input injection, output diffusion,
+stereo output, Mix application or per-sample fault observation.
+
+**TDD and verification:** the new focused target was configured first and
+failed because `dsp/DiffusionStereoPath.h` was absent. After the minimal
+ownership/preparation implementation, a fresh Release configure/build in
+`build/ds-b-task1-final` succeeded. The focused CTest passed **1/1** in
+**0.00 s**; the full suite passed **6/6** in **2.02 s**. The focused tests
+cover reset before prepare, exact ADR-006 time-domain length derivation at
+48 kHz (`{47,103,223,479}`, L `{191,307}`, R `{241,383}`) and 44.1 kHz
+(`{43,97,199,439}`, L `{173,281}`, R `{223,353}`), clean aggregate initial
+state, reset configuration preservation, and rollback after invalid rate,
+allpass time, coefficient, FDN line count and automation `dMaxDb` inputs.
+
+The tests do not exercise a generated wrapper fault because Task 3 has not
+introduced a processing boundary or fault observation. FDN count saturation,
+latch-only observation, next-nonempty-block reset, FDN taps, sample order and
+all full-chain DS measurements remain Tasks 2–4 work.
+
+**Task 1 validation correction:** a new focused test was first run against the
+previous implementation with
+`cmake --build build/ds-b-task1-final --target aetherfield_dsp_diffusion_stereo_tests --parallel && build/ds-b-task1-final/aetherfield_dsp_diffusion_stereo_tests`.
+It exited **1** with `FAIL: invalid realized diffusion topology accepted`.
+The replacement preparation gate rejects duplicate input times, non-increasing
+interleaved output times, any GCD conflict among all eight realized diffusion
+lengths or with a realized FDN delay, and
+`max(diffusion) >= FDN m_min`; each rejection leaves an established live
+configuration unchanged. It also rejects every FDN/allpass time-derived target
+outside `[1, INT_MAX - 1024]` before candidate allocation, covering the finite
+enormous `fdnMaxDelaySeconds` case that would otherwise reach the FDN's
+out-of-range `llround` path.
+
+A fresh Release run used
+`cmake -S . -B build/ds-b-task1-validation -DCMAKE_BUILD_TYPE=Release`,
+`cmake --build build/ds-b-task1-validation --parallel`,
+`ctest --test-dir build/ds-b-task1-validation -R aetherfield_dsp_diffusion_stereo_tests --output-on-failure`,
+and `ctest --test-dir build/ds-b-task1-validation --output-on-failure`.
+Configuration and build succeeded; the focused suite passed **1/1** in
+**0.01 s** and the full suite passed **6/6** in **1.88 s**. The allocation
+counter test observed no candidate allocation for the rejected enormous FDN
+target. These are preparation-only checks; Task 2's tap/order API and all
+processing, recovery and full-chain evidence remain unimplemented.
+
+## IMPLEMENTED: Phase 1 DS-B Task 2a — read-only FDN pre-step taps (2026-09-17)
+
+**Scope:** `FeedbackDelayNetwork::preStepTapSums() const noexcept` returns
+unnormalized even/odd sums of the current `DelayLine::peek()` values in the
+existing increasing-delay order. `DiffusionStereoPath` forwards that view and
+returns `{0,0}` before preparation. The accessor is const, allocation-free and
+does not use or mutate FDN scratch storage, coefficients, detector state or
+line state. `FeedbackDelayNetwork::process()` and `processSample()` retain
+their existing behavior. Task 2a itself added no wrapper process API, input
+injection, routing, output diffusion, Mix, stereo output or aggregate-fault
+observation.
+
+**TDD and verification:** before implementation,
+`cmake --build build/ds-b-task1-validation --target aetherfield_dsp_fdn_tests aetherfield_dsp_diffusion_stereo_tests --parallel`
+exited **2** because `FeedbackDelayNetwork` had no `preStepTapSums` member.
+The new FDN fixture injects one impulse, advances `m_min - 1` zero samples,
+then observes the known pre-advance sums `{even=1, odd=0}` through a const
+view; repeated reads are identical and the next returned FDN wet sample equals
+their sum. Wrapper tests confirm that its unprepared and prepared-reset views
+are silent and unchanged by repeated reads.
+
+A fresh Release run used
+`cmake -S . -B build/ds-b-task2-final -DCMAKE_BUILD_TYPE=Release`,
+`cmake --build build/ds-b-task2-final --parallel`,
+`ctest --test-dir build/ds-b-task2-final -R 'aetherfield_dsp_(fdn|diffusion_stereo)_tests' --output-on-failure`,
+and `ctest --test-dir build/ds-b-task2-final --output-on-failure`.
+Configuration and build succeeded; focused FDN/wrapper CTest passed **2/2** in
+**1.17 s**, and all legacy/current suites passed **6/6** in **1.82 s**.
+At that Task 2a handoff, wrapper sample ordering and partition identity could
+not yet be measured because no wrapper advance/process API existed.
+
+## IMPLEMENTED: Phase 1 DS-B Task 2b — one-sample diffusion/stereo routing (2026-09-17)
+
+**Scope:** `DiffusionStereoPath::processSample(float) noexcept` advances the
+prepared automation and FDN exactly once, sanitizes a non-finite host injection
+to zero, routes mono through the four input allpasses, applies `1/sqrt(N)`
+injection normalization, reads the even/odd FDN sums before FDN advancement,
+applies `1/sqrt(N/2)` tap normalization, runs the two assigned output allpasses
+per channel, and applies this sample's dry/wet Mix gains. It is allocation-free
+and returns silence before preparation. It does not implement block processing,
+cumulative aggregate-fault accounting, latching or recovery; those remain Task
+3. No decay, coherence, channel-balance, silence or perceptual claim follows.
+
+**TDD and verification:** the focused target first failed to compile because
+the wrapper lacked both `StereoSample` and `processSample()`. The new test
+prepares an independent composition of the existing allpass, FDN and automation
+primitives and compares 4,096 impulse-response samples exactly against the
+wrapper, including the first FDN arrival. It also counts no allocations across
+1,024 warmed `processSample()` calls. A first reference mismatch at the FDN
+arrival was traced to the test oracle using division instead of the required
+stored-factor multiplication; the corrected oracle uses the same specified
+`float` evaluation order.
+
+A fresh Release run used
+`cmake -S . -B build/ds-b-task2b-final -DCMAKE_BUILD_TYPE=Release`,
+`cmake --build build/ds-b-task2b-final --parallel`,
+`ctest --test-dir build/ds-b-task2b-final --output-on-failure`, and
+`git diff --check`. Configuration/build succeeded, all **6/6** CTest suites
+passed in **1.84 s**, and the whitespace check exited zero.
+
+## IMPLEMENTED: Phase 1 DS-B Task 3 — aggregate faults and block recovery (2026-09-17)
+
+**Scope:** `DiffusionStereoPath::process()` establishes the block boundary:
+zero frames are inert; a pending reset clears every allpass, the FDN,
+automation and current wrapper latches before the next nonempty frame; the
+cumulative wrapper count survives. `processSample()` treats itself as a
+one-sample block. Every allpass `Sample::nonFinite` is observed before
+propagation. The FDN count/latch is snapshotted around processing; an upstream
+source suppresses only FDN's matching input-substitution count, while other FDN
+count deltas aggregate. A false-to-true FDN latch without a count delta records
+one non-exact aggregate observation. The existing FDN processing semantics are
+unchanged; its test-only detector-state seam exists solely to characterize that
+saturated-counter path.
+
+**TDD and verification:** the focused target initially failed because the
+wrapper had no block `process()` API. Fault tests cover a wrapper-head NaN,
+zero-frame preservation of pending recovery, recovery before the following
+nonempty silent block, repeated recovered blocks, and input-allpass overflow.
+The saturation fixture sets the FDN count to `size_t` maximum with its latch
+clear, drives the first allpass overflow at frame 48, and observes four input
+stage events plus exactly one FDN latch-only aggregate observation. Fixed
+parameters are bit-identical across `{1,13,64,512,3}` block partitions; warmed
+sample and block calls allocate zero times.
+
+A fresh Release run used
+`cmake -S . -B build/ds-b-task3-final -DCMAKE_BUILD_TYPE=Release`,
+`cmake --build build/ds-b-task3-final --parallel`,
+`ctest --test-dir build/ds-b-task3-final --output-on-failure`, and
+`git diff --check`. Configuration/build succeeded, all **6/6** CTest suites
+passed in **1.83 s**, and the whitespace check exited zero. Task 4's decay,
+coherence, silence and channel measurements remain unimplemented.
+
+**Independent verification (Luna, 2026-09-17).** Luna rebuilt Release from a
+separate clean directory (`/tmp/luna-verify-ds-b-task3`, deleted afterward)
+and ran CTest twice: **6/6** passed both times (1.80 s, then 1.82 s),
+confirming determinism. Luna traced, rather than trusted, five specific
+claims against the actual source: (1) `process()`'s zero-frame guard
+(`if (count == 0 || !state_) return;`) executes before the `resetPending_`
+check, so a zero-frame call cannot consume a pending reset; (2) `reset()`
+clears every input/output allpass section, the FDN and automation, while
+leaving `nonFiniteCount_` untouched, so the cumulative count survives; (3)
+`observeFdnFault()`'s `latchTransition && !countAdvanced` branch is exactly
+the "latch-only" path, producing one aggregate observation when the FDN
+count is already saturated; (4) the same function's
+`upstreamFaultObserved && delta > 0` branch decrements `delta` by one before
+counting, which is the de-duplication that stops a wrapper-observed
+non-finite injection from being double-counted when it also advances the
+FDN's own counter; (5) the FDN's `setNonFiniteStateForTest()` seam and the
+wrapper's forwarding call are both compiled only under
+`#if defined(AETHERFIELD_TESTING)`, and all 11 original NS tests still pass
+unmodified. Luna's own re-inspection turned up a few off-by-a-handful line
+numbers relative to the current file (attributable to normal drift during
+review, not a content error); the cited conditions and guards were
+independently confirmed present and correct against the actual source when
+re-checked. Scope was confirmed via `git diff --check` (exit 0) and a diff
+summary showing only the Task 2/3 files (`FeedbackDelayNetwork.h/.cpp`,
+`FdnTests.cpp`, `DiffusionStereoPath.h/.cpp`,
+`DiffusionStereoPathTests.cpp`) — no Task 4 measurement, modulation, stereo
+rendering or undisclosed production drift. Overall verdict: **PASS**, no
+deviation from this entry's claims found.
 
 ## IMPLEMENTED: Phase 1 parameter transitions (2026-09-17)
 

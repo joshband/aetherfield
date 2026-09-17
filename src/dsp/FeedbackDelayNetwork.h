@@ -8,6 +8,15 @@
 
 namespace aetherfield::dsp {
 
+// The two disjoint, unnormalized sums of the FDN's currently peekable line
+// state, partitioned by increasing-delay line index. This is a diagnostic
+// pre-step view: it does not advance the FDN or change its existing summed
+// output convention.
+struct PreStepTapSums {
+    float even = 0.0F;
+    float odd = 0.0F;
+};
+
 // A fixed (time-invariant, unmodulated) Feedback Delay Network: N delay
 // lines, one fixed normalized-Hadamard orthogonal feedback matrix, one
 // scalar per-line gain and one bounded-real one-pole damping filter per
@@ -120,6 +129,13 @@ public:
     // allocation-free, lock-free.
     float processSample(float input) noexcept;
 
+    // Returns the sums of `lines_[i].peek()` for even and odd increasing-delay
+    // indices before an FDN sample advances any line. It is const, noexcept,
+    // allocation-free and does not touch scratch_, coefficients, detector or
+    // line state. The result is {0, 0} before preparation. This accessor is
+    // additive: process()/processSample() retain their existing behavior.
+    PreStepTapSums preStepTapSums() const noexcept;
+
     // Overwrites line i's folded gain (gᵢ / sqrt(lineCount())) outside
     // prepare(). Render-thread-safe: no allocation, no lock, noexcept.
     // The caller (docs/phase1-pt-plan.md's smoother) is responsible for
@@ -145,6 +161,12 @@ public:
     // handling. Both noexcept, allocation-free, safe on the render thread.
     std::size_t nonFiniteCount() const noexcept;
     bool nonFiniteLatched() const noexcept;
+
+#if defined(AETHERFIELD_TESTING)
+    // Test-only state seam for wrapper saturation characterization. It does
+    // not participate in normal processing or alter the detector contract.
+    void setNonFiniteStateForTest(std::size_t count, bool latched) noexcept;
+#endif
 
     // The orthogonality residual ||AᵀA - I||∞, computed once at prepare()
     // against the realized normalized matrix and retained as a diagnostic

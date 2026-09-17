@@ -2,28 +2,43 @@
 
 ## Current system — IMPLEMENTED
 
-Aetherfield is a greenfield AUv3 audio effect targeting iOS/iPadOS. Phase 0 implements only a portable C++ engineering loop. It is not yet an Audio Unit or a reverb.
+Aetherfield has a portable C++20 DSP core and host-side engineering loop.
+The implemented Phase 1 fixture combines a fixed feedback delay network with
+Mix/Decay/Damp automation. AUv3 integration and the product signal path remain
+unimplemented. See [current status](start-here.md) and [DSP contracts](dsp-design.md).
 
 ```mermaid
 flowchart LR
-    TEST["Host tests"] --> DSP["C++ DSP library: fixed gain, DelayLine"]
-    RENDER["Offline renderer"] --> DSP
-    DSP --> PCM["Processed samples"]
-    PCM --> WRITER["Renderer-owned WAV writer"]
-    WRITER --> WAV["PCM WAV artifact"]
-    FUTURE["DEFERRED: AUv3 integration"] -.-> DSP
-    UI["DEFERRED: UI and parameter communication"] -.-> FUTURE
+    TEST["Four CTest executables"] --> DSP["C++ DSP library"]
+    GAIN["Gain renderer"] --> DSP
+    REVERB["Mono impulse renderer"] --> PARAM["ParameterAutomation: Mix / Decay / Damp"]
+    PARAM --> FDN["FeedbackDelayNetwork"]
+    FDN --> DELAY["DelayLine bank"]
+    FDN --> MIX["Renderer-owned dry / wet mix"]
+    MIX --> WAV["Renderer-owned WAV output"]
+    FUTURE["PLANNED: diffusion and stereo"] -.-> FDN
+    AU["DEFERRED: AUv3 wrapper and UI"] -.-> DSP
 ```
 
-Solid relationships describe current code; dashed relationships describe future integration. File I/O belongs to the host renderer, never the DSP core. `DelayLine` (Phase 1 S1) is exercised only by its own test executable so far; the renderer still uses only the Phase 0 gain fixture.
+Solid relationships describe existing code; dashed relationships describe
+future work. The DSP library contains gain, delay, network and automation
+components. The diagram expands the reverb renderer's composition separately.
 
 ## Boundaries
 
-- DSP: standard C++ only; caller owns sample storage. A concrete stateless in-place gain function processes one contiguous channel, and a small stateful `DelayLine` class (single fixed-length line, no feedback) owns its own delay-history storage internally, allocated only in `prepare()`. The caller determines channel layout and block size.
-- Tests: exercise actual DSP behavior without an Apple host or external test framework.
-- Renderer: constructs a deterministic fixture, invokes the same DSP library, and writes a WAV from the offline thread. Its allocation and file operations are not render-thread code.
-- Parameters: the gain scalar is a bootstrap input passed by value, fixed for each call. It is not a public Aetherfield parameter. There is no shared mutable parameter state, host/UI communication, smoothing, or automation implementation.
-- Future platform wrapper: owns Apple buffers, lifecycle, parameter events, state and UI integration. Native Apple APIs versus JUCE remains an integration decision; implementation and integration proof are deferred. The portable core must not include Apple or framework types.
+- DSP: standard C++ only. Gain is stateless; delay/network history and parameter
+  storage are allocated during preparation, outside processing. The caller
+  owns sample buffers and determines block size.
+- Parameters: `ParameterAutomation` validates control targets, publishes them
+  through single-writer/single-reader atomic transport, and advances coefficient
+  ramps on the render thread. Mix is applied outside network feedback.
+- Tests: four host executables exercise gain, delay, fixed-network and parameter
+  contracts without an Apple host or external test framework.
+- Renderers: own fixtures, dry/wet composition, file I/O and WAV output. The
+  reverb renderer is a mono observation fixture, not a product wrapper.
+- Future platform wrapper: will own Apple buffers, lifecycle, parameter events,
+  state and UI integration. Native Apple APIs versus JUCE remains deferred;
+  the portable core must not include Apple or framework types.
 
 ## Build and ownership
 
@@ -42,4 +57,7 @@ A session's actual model/tool choices are an execution detail of that session, n
 
 ## Deliberately absent — DEFERRED
 
-The feedback network (matrix, multiple coupled lines, per-line damping and decay), modulation, production lifecycle APIs, lock-free parameter transport, AUv3 wrapper, containing app, UI, platform project, signing configuration, presets and external DSP dependencies. A single fixed-length `DelayLine` primitive (Phase 1 S1) is implemented, but it is not wired into any feedback path and is not a reverb. No mono-only product requirement follows from the mono bootstrap fixture.
+Input/output diffusion, stereo extraction, modulation, AUv3 wrapper, containing
+app, UI, signing configuration, presets and external DSP dependencies. ADR-006
+is decided but unimplemented and has [open review findings](phases/phase1-ds-review.md).
+No mono-only product requirement follows from the mono host fixture.

@@ -7,7 +7,7 @@ search this document for "Corrected during implementation" and "Added
 during implementation"). This document was written, and remains preserved
 below, as the task plan Terra's implementation was required to follow; for
 current implementation and verification evidence see
-[testing.md](testing.md)'s "IMPLEMENTED: Phase 1 S2" section. Every "not
+[testing.md](../testing.md)'s "IMPLEMENTED: Phase 1 S2" section. Every "not
 created by this plan" / "future implementation" / "not authorized"
 statement below describes this document's status before the owner
 separately authorized S2 implementation.

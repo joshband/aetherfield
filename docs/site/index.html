@@ -412,9 +412,9 @@
 
     <div class="sidebar-foot">
       <div class="stat"><span>Phase</span><b>1 of 6</b></div>
-      <div class="stat"><span>ADRs accepted</span><b>5</b></div>
+      <div class="stat"><span>ADRs recorded</span><b>6</b></div>
       <div class="stat"><span>Gates closed</span><b>3 / 5</b></div>
-      <div class="stat"><span>Tests passing</span><b>4 / 4</b></div>
+      <div class="stat"><span>Tests passing</span><b>5 / 5</b></div>
     </div>
   </aside>
 
@@ -425,6 +425,16 @@
       <div class="eyebrow">Project · Status</div>
       <h1>An ambient reverb, built one proof at a time.</h1>
       <p class="lede">Aetherfield is a greenfield AUv3 reverb for iOS/iPadOS. Nothing ships until it's decided in writing, translated into an exact interface, implemented, and independently re-verified from disk — by a different pass than the one that wrote it.</p>
+
+      <div class="note">Read the <a href="../start-here.md">current-state guide</a> or
+        <a href="../decisions/index.md">decision index</a> before starting work.
+        ADR-006 defines a diffusion/stereo evaluation baseline; Task 1 owns
+        transactional preparation, Task 2a exposes read-only pre-step taps,
+        Task 2b implements one-sample routing through the baseline path, and
+        Task 3 implements wrapper-owned aggregate fault recovery.
+        The <a href="../phases/phase1-ds-plan.md">DS-A primitive</a> is implemented;
+        Full diffusion/stereo measurement and evaluation remain subject to separate authorization.
+        This site summarizes the local records; published copies may lag.</div>
 
       <div class="hero">
         <div class="hero-copy">
@@ -596,7 +606,7 @@ flowchart LR
     <!-- ============ DECISIONS ============ -->
     <section class="page" data-page="decisions">
       <div class="eyebrow">Architecture · Decision Records</div>
-      <h1>Five decisions, each closing exactly one door.</h1>
+      <h1>Six decisions, with implementation tracked separately.</h1>
       <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
 
       <div class="adr">
@@ -648,6 +658,23 @@ flowchart LR
         <div class="decision">Broke ADR-002's own deadlock — "defer N to measured evidence" needs the network built to measure it. Splits <b>N_fixture = 8</b> (decided, for testing) from <b>N_product</b> (still deferred). Delay lengths: 8 primes, geometrically spaced 27–81ms, nearest-prime snapped, co-primality checked by direct gcd.</div>
         <div class="adr-meta"><span><b>Fixture (48kHz):</b> 1297, 1511, 1777, 2069, 2423, 2843, 3323, 3889 samples</span><span><b>Honest finding:</b> Schroeder-Logan density criterion holds only to T60≈2.66s, not indefinitely</span></div>
       </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-006</span>
+          <h3>Input diffusion and stereo extraction</h3>
+          <span class="pill pending">Plan pending authorization</span>
+        </div>
+        <div class="decision">The recorded design uses fixed allpass cascades,
+          normalized injection and interleaved stereo taps. Task 1 owns
+          preparation/lifecycle; Task 2a adds read-only pre-step taps; Task 2b adds one-sample audio routing; Task 3 adds aggregate fault recovery.
+          The correction contract resolves prior overclaims for decay, coherence,
+          silence, detector ownership and channel metrics; DS-B routing and
+          Tasks 3–4 are unimplemented and need separate authorization.</div>
+        <div class="adr-meta"><a href="../decisions/ADR-006-diffusion-stereo.md">Full ADR</a>
+          <a href="../phases/phase1-ds-review.md">Readiness review</a></div>
+      </div>
+      <p><a href="../decisions/index.md">All ADR summaries, metadata and full records</a></p>
 
       <div class="note">Three task plans followed the same rigor without needing a fresh ADR — all now in <code>docs/phases/</code> (moved there from <code>docs/</code> root to keep the durable documents from bloating): <code>phase1-s1-plan.md</code> (<code>DelayLine</code>), <code>phase1-s2-plan.md</code> (<code>FeedbackDelayNetwork</code>), and <code>phase1-pt-plan.md</code> (<code>ParameterAutomation</code>) — each a Terra-authored translation of already-decided math, each independently verified by Luna before implementation, each now marked implemented in place rather than deleted or rewritten after the fact.</div>
     </section>

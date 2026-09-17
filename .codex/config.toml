@@ -1,0 +1,36 @@
+# Aetherfield: keep DSP/repository workflows lean.
+# These plugin overrides apply only to this trusted project.
+# Change an entry to true or remove it to restore the user-level setting.
+
+[plugins."claude-code-setup@claude-plugins-official"]
+enabled = false
+
+[plugins."claude-md-management@claude-plugins-official"]
+enabled = false
+
+[plugins."plugin-dev@claude-plugins-official"]
+enabled = false
+
+[plugins."skill-creator@claude-plugins-official"]
+enabled = false
+
+[plugins."google-drive@openai-curated"]
+enabled = false
+
+[plugins."documents@openai-primary-runtime"]
+enabled = false
+
+[plugins."pdf@openai-primary-runtime"]
+enabled = false
+
+[plugins."spreadsheets@openai-primary-runtime"]
+enabled = false
+
+[plugins."presentations@openai-primary-runtime"]
+enabled = false
+
+[plugins."template-creator@openai-primary-runtime"]
+enabled = false
+
+[plugins."sites@openai-bundled"]
+enabled = false

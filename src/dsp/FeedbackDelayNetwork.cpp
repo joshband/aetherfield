@@ -280,6 +280,18 @@ float FeedbackDelayNetwork::processSample(float input) noexcept {
     return tap;
 }
 
+PreStepTapSums FeedbackDelayNetwork::preStepTapSums() const noexcept {
+    PreStepTapSums sums;
+    for (std::size_t index = 0; index < lineCount_; ++index) {
+        if ((index & std::size_t {1}) == 0) {
+            sums.even += lines_[index].peek();
+        } else {
+            sums.odd += lines_[index].peek();
+        }
+    }
+    return sums;
+}
+
 void FeedbackDelayNetwork::setLineGain(std::size_t line, float foldedGain) noexcept {
     lineGain_[line] = foldedGain;
 }
@@ -296,6 +308,13 @@ std::size_t FeedbackDelayNetwork::nonFiniteCount() const noexcept {
 bool FeedbackDelayNetwork::nonFiniteLatched() const noexcept {
     return nonFiniteLatched_;
 }
+
+#if defined(AETHERFIELD_TESTING)
+void FeedbackDelayNetwork::setNonFiniteStateForTest(std::size_t count, bool latched) noexcept {
+    nonFiniteCount_ = count;
+    nonFiniteLatched_ = latched;
+}
+#endif
 
 float FeedbackDelayNetwork::orthogonalityResidual() const noexcept {
     return orthogonalityResidual_;

@@ -231,12 +231,12 @@ resuming session doesn't have to guess it):**
 
 | Role | Model (as of this writing) | Effort |
 |---|---|---|
-| Astra | Fable 5.1 | Orchestration-matched — Fable is built for coordination/agentic-synthesis work; this is the right tool for cross-domain synthesis and conflict resolution on its own terms, not a cost-driven "light" tier alongside Luna's mechanical verification |
-| Sol | Opus 5 | Highest — architectural/safety-consequential, expensive to unwind |
-| Terra | Sonnet 5 | Standard — capable general-purpose implementation from decisions Sol already made |
-| Luna | Haiku 4.5 | Light/fast — mechanical, independent verification against files on disk |
+| Astra GPT 5.6 (or newer) | Fable 5.1 (or newer) | Orchestration-matched — Fable is built for coordination/agentic-synthesis work; this is the right tool for cross-domain synthesis and conflict resolution on its own terms, not a cost-driven "light" tier alongside Luna's mechanical verification |
+| Sol GPT 5.6 (or newer) | Opus 5 (or newer) | Highest — architectural/safety-consequential, expensive to unwind |
+| Terra GPT 5.6 (or newer) | Sonnet 5 (or newer) | Standard — capable general-purpose implementation from decisions Sol already made |
+| Luna GPT 5.6 (or newer)| Haiku 4.5 (or newer)  | Light/fast — mechanical, independent verification against files on disk |
 
-## Astra — Technical Director
+## Astra / Fable — Technical Director
 
 Own:
 
@@ -250,15 +250,15 @@ Own:
 - roadmap maintenance
 - acceptance decisions
 
-Astra should coordinate rather than duplicate every specialist's work.
+Astra / Fable should coordinate rather than duplicate every specialist's work.
 
 ---
 
-## Sol — Architect / Critical Reviewer
+## Sol / Opus — Architect / Critical Reviewer
 
-Use Sol selectively where mistakes would propagate deeply through the system or substantial DSP/architectural reasoning is required.
+Use Sol / Opus selectively where mistakes would propagate deeply through the system or substantial DSP/architectural reasoning is required.
 
-Typical Sol work:
+Typical Sol / Opus work:
 
 - DSP topology
 - feedback mathematics
@@ -275,11 +275,11 @@ Sol should generally **design or review critical systems** rather than perform l
 
 ---
 
-## Terra — Default Engineering Agent
+## Terra / Sonnet — Default Engineering Agent
 
-Terra is the default working engineering model.
+Terra / Sonnet is the default working engineering model.
 
-Use Terra for:
+Use Terra / Sonnet for:
 
 - DSP implementation
 - repository-scale reasoning
@@ -296,9 +296,9 @@ Use Terra for:
 
 ---
 
-## Luna — Bounded / Verifiable Work
+## Luna / Haiku — Bounded / Verifiable Work
 
-Use Luna for inexpensive, bounded and mechanically verifiable work:
+Use Luna / Haiku for inexpensive, bounded and mechanically verifiable work:
 
 - repository inventory
 - targeted searches
@@ -316,7 +316,7 @@ Use Luna for inexpensive, bounded and mechanically verifiable work:
 
 # 8. Escalation Rules
 
-Escalate **Luna → Terra** when:
+Escalate **Luna (Haiku) → Terra (Sonnet) ** when:
 
 - implementation requires engineering judgment
 - failures have ambiguous causes
@@ -325,7 +325,7 @@ Escalate **Luna → Terra** when:
 - changes affect module interfaces
 - the task is no longer mechanically verifiable
 
-Escalate **Terra → Sol** when:
+Escalate **Terra (Sonnet) → Sol (Opus) ** when:
 
 - changing fundamental DSP topology
 - changing feedback mathematics
@@ -336,7 +336,7 @@ Escalate **Terra → Sol** when:
 - repeated implementation attempts fail
 - a decision substantially constrains future architecture
 
-Astra resolves disagreements.
+Astra (Fable) resolves disagreements.
 
 Do not resolve disagreements by implementing every proposal.
 
@@ -344,7 +344,7 @@ Do not resolve disagreements by implementing every proposal.
 
 # 9. Specialist Roles
 
-## Sol — DSP Architect
+## Sol / Opus — DSP Architect
 
 Own or critically review:
 
@@ -361,7 +361,7 @@ Own or critically review:
 
 ---
 
-## Sol — Systems / Realtime Reviewer
+## Sol / Opus — Systems / Realtime Reviewer
 
 Review:
 
@@ -376,7 +376,7 @@ Review:
 
 ---
 
-## Terra — DSP Engineer
+## Terra / Sonnet — DSP Engineer
 
 Implement approved:
 
@@ -398,7 +398,7 @@ Fundamental topology changes should be escalated.
 
 ---
 
-## Terra — AUv3 Engineer
+## Terra / Sonnet — AUv3 Engineer
 
 Own implementation of:
 
@@ -413,7 +413,7 @@ Own implementation of:
 
 ---
 
-## Terra — Integration Engineer
+## Terra / Sonnet — Integration Engineer
 
 Own:
 
@@ -426,7 +426,7 @@ Own:
 
 ---
 
-## Terra — DSP Validation Engineer
+## Terra / Sonnet — DSP Validation Engineer
 
 Own:
 
@@ -442,7 +442,7 @@ Own:
 
 ---
 
-## Luna — Repository Scout
+## Luna / Haiku — Repository Scout
 
 Inspect:
 
@@ -457,7 +457,7 @@ Inspect:
 
 ---
 
-## Luna — Build / QA Agent
+## Luna / Haiku — Build / QA Agent
 
 Continuously:
 
@@ -470,13 +470,13 @@ Continuously:
 
 ---
 
-## Luna — Test Implementation Agent
+## Luna / Haiku — Test Implementation Agent
 
 Implement clearly specified deterministic tests.
 
 ---
 
-## Luna — Documentation Curator
+## Luna / Haiku — Documentation Curator
 
 Keep documentation synchronized with accepted architecture and decisions.
 
@@ -484,7 +484,7 @@ Never invent architecture.
 
 ---
 
-## Luna — Cleanup Agent
+## Luna / Haiku — Cleanup Agent
 
 After appropriate milestones identify:
 
@@ -1046,9 +1046,18 @@ Actual DSP topology, algorithms, parameter relationships, and relevant mathemati
 
 Testing strategy, evaluation corpus, measurements, and validation procedures.
 
-### `docs/decisions.md`
+### `docs/start-here.md`
 
-Architectural Decision Records.
+Compact current status and task-specific reading routes for humans and agents.
+This is a navigation summary, not a replacement for contracts or evidence.
+
+### `docs/decisions/`
+
+`index.md` lists individual Architectural Decision Records and their decision,
+implementation and review states. Each `ADR-NNN-*.md` contains machine-readable
+metadata, a short review summary, and the complete decision record. Full ADRs
+are authoritative; summaries link to them rather than duplicate their proofs.
+`docs/decisions.md` remains a compatibility landing page for old links/anchors.
 
 ### `docs/roadmap.md`
 
@@ -1068,13 +1077,29 @@ A single-file visual summary of the durable documents above (status, architectur
 
 ### Resuming work / session handoff
 
-Any agent or human picking up this project cold — in Claude Code, Codex, or any other tool — should reconstruct state in this order before proposing or authorizing new work:
+Any agent or human picking up this project cold should read selectively:
 
-1. `README.md` for the current one-paragraph status.
-2. `docs/roadmap.md`'s NOW/NEXT/LATER tables for what is authorized versus merely planned — the binding scope boundary.
-3. `docs/decisions.md`'s most recent ADRs for the accepted design.
-4. `docs/agent-log.md` for who (which tool/role/model) last touched the project and what they did.
-5. `docs/testing.md` for what evidence actually exists versus what is still a PLANNED gate.
+1. `docs/start-here.md` for current state and the task-specific reading route.
+2. The current continuation and relevant milestone in `docs/roadmap.md` for
+   authorized versus planned scope, then the active task plan in `docs/phases/`.
+3. `docs/decisions/index.md`, then the relevant ADR summaries and full contract
+   sections. Follow dependencies that govern the task; do not load every ADR
+   or historical plan by default. A summary does not override the full record.
+4. Relevant sections of `docs/testing.md` and the actual source/tests to
+   distinguish recorded evidence from planned gates.
+5. `docs/agent-log.md` when provenance, prior execution or review history is
+   needed. Consult this charter's relevant sections for product intent and
+   engineering policy; it need not be reread in full for every bounded task.
+
+Keep current summaries short. Link detailed proofs, historical evidence and
+implementation plans instead of copying them into each overview. Record
+decision status separately from implementation and review status: an accepted
+design may still be unimplemented or require a documented correction.
+
+The shared agent loop is defined in `AGENTS.md` (with the same entry point in
+`CLAUDE.md` for Claude Code): fresh context at milestone boundaries, selective
+file reads, consequence-based model routing, and a disk-backed verification
+handoff. This is a context-efficiency rule as well as a continuity rule.
 
 Append a row to `docs/agent-log.md` at the same time any milestone-level commit lands, per that file's own "Maintenance" section. This is what lets the next session — on any tool — resume without re-deriving context from scratch or re-litigating a decision an ADR already settled.
 

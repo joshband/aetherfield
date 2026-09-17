@@ -4,7 +4,7 @@
 was written, and remains preserved below, as the pre-implementation task plan
 that Sol/Terra's implementation was required to follow exactly. It is a
 historical design record, not a live status page; for current implementation
-and verification evidence see [testing.md](testing.md)'s "IMPLEMENTED: Phase 1
+and verification evidence see [testing.md](../testing.md)'s "IMPLEMENTED: Phase 1
 S1" section. Every "not created by this plan" / "future implementation" /
 "not authorized" statement below describes this document's status at the time
 it was written, before the owner separately authorized S1 implementation.

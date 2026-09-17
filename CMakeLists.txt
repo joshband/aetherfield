@@ -11,6 +11,8 @@ add_library(aetherfield_dsp STATIC
     src/dsp/DelayLine.cpp
     src/dsp/FeedbackDelayNetwork.cpp
     src/dsp/ParameterAutomation.cpp
+    src/dsp/SchroederAllpass.cpp
+    src/dsp/DiffusionStereoPath.cpp
 )
 target_include_directories(aetherfield_dsp PUBLIC src)
 
@@ -26,6 +28,14 @@ target_link_libraries(aetherfield_dsp_fdn_tests PRIVATE aetherfield_dsp)
 add_executable(aetherfield_dsp_param_tests tests/ParameterTransitionTests.cpp)
 target_link_libraries(aetherfield_dsp_param_tests PRIVATE aetherfield_dsp)
 
+add_executable(aetherfield_dsp_allpass_tests tests/SchroederAllpassTests.cpp)
+target_link_libraries(aetherfield_dsp_allpass_tests PRIVATE aetherfield_dsp)
+
+add_executable(aetherfield_dsp_diffusion_stereo_tests tests/DiffusionStereoPathTests.cpp)
+target_link_libraries(aetherfield_dsp_diffusion_stereo_tests PRIVATE aetherfield_dsp)
+target_compile_definitions(aetherfield_dsp PRIVATE AETHERFIELD_TESTING)
+target_compile_definitions(aetherfield_dsp_diffusion_stereo_tests PRIVATE AETHERFIELD_TESTING)
+
 add_executable(aetherfield_render tools/render/main.cpp)
 target_link_libraries(aetherfield_render PRIVATE aetherfield_dsp)
 
@@ -33,7 +43,7 @@ add_executable(aetherfield_render_reverb tools/render_reverb/main.cpp)
 target_link_libraries(aetherfield_render_reverb PRIVATE aetherfield_dsp)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    foreach(target aetherfield_dsp aetherfield_dsp_tests aetherfield_dsp_delay_tests aetherfield_dsp_fdn_tests aetherfield_dsp_param_tests aetherfield_render aetherfield_render_reverb)
+    foreach(target aetherfield_dsp aetherfield_dsp_tests aetherfield_dsp_delay_tests aetherfield_dsp_fdn_tests aetherfield_dsp_param_tests aetherfield_dsp_allpass_tests aetherfield_dsp_diffusion_stereo_tests aetherfield_render aetherfield_render_reverb)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endforeach()
 endif()
@@ -43,3 +53,5 @@ add_test(NAME aetherfield_dsp_tests COMMAND aetherfield_dsp_tests)
 add_test(NAME aetherfield_dsp_delay_tests COMMAND aetherfield_dsp_delay_tests)
 add_test(NAME aetherfield_dsp_fdn_tests COMMAND aetherfield_dsp_fdn_tests)
 add_test(NAME aetherfield_dsp_param_tests COMMAND aetherfield_dsp_param_tests)
+add_test(NAME aetherfield_dsp_allpass_tests COMMAND aetherfield_dsp_allpass_tests)
+add_test(NAME aetherfield_dsp_diffusion_stereo_tests COMMAND aetherfield_dsp_diffusion_stereo_tests)

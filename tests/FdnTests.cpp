@@ -747,6 +747,45 @@ int testDeterminism() {
     return 0;
 }
 
+// ---------------------------------------------------------------------
+// DS-B Task 2: read-only pre-step even/odd taps
+// ---------------------------------------------------------------------
+int testPreStepTapSums() {
+    aetherfield::dsp::FeedbackDelayNetwork network;
+    if (!network.prepare(48000.0, 4, kTMin, kTMax, 1.0, 1.0)) {
+        return fail("pre-step tap fixture preparation failed");
+    }
+
+    const aetherfield::dsp::FeedbackDelayNetwork& initialView = network;
+    const auto initial = initialView.preStepTapSums();
+    const auto repeatedInitial = initialView.preStepTapSums();
+    if (initial.even != 0.0F || initial.odd != 0.0F
+        || repeatedInitial.even != initial.even || repeatedInitial.odd != initial.odd) {
+        return fail("pre-step tap accessor did not preserve the zero reset state");
+    }
+
+    (void)network.processSample(1.0F);
+    const std::size_t firstDelay = network.delaySamples(0);
+    for (std::size_t sample = 1; sample < firstDelay; ++sample) {
+        (void)network.processSample(0.0F);
+    }
+
+    const aetherfield::dsp::FeedbackDelayNetwork& preAdvanceView = network;
+    const auto beforeAdvance = preAdvanceView.preStepTapSums();
+    const auto repeatedBeforeAdvance = preAdvanceView.preStepTapSums();
+    if (beforeAdvance.even != 1.0F || beforeAdvance.odd != 0.0F
+        || repeatedBeforeAdvance.even != beforeAdvance.even
+        || repeatedBeforeAdvance.odd != beforeAdvance.odd) {
+        return fail("pre-step taps did not report the known first even-line arrival without mutation");
+    }
+
+    const float firstWetSample = network.processSample(0.0F);
+    if (firstWetSample != beforeAdvance.even + beforeAdvance.odd) {
+        return fail("pre-step taps did not describe the FDN state before its first wet advance");
+    }
+    return 0;
+}
+
 int main() {
     if (int result = testMatrixOrthogonality(); result != 0) return result;
     if (int result = testBoundedRealnessExact(); result != 0) return result;
@@ -759,5 +798,6 @@ int main() {
     if (int result = testDenormalCost(); result != 0) return result;
     if (int result = testDoublePrecisionReference(); result != 0) return result;
     if (int result = testDeterminism(); result != 0) return result;
+    if (int result = testPreStepTapSums(); result != 0) return result;
     return 0;
 }
