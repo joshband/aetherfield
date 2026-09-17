@@ -25,18 +25,19 @@ test-local double analysis and FFT/Welch helpers.
 
 ## Status and authorization
 
-**Tasks 1-4 are implemented, 2026-09-17.** Task 1's transactional preparation,
-Task 2a's read-only tap accessor, Task 2b's one-sample audio routing, Task 3's
-aggregate detector/block recovery, and Task 4's DS-1..12 measured evidence
-(split into sub-tasks 4a and 4b — see `docs/testing.md`'s DS-B Task 4 entry
-for the full measured record, methodology and known open findings) are all
-implemented and independently spec- and code-quality-reviewed. ADR-006 remains
-an accepted architecture and evaluation baseline: Task 4 measures the fixed,
-unmodulated evaluation-baseline path decided there; it adds no product
-controls, no modulation, and Task 4's measured pass does not itself establish
-sonic acceptance (see roadmap/Sonic acceptance gate). Task 3 added only the
-documented block boundary and fault/recovery behavior and did not alter
-standalone FDN semantics; Task 4 does not alter it either.
+**Tasks 1-3 are implemented; Task 4 is partially measured, 2026-09-17.**
+Task 1's transactional preparation, Task 2a's read-only tap accessor, Task
+2b's one-sample audio routing, and Task 3's aggregate detector/block recovery
+are implemented and independently reviewed. Task 4 (split into sub-tasks 4a
+and 4b) records DS-1..12 evidence but does not close the unchecked bracket
+independent-recurrence/cross-product coverage, per-Mix RMS/arrival/centroid,
+or propagated cessation-bound requirements below. ADR-006 remains an accepted
+architecture and evaluation baseline: Task 4 measures the fixed, unmodulated
+path decided there; it adds no product controls or modulation, and its
+measurements do not establish sonic acceptance (see roadmap/Sonic acceptance
+gate). Task 3 added only the documented block boundary and fault/recovery
+behavior and did not alter standalone FDN semantics; Task 4 does not alter it
+either.
 
 ## Global constraints
 

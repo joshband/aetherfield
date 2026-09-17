@@ -615,15 +615,17 @@ from the earlier historical command block.
   for analysis, with `epsilon_float=1e-20F`. The wrapper's actual defaults are
   Decay=0.5, Damp=0, Mix=1, giving `T60_0=1.093397417 s` at 48 kHz and
   `1.093721826 s` at 44.1 kHz; `validConfig().t60ZeroSeconds=4` is not the
-  realized automation control state. Input `S_j` is an analytic
-  input-cessation bound. Output `S_j` is only a measured-window illustration
+  realized automation control state. For the positive stored q, the analytic
+  input-section peak factor is `q + (1-q^2)/(1-q) = 1+2q = 2.2360680103`;
+  input `S_j=(1+2q)^j/(1-q)` is therefore an input-cessation bound derived
+  from the same stored q. Output `S_j` is only a measured-window illustration
   derived from the observed tap peak, not a proved downstream cessation bound.
   Consequently no whole-chain propagated cessation-state bound is claimed.
 
   | Rate | input `(d,S,k,D)` | output L `(d,S,k,D)` | output R `(d,S,k,D)` |
   | --- | --- | --- | --- |
-  | 48 kHz | (47,2.618034101,98,4653); (103,5.854102218,100,10403); (223,13.09017051,102,22969); (479,29.27051109,103,49816) | (191,0.1379010778,92,17763); (307,0.3083561842,94,29165) | (241,0.1379010778,92,22413); (383,0.3083561842,94,36385) |
-  | 44.1 kHz | (43,2.618034101,98,4257); (97,5.854102218,100,9797); (199,13.09017051,102,20497); (439,29.27051109,103,45656) | (173,0.0947513633,91,15916); (281,0.2118704893,93,26414) | (223,0.0947513633,91,20516); (353,0.2118704893,93,33182) |
+  | 48 kHz | (47,2.618034101,98,4653); (103,5.854102304,100,10403); (223,13.09017089,102,22969); (479,29.27051238,103,49816) | (191,0.1379010778,92,17763); (307,0.3083561887,94,29165) | (241,0.1379010778,92,22413); (383,0.3083561887,94,36385) |
+  | 44.1 kHz | (43,2.618034101,98,4257); (97,5.854102304,100,9797); (199,13.09017089,102,20497); (439,29.27051238,103,45656) | (173,0.0947513633,91,15916); (281,0.2118704924,93,26414) | (223,0.0947513633,91,20516); (353,0.2118704924,93,33182) |
 
   The separate full-path impulse render is finite and is not compared to a
   historical additive timeout. It observed exact silence from sample 321914

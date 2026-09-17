@@ -1078,13 +1078,10 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         if (!measure.prepare(validConfig(rate))) return fail("DS-10 proof-template fixture preparation failed");
 
         // Measured peak tap-normalized amplitude actually observed arriving
-        // at the output diffuser cascades for a full-scale impulse, over a
-        // window spanning several T60s (the fixture's t60ZeroSeconds=4s), so
-        // it captures the FDN's build-up and decay rather than only an early
-        // transient. This stands in for a full analytic propagation of the
-        // peak-signal bound through the FDN (ADR-006 supplies no closed form
-        // for that); it is a measured bound for THIS fixture, not a general
-        // proof, and is reported as such.
+        // at the output diffuser cascades for a full-scale impulse over this
+        // fixed finite window. The wrapper's default automation controls govern
+        // this render. This is a fixture illustration rather than a propagated
+        // analytic cessation bound through the FDN.
         constexpr std::size_t kMeasureFrames = 300000;
         double measuredTapPeak = 0.0;
         const float tapScale = 1.0F / std::sqrt(4.0F); // lineCount/2 == 4 for this N=8 fixture
@@ -1107,7 +1104,10 @@ int testDs10ProofTemplateAndMeasuredSilence() {
             return fail("DS-10 default-control fixture preparation failed");
         }
         const double realizedDefaultT60 = std::sqrt(defaultControls.t60Min() * defaultControls.t60Max());
-        const double sqrt5 = std::sqrt(5.0);
+        // For stored q >= 0, the allpass impulse l1 gain is
+        // q + (1-q*q)/(1-q) = 1 + 2q. The analytic input-cessation S_j
+        // propagation below uses this same stored q, not ideal sqrt(5).
+        const double sectionPeakGain = 1.0 + 2.0 * g;
         const std::array<std::size_t, 4> inputDelays {
             measure.inputDelaySamples(0), measure.inputDelaySamples(1),
             measure.inputDelaySamples(2), measure.inputDelaySamples(3),
@@ -1117,24 +1117,29 @@ int testDs10ProofTemplateAndMeasuredSilence() {
 
         std::vector<Section> sections;
         for (std::size_t j = 0; j < inputDelays.size(); ++j) {
-            // S_j: the input chain's own peak-signal bound, sqrt5^(j) at the
-            // input to section j+1 (sqrt5^0=1 at the chain head, a full-scale
-            // impulse), propagated through v_j = x_j + g*s_j's geometric
-            // self-consistent bound, |v_j|_max <= |x_j|_max / (1 - g).
-            sections.push_back({"input", inputDelays[j], std::pow(sqrt5, static_cast<double>(j)) / (1.0 - g)});
+            // S_j is the stored recursive-memory bound at input cessation:
+            // earlier sections can increase their output peak by at most
+            // (1+2q)^j, and v_j = x_j + q*s_j gives
+            // |s_j| <= |x_j|/(1-q). This is a real-arithmetic analytic
+            // template using the stored float q widened above.
+            sections.push_back({"input", inputDelays[j],
+                                std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
         }
         for (std::size_t j = 0; j < leftDelays.size(); ++j) {
-            sections.push_back({"outputL", leftDelays[j], measuredTapPeak * std::pow(sqrt5, static_cast<double>(j)) / (1.0 - g)});
+            sections.push_back({"outputL", leftDelays[j],
+                                measuredTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
         }
         for (std::size_t j = 0; j < rightDelays.size(); ++j) {
-            sections.push_back({"outputR", rightDelays[j], measuredTapPeak * std::pow(sqrt5, static_cast<double>(j)) / (1.0 - g)});
+            sections.push_back({"outputR", rightDelays[j],
+                                measuredTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
         }
 
         std::size_t maxDrain = 0;
         std::cout << std::setprecision(10) << "DS-10 proof-template illustration @ " << rate
                   << "Hz (stored float q_j=" << storedCoefficient
                   << ", wrapper defaults: Decay=0.5, Damp=0, Mix=1, realized T60_0="
-                  << realizedDefaultT60 << "s; measured-window tap peak=" << measuredTapPeak << "):\n";
+                  << realizedDefaultT60 << "s; stored-q peak gain 1+2q=" << sectionPeakGain
+                  << "; measured-window tap peak=" << measuredTapPeak << "):\n";
         for (const Section& section : sections) {
             std::size_t k = 1;
             while (std::pow(g, static_cast<double>(k)) * section.stateBound >= static_cast<double>(1e-20F)) ++k;
@@ -1152,10 +1157,9 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         // Separately measured actual full-path silence -- NOT compared to any
         // historical additive timeout (ADR-006 correction note C3 forbids
         // that comparison), just reported alongside the proof-template drain.
-        // The FDN's own decay dominates the diffusion sections' D_j here (its
-        // NS-8 measurement recorded ~1,177,358 samples to sustained exact
-        // silence at this same T60_0=4s fixture), so the window must clear
-        // that, not just the much smaller diffusion drain.
+        // This fixed finite horizon is deliberately not derived from a
+        // whole-chain proof. It is long enough to demand an observed suffix
+        // rather than extrapolating beyond the rendered record.
         constexpr std::size_t kMinimumSilenceRenderFrames = 1400000;
         const std::size_t renderLength = std::max<std::size_t>(maxDrain + 20000, kMinimumSilenceRenderFrames);
         std::vector<float> input(renderLength, 0.0F);
