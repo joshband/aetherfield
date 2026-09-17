@@ -110,6 +110,37 @@ public:
     // selects ADR-003 (b) itself specifies.
     void process(const float* input, float* output, std::size_t count) noexcept;
 
+    // The per-sample body of process(), extracted so an external
+    // automation layer (docs/phase1-pt-plan.md) can update coefficients
+    // between samples via setLineGain()/setDampingCoefficientC() below.
+    // process(input, output, count) remains implementable, unchanged, as
+    // output[i] = processSample(input[i]) repeated count times — exactly
+    // the non-breaking-extraction argument DelayLine::peek()/push() used.
+    // Same contract as process() per sample: precondition, noexcept,
+    // allocation-free, lock-free.
+    float processSample(float input) noexcept;
+
+    // Overwrites line i's folded gain (gᵢ / sqrt(lineCount())) outside
+    // prepare(). Render-thread-safe: no allocation, no lock, noexcept.
+    // The caller (docs/phase1-pt-plan.md's smoother) is responsible for
+    // supplying an already-validated, already-smoothed value — a caller
+    // contract, not a runtime-checked sanitizer, matching this codebase's
+    // existing style. Precondition: line < lineCount().
+    void setLineGain(std::size_t line, float foldedGain) noexcept;
+
+    // Overwrites line i's damping coefficient as a single value
+    // cᵢ = 1 − aᵢ, deriving aᵢ = 1 − cᵢ internally in the same call.
+    // Deliberately not two independent setters for aᵢ and 1−aᵢ: ADR-004
+    // (c) measured that ramping both independently drifts them apart (up
+    // to 7.5e-5 in |Hᵢ(1)|, two orders of magnitude outside NS-3's
+    // tolerance) and requires cᵢ to be the one ramped quantity, with the
+    // other always derived from it in the same operation. Render-thread-
+    // safe, noexcept. Precondition: line < lineCount(), c in
+    // [1 - a_max, 1] = [0.001, 1] — the caller's responsibility, per
+    // ADR-004 (c) point 6 (the convex interval a linear ramp between two
+    // valid endpoints cannot leave).
+    void setDampingCoefficientC(std::size_t line, float c) noexcept;
+
     // Diagnostic accessors, per ADR-003 (c)'s mandatory non-finite
     // handling. Both noexcept, allocation-free, safe on the render thread.
     std::size_t nonFiniteCount() const noexcept;

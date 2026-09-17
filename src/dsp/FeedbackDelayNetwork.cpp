@@ -215,65 +215,78 @@ void FeedbackDelayNetwork::process(const float* input, float* output, std::size_
     }
 
     for (std::size_t n = 0; n < count; ++n) {
-        // 1. Peek every line's current output (before any write this sample).
-        for (std::size_t i = 0; i < lineCount_; ++i) {
-            scratch_[i] = lines_[i].peek();
-        }
+        output[n] = processSample(input[n]);
+    }
+}
 
-        // Output tap: the unweighted sum of the peeked values (test-only
-        // convention; docs/phase1-s2-plan.md "What this plan is not
-        // deciding").
-        float tap = 0.0F;
-        for (std::size_t i = 0; i < lineCount_; ++i) {
-            tap += scratch_[i];
-        }
-        output[n] = tap;
+float FeedbackDelayNetwork::processSample(float input) noexcept {
+    // 1. Peek every line's current output (before any write this sample).
+    for (std::size_t i = 0; i < lineCount_; ++i) {
+        scratch_[i] = lines_[i].peek();
+    }
 
-        // 2. Damping filter, then gain (the matrix's 1/sqrt(lineCount_)
-        // normalization is folded in here, per ADR-002's own suggestion).
-        for (std::size_t i = 0; i < lineCount_; ++i) {
-            const float v = scratch_[i];
-            const float w = dampingCoeffOneMinusA_[i] * v + dampingCoeffA_[i] * dampingState_[i];
+    // Output tap: the unweighted sum of the peeked values (test-only
+    // convention; docs/phase1-s2-plan.md "What this plan is not
+    // deciding").
+    float tap = 0.0F;
+    for (std::size_t i = 0; i < lineCount_; ++i) {
+        tap += scratch_[i];
+    }
 
-            if (!std::isfinite(w)) {
-                flagNonFinite();
-                dampingState_[i] = w; // stored as-is: never silently corrected
-            } else {
-                dampingState_[i] = applyCutoff(w);
-            }
+    // 2. Damping filter, then gain (the matrix's 1/sqrt(lineCount_)
+    // normalization is folded in here, per ADR-002's own suggestion).
+    for (std::size_t i = 0; i < lineCount_; ++i) {
+        const float v = scratch_[i];
+        const float w = dampingCoeffOneMinusA_[i] * v + dampingCoeffA_[i] * dampingState_[i];
 
-            scratch_[i] = lineGain_[i] * w;
-        }
-
-        // 3. Fixed Hadamard matrix (un-normalized +/-1 entries; the
-        // normalization is already folded into lineGain_ above).
-        fastHadamardTransformInPlace(scratch_.data(), lineCount_);
-
-        // 4. Input injection: uniform across all lines. A non-finite input
-        // sample is substituted with 0 for injection purposes and counted
-        // (ADR-003 (c)'s table) — the one place a substitution is
-        // authorized, because it is the *input*, not an internally-arising
-        // value.
-        const float rawInput = input[n];
-        float effectiveInput = rawInput;
-        if (!std::isfinite(rawInput)) {
+        if (!std::isfinite(w)) {
             flagNonFinite();
-            effectiveInput = 0.0F;
+            dampingState_[i] = w; // stored as-is: never silently corrected
+        } else {
+            dampingState_[i] = applyCutoff(w);
         }
 
-        // 5. Push into each line, through the denormal cutoff — unless the
-        // write value is itself non-finite, in which case it is stored
-        // as-is (never clipped or substituted) and only counted.
-        for (std::size_t i = 0; i < lineCount_; ++i) {
-            const float writeValue = scratch_[i] + effectiveInput;
-            if (!std::isfinite(writeValue)) {
-                flagNonFinite();
-                lines_[i].push(writeValue);
-            } else {
-                lines_[i].push(applyCutoff(writeValue));
-            }
+        scratch_[i] = lineGain_[i] * w;
+    }
+
+    // 3. Fixed Hadamard matrix (un-normalized +/-1 entries; the
+    // normalization is already folded into lineGain_ above).
+    fastHadamardTransformInPlace(scratch_.data(), lineCount_);
+
+    // 4. Input injection: uniform across all lines. A non-finite input
+    // sample is substituted with 0 for injection purposes and counted
+    // (ADR-003 (c)'s table) — the one place a substitution is
+    // authorized, because it is the *input*, not an internally-arising
+    // value.
+    float effectiveInput = input;
+    if (!std::isfinite(input)) {
+        flagNonFinite();
+        effectiveInput = 0.0F;
+    }
+
+    // 5. Push into each line, through the denormal cutoff — unless the
+    // write value is itself non-finite, in which case it is stored
+    // as-is (never clipped or substituted) and only counted.
+    for (std::size_t i = 0; i < lineCount_; ++i) {
+        const float writeValue = scratch_[i] + effectiveInput;
+        if (!std::isfinite(writeValue)) {
+            flagNonFinite();
+            lines_[i].push(writeValue);
+        } else {
+            lines_[i].push(applyCutoff(writeValue));
         }
     }
+
+    return tap;
+}
+
+void FeedbackDelayNetwork::setLineGain(std::size_t line, float foldedGain) noexcept {
+    lineGain_[line] = foldedGain;
+}
+
+void FeedbackDelayNetwork::setDampingCoefficientC(std::size_t line, float c) noexcept {
+    dampingCoeffOneMinusA_[line] = c;
+    dampingCoeffA_[line] = 1.0F - c;
 }
 
 std::size_t FeedbackDelayNetwork::nonFiniteCount() const noexcept {

@@ -1,5 +1,15 @@
 # Phase 1 parameter transitions — implementation task plan
 
+**STATUS: Implemented and independently verified, 2026-09-17**, with one
+design correction (an allocation-avoidance improvement to `publish()`, not
+a contract change) and two test-design bugs caught and fixed during
+implementation — see docs/testing.md's "IMPLEMENTED: Phase 1 parameter
+transitions" section for full detail. This document was written, and
+remains preserved below, as the task plan Terra's implementation was
+required to follow; every "not created by this plan" / "future
+implementation" / "not authorized" statement below describes this
+document's status before the owner separately authorized implementation.
+
 This is the deliverable for roadmap.md Phase 1 row 4 ("Translate accepted
 design into small implementation increments"), covering ADR-004's
 automation/transport/smoothing design (§(b)–(d)) for the **PT-1..PT-9 gate
