@@ -166,6 +166,47 @@ Results: fresh configure/build succeeded with all warning flags on; `4/4` tests 
 
 This closes the "Parameter transitions" gate below for the PT-1…PT-9 cases. No modulation, diffusion, stereo, or sonic-quality claim follows from it.
 
+## IN PROGRESS: Sonic acceptance — first impulse render (2026-09-17)
+
+Terra prepared one deterministic impulse-response render exercising the
+now-implemented `FeedbackDelayNetwork` + `ParameterAutomation` pipeline:
+`tools/render_reverb/main.cpp` (`aetherfield_render_reverb`), a new
+offline tool alongside Phase 0's unmodified `aetherfield_render`. Stated,
+non-tuned fixture: `N=8`, ADR-005's delay-length derivation, Decay=0.6
+normalized (`T60₀ = 3.056s`), Damp=0.3 normalized (`D_max_fixture=48dB`,
+test-only), Mix=1.0 (full wet, no dry path), a single full-scale impulse
+at sample 0 after the 20ms coefficient ramp settles, rendered for
+`min(max(3·T60₀, 2s), 10s)` and peak-normalized to ≈−1dBFS for listening
+(original peak/RMS and the applied gain are printed, never hidden).
+
+**This is this gate's "Impulse" component only.** Per its own acceptance
+bar ("Impulse **and** repeatable musical corpus; ... listening notes...";
+"Terra prepares; **owner auditions**; Sol reviews consequences"), it is
+not satisfied yet: the musical corpus does not exist, and the actual
+listening notes can only come from the owner. This entry is the "Terra
+prepares" step alone.
+
+Terra's own structural verification (not a substitute for listening):
+rendering twice and comparing produced byte-identical files (deterministic);
+the first ~27ms is exact silence, matching `m_min ≈ 1297` samples — the
+shortest line has not yet completed one circulation, exactly as ADR-002's
+"a sparse, audibly discrete onset is a structural certainty of this
+fixture, by construction" predicts; the RMS envelope, measured in 1-second
+windows, decays at approximately **20 dB/s** (867 → 84 → 7.5 → 0.7,
+pre-normalization, in Nyquist-agnostic integer PCM units), matching the
+`T60₀ = 3.056s` setting's theoretical `−60dB/3.056s ≈ −19.6dB/s` rate to
+within measurement granularity. This is end-to-end confirmation that the
+decay law holds in actually-rendered audio, not only in the unit test
+suites — but it is a numeric/structural check, not a listening judgment,
+and per ADR-002 "any listening note taken at S2 is an observation, not an
+acceptance," which applies unchanged here.
+
+The rendered file (`artifacts/s2-pt-impulse.wav`, git-ignored per
+README's build-artifact policy) is available locally for the owner to
+audition. **No sonic-quality claim is made by this entry.** Sol's
+"reviews consequences" step and the owner's listening notes remain
+outstanding; this gate is not marked satisfied.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
@@ -176,6 +217,6 @@ These gates describe future work. None is an executed reverb test, and none chan
 | Fixed late network | Independently computed matrix orthogonality and damping bounds; finite deterministic impulse/silence/noise renders; double-precision reference comparison; long zero-input decay; rate/block partition coverage. Concrete bounds NS-1…NS-11 are defined in ADR-003 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phase1-s2-verification-plan.md | **Satisfied 2026-09-16; see "IMPLEMENTED: Phase 1 S2" above** |
 | Parameter transitions | Endpoints, invalid values, repeated retargeting and changing block partitions; no discontinuity from smoother state reset; signal-transition metrics plus audition; no allocation or blocking on render path. Concrete cases PT-1…PT-9 are defined in ADR-004 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phase1-s2-verification-plan.md | **Satisfied 2026-09-17; see "IMPLEMENTED: Phase 1 parameter transitions" above** |
 | Modulation experiment | Fixed baseline retained; endpoint/rate stress; interpolation boundary tests; measured decay and output growth under worst-case combinations; explicit approval before enabling | Sol reviews stability limits; Terra experiments; Luna reproduces |
-| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences |
+| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **impulse component prepared 2026-09-17, see "IN PROGRESS: Sonic acceptance" above; musical corpus, listening notes and Sol's review remain outstanding** |
 
 For all future tests: use named cases, print the failed condition, and return nonzero on failure even in Release. Preserve seeds, parameter settings, sample rates and block sequences with evidence. Missing measurements are **unmeasured**, never passes. Report output overshoots and safety interventions rather than hiding them by clipping or regenerating reference data. Exact byte comparisons apply only where the operation/toolchain contract supports them; nonlinear or transcendental implementations need justified numerical tolerances.

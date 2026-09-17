@@ -27,6 +27,14 @@ The Xcode license issue encountered in Phase 0 is resolved: Xcode 27.0 (27A266a)
 
 The renderer writes a fixed 16-frame, 48 kHz, mono, signed 16-bit PCM fixture at gain 0.5. It is a structural/sample correctness artifact, not a musical audition. It requires an existing output directory and replaces the named output file. Build products and generated artifacts are ignored by Git.
 
+A second tool, `aetherfield_render_reverb`, renders a single deterministic impulse response through the now-implemented `FeedbackDelayNetwork`/`ParameterAutomation` pipeline, for a first observational listen (testing.md's Sonic acceptance gate):
+
+```sh
+./build/aetherfield_render_reverb artifacts/s2-pt-impulse.wav
+```
+
+This is explicitly an **observation, not an acceptance** (ADR-002): no diffusion, stereo, or product signal path exists yet, and the fixture's parameter values are stated and non-tuned, not product defaults.
+
 See [testing.md](docs/testing.md) for decoded-sample inspection and actual verification evidence.
 
 ## Durable project context
@@ -37,4 +45,4 @@ See [testing.md](docs/testing.md) for decoded-sample inspection and actual verif
 - [Roadmap](docs/roadmap.md): Phase 1 scope, agent routing and deferred recommendations.
 - [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and any metrics actually reported. Read this, alongside the roadmap and decisions, before resuming work in a new session or a different tool.
 
-The source layout is deliberately small: `src/dsp/`, `tests/`, and `tools/render/`. Git is local; no remote or distribution license has been selected.
+The source layout is deliberately small: `src/dsp/`, `tests/`, `tools/render/`, and `tools/render_reverb/`. Git is local; no remote or distribution license has been selected.

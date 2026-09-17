@@ -29,8 +29,11 @@ target_link_libraries(aetherfield_dsp_param_tests PRIVATE aetherfield_dsp)
 add_executable(aetherfield_render tools/render/main.cpp)
 target_link_libraries(aetherfield_render PRIVATE aetherfield_dsp)
 
+add_executable(aetherfield_render_reverb tools/render_reverb/main.cpp)
+target_link_libraries(aetherfield_render_reverb PRIVATE aetherfield_dsp)
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    foreach(target aetherfield_dsp aetherfield_dsp_tests aetherfield_dsp_delay_tests aetherfield_dsp_fdn_tests aetherfield_dsp_param_tests aetherfield_render)
+    foreach(target aetherfield_dsp aetherfield_dsp_tests aetherfield_dsp_delay_tests aetherfield_dsp_fdn_tests aetherfield_dsp_param_tests aetherfield_render aetherfield_render_reverb)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endforeach()
 endif()
