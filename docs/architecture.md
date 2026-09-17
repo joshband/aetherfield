@@ -38,7 +38,7 @@ These four roles are a division of responsibility and review discipline, not a b
 - **Luna** performs independent, mostly mechanical verification (rerunning commands, checking claims against files on disk, spot-checking arithmetic and citations); a fast, lighter model is usually adequate, provided it still checks primary sources rather than trusting another agent's self-report.
 - **Astra** performs lightweight scope/milestone gatekeeping against the roadmap and charter; a fast, lighter model is typically adequate here too, since the judgment required is narrow (in-scope or not) rather than open-ended.
 
-A session's actual model/tool choices are an execution detail of that session, not part of this document; they belong in that session's own commit messages or logs, not here. [docs/agent-log.md](agent-log.md) derives a consolidated, per-milestone index from that history, for any tool or human resuming the project cold (see AETHERFIELD_SPEC.md §25 "Resuming work / session handoff").
+A session's actual model/tool choices are an execution detail of that session, not part of this document; they belong in that session's own commit messages or logs, not here. [docs/agent-log.md](agent-log.md) derives a consolidated, per-milestone index from that history, for any tool or human resuming the project cold (see AETHERFIELD_SPEC.md §25 "Resuming work / session handoff"). A **recommended** concrete model/effort pairing (kept in one place to avoid drift between two copies) lives in AETHERFIELD_SPEC.md §7 — as of this writing: Astra/Fable 5.1, Sol/Opus 5, Terra/Sonnet 5, Luna/Haiku 4.5.
 
 ## Deliberately absent — DEFERRED
 

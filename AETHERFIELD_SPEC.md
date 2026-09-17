@@ -222,6 +222,20 @@ Do not default every difficult-looking task to Sol.
 
 Use the least expensive model appropriate to the reasoning required while escalating when uncertainty, architectural consequence, or failure risk warrants it.
 
+**Current recommended model/effort mapping, on Claude models (this is a
+recommendation to keep current as models change, not a permanent binding —
+see docs/architecture.md's "tool-agnostic" principle, which this table does
+not override: the *role* and its effort level are the durable part, the
+specific model name is a session-to-session detail worth stating so a
+resuming session doesn't have to guess it):**
+
+| Role | Model (as of this writing) | Effort |
+|---|---|---|
+| Astra | Fable 5.1 | Light/fast — narrow scope-gatekeeping and orchestration, not open-ended reasoning |
+| Sol | Opus 5 | Highest — architectural/safety-consequential, expensive to unwind |
+| Terra | Sonnet 5 | Standard — capable general-purpose implementation from decisions Sol already made |
+| Luna | Haiku 4.5 | Light/fast — mechanical, independent verification against files on disk |
+
 ## Astra — Technical Director
 
 Own:
