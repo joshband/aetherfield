@@ -2,7 +2,7 @@
 
 A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable product and engineering charter is [AETHERFIELD_SPEC.md](AETHERFIELD_SPEC.md).
 
-**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No AUv3 extension or UI exists. **Phase 1 is in progress**: the reverb topology is decided (ADR-002 in [docs/decisions.md](docs/decisions.md)), and its first implementation increment, S1 (`DelayLine`: a single fixed-length delay line, no feedback/matrix/damping), is implemented under separate authorization ([docs/phase1-s1-plan.md](docs/phase1-s1-plan.md), evidence in [docs/testing.md](docs/testing.md)). The fixed late network (S2) and every later reverb behavior remain planned, not implemented.
+**IMPLEMENTED: Phase 0 engineering loop.** Portable C++ gain library, deterministic tests, and an offline PCM WAV renderer. No AUv3 extension or UI exists. **Phase 1 is in progress**: the reverb topology is decided (ADR-002 in [docs/decisions.md](docs/decisions.md)), and both implementation increments are implemented under separate authorization: S1 (`DelayLine`: a single fixed-length delay line) and S2 (`FeedbackDelayNetwork`: the fixed late network — N coupled lines, one orthogonal feedback matrix, per-line damping, no modulation, no diffusion, no stereo, no parameters) — see [docs/phase1-s1-plan.md](docs/phase1-s1-plan.md)/[docs/phase1-s2-plan.md](docs/phase1-s2-plan.md) and evidence in [docs/testing.md](docs/testing.md). Parameter transitions (PT-1…PT-9), diffusion, stereo, and every other reverb behavior remain planned, not implemented.
 
 ## Build, test, render, inspect
 

@@ -1,5 +1,17 @@
 # Phase 1 S2 — Fixed late network: implementation task plan
 
+**STATUS: Implemented and independently verified, 2026-09-16**, with two
+design corrections discovered during implementation and applied in place
+(the "Capacity" section and the coefficient-accessor additions below —
+search this document for "Corrected during implementation" and "Added
+during implementation"). This document was written, and remains preserved
+below, as the task plan Terra's implementation was required to follow; for
+current implementation and verification evidence see
+[testing.md](testing.md)'s "IMPLEMENTED: Phase 1 S2" section. Every "not
+created by this plan" / "future implementation" / "not authorized"
+statement below describes this document's status before the owner
+separately authorized S2 implementation.
+
 This is the deliverable for roadmap.md Phase 1 row 4 ("Translate accepted
 design into small implementation increments"), covering ADR-002's S2
 milestone ("Fixed late network") for the **NS-1..NS-11 gate only**
@@ -168,15 +180,13 @@ public:
     // (ADR-005; checked by direct gcd, never inferred from primality: see
     // "Validation" below), derives every gᵢ and aᵢ in double per ADR-003
     // (a)'s exact formulas, builds the normalized Hadamard matrix for
-    // lineCount, reserves each line's delay storage at
-    // round(sampleRate * tMaxSeconds) + 64 samples (ADR-005's capacity
-    // rule, evaluated for this call's own sampleRate/tMaxSeconds — see
-    // "Capacity" below for why this plan does not additionally reserve for
-    // some other, larger future sample rate), sets every damping filter's
-    // state to 0, clears the non-finite counter's latched flag (not its
-    // count — see reset()), and leaves the object in exactly the state
-    // reset() defines. Not noexcept: allocation failure propagates, exactly
-    // as DelayLine::prepare().
+    // lineCount, prepares each internal line at exactly its own mᵢ (see
+    // "Capacity" below for why this plan does not reserve extra headroom
+    // beyond the active delay length), sets every damping filter's state to
+    // 0, clears the non-finite counter's latched flag (not its count — see
+    // reset()), and leaves the object in exactly the state reset() defines.
+    // Not noexcept: allocation failure propagates, exactly as
+    // DelayLine::prepare().
     //
     // A validation failure at any of the above returns false, performs no
     // allocation, and leaves the object exactly as it was before the call —
@@ -189,10 +199,8 @@ public:
                  double t60ZeroSeconds,
                  double t60PiSeconds);
 
-    // Zeros every line's delay history across its full reserved capacity
-    // (not merely the active mᵢ — ADR-003 (d) rule 1, restated because a
-    // later Size/pre-delay decision would otherwise read stale samples from
-    // spare capacity that reset() left untouched), zeros every damping
+    // Zeros every line's delay history (each line's `DelayLine::reset()`),
+    // zeros every damping
     // filter's recursive state to exactly 0 (ADR-003 (d) rule 3 — the state
     // S1 has no analogue for, and the one a missed reset leaves as an
     // audible decaying residue), restores every write position, and clears
@@ -284,38 +292,51 @@ private:
 | `lineCount` | One of `{4, 8, 16}` | `prepare` returns `false`; no change |
 | `tMinSeconds`, `tMaxSeconds` | Finite, `> 0.0`, `tMinSeconds < tMaxSeconds` | `prepare` returns `false`; no change |
 | `t60ZeroSeconds`, `t60PiSeconds` | Finite, `> 0.0`, `t60PiSeconds <= t60ZeroSeconds` | `prepare` returns `false`; no change |
-| Derived `mᵢ` | Prime, strictly increasing, pairwise co-prime (`gcd(mᵢ, mⱼ) = 1` for every `i ≠ j`, checked directly — `lineCount·(lineCount−1)/2 ≤ 120` gcds, off the render thread), each `≤` its line's reserved capacity | A violation here would be a programming error in the derivation, not a caller input error; it still fails `prepare` per ADR-003 (c)'s "must never reach the render thread" rule rather than asserting/aborting |
+| Derived `mᵢ` | Prime, strictly increasing, pairwise co-prime (`gcd(mᵢ, mⱼ) = 1` for every `i ≠ j`, checked directly — `lineCount·(lineCount−1)/2 ≤ 120` gcds, off the render thread). Each `mᵢ` is passed directly as its own line's `DelayLine::prepare(sampleRate, mᵢ)` capacity (see "Capacity" below), so no separate `≤ capacity` check applies | A violation here would be a programming error in the derivation, not a caller input error; it still fails `prepare` per ADR-003 (c)'s "must never reach the render thread" rule rather than asserting/aborting |
 | Derived `gᵢ`, `aᵢ`, `1 − aᵢ`, every entry of `A` | Computed in double, each checked finite and inside its stated interval before being stored as `float` | Same as above: fails `prepare`, never reaches the render thread |
 | Input samples | Non-finite input sample is treated exactly as ADR-003 (c) specifies for the network generally: substituted with `0` for that sample's injection and counted via the same non-finite counter `process()` already exposes | No magnitude clamp, matching ADR-003's rationale for why none exists |
 
-### Capacity: why this plan reserves per-call, not for a hypothetical future rate
+### Capacity: each line is prepared at exactly `mᵢ`, not at an inflated reserve
 
-ADR-003 (d) rule 2 requires reserving "for the longest supported delay time
-at the **highest** supported sample rate" so a later, lower-rate
-preparation cannot need more than a higher-rate one already reserved. This
-plan reserves `round(sampleRate * tMaxSeconds) + 64` samples per line
-**using the current `prepare()` call's own `sampleRate` and
-`tMaxSeconds`**, not some larger hypothetical future rate — deliberately,
-for two reasons stated together so this is a documented simplification and
-not an oversight:
+**Corrected during implementation (see docs/agent-log.md): an earlier draft
+of this section proposed reserving `round(sampleRate * tMaxSeconds) + 64`
+samples per line while using only `mᵢ` of them as the active delay length.
+That is not expressible through `DelayLine`'s actual, already-shipped
+interface: `DelayLine::prepare(sampleRate, maxDelaySamples)` makes
+`maxDelaySamples` simultaneously the reserved capacity *and* the only active
+delay length (see `src/dsp/DelayLine.h` — S1 has no separate capacity/active-
+length concept, and this plan does not propose adding one). Preparing a line
+with an inflated capacity would silently make it delay by that inflated
+value instead of by `mᵢ`. The design below is the fix.**
 
-1. **No product supported-rate matrix exists to reserve against.** ADR-005
-   explicitly declined to decide one, naming it a real, separate gap. There
-   is no larger rate this plan could reserve for without inventing a number
-   ADR-005 refused to invent.
-2. **ADR-003 (d)'s own rate-change rule removes the benefit such reservation
-   would buy.** A sample-rate change already requires "a full re-`prepare`,"
-   "re-derivation of `mᵢ`, `γ₀`, `γ_π`, every `gᵢ` and every `aᵢ`," and "a
-   full reset" that "discards, not resamples" — there is no seamless,
-   allocation-free rate transition this class attempts to support, so
-   reserving extra headroom for a rate that might come later buys nothing:
-   `prepare()` reallocates on every call regardless.
+**Each internal line is prepared at exactly its own `mᵢ`**: `lines_[i].
+prepare(sampleRate, mᵢ)`. This is precisely ADR-005 (b)'s own second named
+option — "prepares each line at exactly `mᵢ`" — which ADR-005 already
+records as equally valid to reserving extra headroom, specifically *because*
+"the purpose [of reserving above active `mᵢ`] is currently moot, ADR-004
+defers both Size and Pre-delay." No extra headroom is reserved, for two
+reasons stated together:
 
-ADR-005 (b) records precisely this: the "reserve above active `mᵢ`" purpose
-"is currently moot, because ADR-004 defers both Size and Pre-delay." Should
-Size or pre-delay later be accepted, ADR-005 already names that as the event
-that reopens this capacity rule (its own "Revisit When"); this plan inherits
-that obligation rather than pre-empting it.
+1. **It is not implementable without changing `DelayLine`'s shipped
+   interface**, and this plan proposes no such change beyond `peek()`/
+   `push()` (see above), which are orthogonal to capacity.
+2. **It would buy nothing yet.** ADR-003 (d)'s rate-change rule already
+   requires "a full re-`prepare`," "re-derivation of `mᵢ`... every `gᵢ` and
+   every `aᵢ`," and "a full reset" that "discards, not resamples," on *any*
+   rate change — there is no seamless, allocation-free rate transition this
+   class attempts to support, so reserving headroom for a future rate or a
+   future Size/pre-delay control buys nothing until one of those is actually
+   implemented, at which point ADR-005's own "Revisit When" already names
+   that as the event that reopens this rule.
+
+**Consequence for `f_s_max`/highest-supported-rate reservation (ADR-003 (d)
+rule 2):** with no headroom reserved at all, that rule is vacuously
+satisfied per preparation (each line reserves exactly what it uses, for the
+rate it was just prepared at) rather than satisfied by reserving in advance
+for a higher future rate — consistent with there being no product
+supported-rate matrix to reserve against (ADR-005 names this a real,
+separate, still-open gap). Should Size, pre-delay, or a genuine multi-rate
+reservation strategy later be accepted, this is the point that reopens.
 
 ## What this plan is *not* deciding: the NS-test injection/tap convention
 

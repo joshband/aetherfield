@@ -82,6 +82,41 @@ public:
     // sample values (per AETHERFIELD_SPEC.md §19).
     void process(const float* input, float* output, std::size_t count) noexcept;
 
+    // Returns the value currently held at the write position, without
+    // advancing or modifying any state. This is exactly the value
+    // process() would return as its "delayed" output if called right now
+    // with any input — peek() then push() is process()'s existing
+    // single-sample behavior split into its two independent halves; see
+    // push() below. Returns 0.0F if called before prepare() (there is no
+    // storage to read; this matches the reset state's zero fill and
+    // process()'s existing "or the initial zero" language).
+    //
+    // noexcept, allocation-free, branch count independent of sample
+    // values. Enables composing several DelayLine instances into a
+    // coupled network (docs/phase1-s2-plan.md) whose per-sample recurrence
+    // requires reading every line's current output before deciding what to
+    // write into any of them — something process() alone cannot express,
+    // since it takes the value to write as an input to the very call that
+    // reveals the value being evicted.
+    float peek() const noexcept;
+
+    // Writes value into the delay history at the current write position
+    // and advances the write position by one sample, wrapping modulo
+    // maxDelaySamples — exactly process()'s existing write-and-advance
+    // half, with the read half removed. Does not read or return the value
+    // being overwritten; call peek() first if that value is needed.
+    // process() itself is unchanged by this addition and remains
+    // equivalent to calling peek() then push(input[i]) for each sample in
+    // its block, for i in [0, count).
+    //
+    // Precondition: prepare() must have returned true at least once since
+    // construction — the same caller contract process() already
+    // documents for count > 0, not a runtime-checked sanitizer.
+    //
+    // noexcept, allocation-free, branch count independent of sample
+    // values.
+    void push(float value) noexcept;
+
 private:
     std::vector<float> storage_;      // size == 0 (unprepared) or maxDelaySamples
     std::size_t writePos_ = 0;        // invariant: writePos_ < storage_.size(), or 0 when unprepared

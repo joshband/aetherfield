@@ -27,17 +27,26 @@ void DelayLine::process(const float* input, float* output, std::size_t count) no
         return;
     }
 
-    const std::size_t capacity = storage_.size();
     for (std::size_t index = 0; index < count; ++index) {
-        const float incoming = input[index];
-        const float delayed = storage_[writePos_];
-        storage_[writePos_] = incoming;
-        output[index] = delayed;
+        output[index] = peek();
+        push(input[index]);
+    }
+}
 
-        ++writePos_;
-        if (writePos_ == capacity) {
-            writePos_ = 0;
-        }
+float DelayLine::peek() const noexcept {
+    if (storage_.empty()) {
+        return 0.0F;
+    }
+    return storage_[writePos_];
+}
+
+void DelayLine::push(float value) noexcept {
+    const std::size_t capacity = storage_.size();
+    storage_[writePos_] = value;
+
+    ++writePos_;
+    if (writePos_ == capacity) {
+        writePos_ = 0;
     }
 }
 
