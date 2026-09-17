@@ -178,8 +178,14 @@ inline std::vector<double> hannWindow(std::size_t length) {
     return window;
 }
 
-// One-sided Welch auto- and cross-spectral estimates over bins
-// 0 .. fftLength/2 inclusive, plus the settings that produced them.
+// Two-sided Welch auto- and cross-spectral estimate, retaining bins
+// 0 .. fftLength/2 (redundant conjugate-symmetric bins beyond Nyquist are not
+// computed since the input is real); this is NOT a calibrated one-sided PSD
+// (no factor-of-2 fold for bins strictly between DC and Nyquist, no 1/fs
+// scaling) -- every consumer in this file uses only scale-invariant ratios
+// (MSC, band-power ratios) where the missing normalization cancels. A future
+// caller wanting an absolute calibrated PSD value must add the fold and the
+// 1/fs term.
 // `segmentCount == 0` means no complete segment fitted in the record, which
 // hasMinimumWelchSegments() below rejects.
 struct WelchCrossSpectra {

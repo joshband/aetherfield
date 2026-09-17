@@ -1433,6 +1433,40 @@ int testWelchCoherenceEstimatorSelfCheck() {
     return 0;
 }
 
+// Every DS-7/DS-8 call site above (and every case in the self-check just
+// above this one) uses kAnalysisRecordSamples/kRecord, both exact multiples
+// of every segment length x hop they're paired with, so welchCrossSpectra's
+// `offset + segmentLength <= usable` loop bound has never actually stopped
+// short of a would-be-partial trailing segment in any test in this file --
+// the "drop the partial trailing segment rather than zero-pad it" branch its
+// own comment describes has no coverage. This closes that gap with a record
+// deliberately NOT a multiple of the hop: 3*segmentLength + segmentLength/4
+// samples at the standard 50% hop. Full segments fit at offsets
+// 0, hop, 2*hop, ...; the last offset satisfying offset + segmentLength <=
+// usable is floor((usable - segmentLength) / hop), so the segment count is
+// floor((usable - segmentLength) / hop) + 1. For segmentLength=4096,
+// hop=2048, usable=13312: floor((13312-4096)/2048)+1 = floor(9216/2048)+1 =
+// 4+1 = 5, i.e. the trailing 13312 - (4*2048 + 4096) = 1024 samples (a
+// quarter of one segment) are dropped rather than zero-padded.
+int testWelchPartialTrailingSegmentIsDropped() {
+    constexpr std::size_t kSegment = 4096;
+    constexpr std::size_t kHop = kSegment / 2;
+    constexpr std::size_t kRecord = 3 * kSegment + kSegment / 4;  // 13312
+
+    const std::vector<float> script = makeNoiseScript(kRecord, 0x2B6C91EFU);
+    std::vector<double> samples(kRecord);
+    for (std::size_t n = 0; n < kRecord; ++n) samples[n] = static_cast<double>(script[n]);
+
+    const auto spectra = welchCrossSpectra(samples, samples, kSegment, kHop);
+    std::cout << "Welch partial-trailing-segment boundary check: record=" << kRecord << " segment=" << kSegment
+              << " hop=" << kHop << " -> segmentCount=" << spectra.segmentCount << " (expected 5)\n";
+    if (spectra.segmentCount != 5) {
+        return fail("Welch segment count over a non-hop-multiple record did not match the dropped-trailing-"
+                    "segment formula");
+    }
+    return 0;
+}
+
 template <std::size_t N>
 std::vector<double> toTargets(const std::array<double, N>& seconds) {
     return std::vector<double>(seconds.begin(), seconds.end());
@@ -2226,6 +2260,28 @@ int testDs8MonoCompatibilityAcrossMixSweep() {
 // to catch a structural error (a channel built from the wrong lines, a missing
 // tap scale) rather than to assert a perceptual balance claim, which C5 says
 // may not be set before these results are reviewed.
+//
+// That reasoning bounds the *output* cascades only, and equal tap-vector norm
+// is not the same thing as equal tap-vector power once the tapped FDN lines
+// themselves carry unequal energy. The measured imbalance below is 0.630 dB
+// @48kHz / 0.586 dB @44.1kHz on the noise fixture -- real and repeatable, only
+// ~37% of the 1.0 dB gate's margin, not the near-total margin the |A|=1
+// argument alone would suggest. DS-8 shows the same asymmetry pre-Mix
+// (E[y_L'^2]=0.0642 vs E[y_R'^2]=0.0556 at Decay=1s, printed above): the
+// per-line gains g_i = gamma_0^(m_i) that give each FDN line its T60 differ
+// line to line, and at a fixed T60 target a *shorter* delay line decays less
+// per sample than a longer one, so it carries systematically more energy at
+// any instant. ADR-006 (e)'s even/odd tap split assigns the network's
+// shortest lines to the even (L) set, so the even-tap sum draws
+// disproportionately on the higher-energy lines -- equal tap count and equal
+// tap-vector norm say nothing about this, because norm is a property of the
+// tap coefficients, not of the per-line signal power they multiply. This is a
+// recorded, expected-nonzero finding, not a bug and not something to tighten
+// the test around. It is also not rate- or decay-independent: the 1 dB gate
+// here is only exercised at T60_0=1s (kComparabilityT60Seconds); a shorter
+// T60_0 widens the per-line gain spread at a given delay-length difference,
+// so the imbalance is expected to grow as T60_0 shrinks, and 1 dB is a gate
+// sized for this fixture's operating point, not a general bound.
 // ---------------------------------------------------------------------------
 
 constexpr double kChannelBalanceToleranceDb = 1.0;
@@ -2336,6 +2392,31 @@ int testDs9ChannelBalanceAndCentroids() {
                   << "ms); ADR-006 (f) chain-length difference sum(d_R)-sum(d_L)=" << expectedDifference
                   << " samples\n";
 
+        // Derivation for the 0.5-sample gate below: a Schroeder allpass
+        // section's energy centroid equals its own delay length exactly, so a
+        // cascade's centroid equals the sum of its delays. For one section
+        // with delay d and coefficient g, the impulse response is
+        // h[0] = -g and h[k*d] = (1 - g^2) * g^(k-1) for k >= 1 (all other
+        // samples are 0). Its energy is
+        //   sum(h^2) = g^2 + (1-g^2)^2 * sum_{k>=1} g^(2k-2)
+        //            = g^2 + (1-g^2)^2 * 1/(1-g^2) = g^2 + (1-g^2) = 1,
+        // i.e. unit energy for any |g| < 1 -- confirming the allpass property
+        // (an allpass section neither gains nor loses energy). Its
+        // energy-weighted centroid (in samples) is
+        //   sum(n * h[n]^2) = 0 * g^2 + sum_{k>=1} (k*d) * (1-g^2)^2 * g^(2k-2)
+        //                   = d * (1-g^2)^2 * sum_{k>=1} k * g^(2k-2)
+        //                   = d * (1-g^2)^2 * 1/(1-g^2)^2 = d,
+        // using sum_{k>=1} k*x^(k-1) = 1/(1-x)^2 for x = g^2. So the centroid
+        // of a unit-energy allpass section is exactly its delay d, independent
+        // of g -- this is the section's group delay, and group delays add
+        // across a cascade, so a cascade's centroid is exactly the sum of its
+        // sections' delays: leftDelaySum / rightDelaySum here. The 0.5-sample
+        // tolerance below covers only the finite-drain-window truncation of
+        // the measurement (isolatedLength samples is not infinite), not any
+        // slack in the theorem itself: the actual measured residual is on the
+        // order of 7e-6 samples, so 0.5 carries roughly five orders of
+        // magnitude of margin over the observed truncation error -- the same
+        // level of justification kChannelBalanceToleranceDb gets above.
         if (std::abs(isolatedCentroidLeft - static_cast<double>(leftDelaySum)) > 0.5
             || std::abs(isolatedCentroidRight - static_cast<double>(rightDelaySum)) > 0.5) {
             return fail("DS-9 isolated output-diffuser centroid did not reproduce its chain's total delay");
@@ -2343,6 +2424,11 @@ int testDs9ChannelBalanceAndCentroids() {
         if (std::abs(isolatedDifference - expectedDifference) > 0.5) {
             return fail("DS-9 isolated output-diffuser centroid difference did not match ADR-006 (f)");
         }
+        // See the comment block above this function for why a nonzero
+        // imbalance (up to ~0.63 dB measured, against this 1.0 dB gate) is
+        // expected here rather than the near-zero implied by |A(e^jw)|=1
+        // alone: per-line FDN gains differ by delay length, and ADR-006 (e)'s
+        // even/odd split correlates that difference with channel.
         if (std::abs(noiseImbalanceDb) > kChannelBalanceToleranceDb
             || std::abs(impulseImbalanceDb) > kChannelBalanceToleranceDb) {
             return fail("DS-9 L/R RMS imbalance exceeded the stated 1.0 dB tolerance");
@@ -2391,6 +2477,7 @@ int main() {
     std::cout << "DiffusionStereoPath Task 4a (DS-1,2,3,5,6,10,11,12 + anti-vacuity) measurements passed\n";
 
     if (testWelchCoherenceEstimatorSelfCheck() != 0) return 1;
+    if (testWelchPartialTrailingSegmentIsDropped() != 0) return 1;
     if (testDs4CascadeEnergyConservation() != 0) return 1;
     if (testDs4FullPathDecayLawRecorded() != 0) return 1;
     if (testDs7InterchannelCoherenceRecorded() != 0) return 1;
