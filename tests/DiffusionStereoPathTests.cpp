@@ -64,6 +64,7 @@ int fail(const char* message) {
 // below. ----
 
 using aetherfield::dsp_test::Complex;
+using aetherfield::dsp_test::forEachBracketCascade;
 using aetherfield::dsp_test::geometricTargets;
 using aetherfield::dsp_test::hasMinimumWelchSegments;
 using aetherfield::dsp_test::hasNonzeroSample;
@@ -78,11 +79,6 @@ constexpr double kOutputWindowMinSeconds = 0.004;
 constexpr double kOutputWindowMaxSeconds = 0.008;
 constexpr std::array<std::size_t, 4> kBracketKIn {2, 3, 4, 5};
 constexpr std::array<std::size_t, 2> kBracketKOut {1, 2};
-
-struct CascadeSample {
-    float value;
-    bool nonFinite;
-};
 
 // Builds and prepares a series cascade of `targetSeconds.size()` sections at
 // the given geometrically spaced time-domain targets. Returns an empty
@@ -102,7 +98,10 @@ std::vector<std::size_t> cascadeDelays(const std::vector<SchroederAllpass>& casc
     return delays;
 }
 
-CascadeSample runCascadeSample(std::vector<SchroederAllpass>& cascade, float input) noexcept {
+// Reuses SchroederAllpass::Sample (the per-stage {value, nonFinite} result)
+// instead of a near-identical local struct: a cascade's end-to-end result
+// carries exactly the same two fields as one section's result.
+SchroederAllpass::Sample runCascadeSample(std::vector<SchroederAllpass>& cascade, float input) noexcept {
     float value = input;
     bool nonFinite = false;
     for (auto& section : cascade) {
@@ -526,6 +525,21 @@ int testAntiVacuityInfrastructure() {
     return 0;
 }
 
+// geometricTargets(a, b, 1) is documented in DiffusionStereoAnalysis.h to
+// degenerate to {a}, but no bracket call site here ever passes K == 1 (the
+// bracket itself never uses K < 2), so nothing previously exercised this
+// branch. geometricTargets is a shared header helper, not a private detail of
+// this file, so this direct unit test covers it before a future caller
+// relies on the degenerate case.
+int testGeometricTargetsSingleElementDegeneracy() {
+    const auto targets = geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, 1);
+    if (targets.size() != 1 || targets[0] != kInputWindowMinSeconds) {
+        return fail("geometricTargets(a, b, 1) did not degenerate to the single-element result {a}");
+    }
+    std::cout << "geometricTargets(a, b, 1) degenerates to {a} as documented\n";
+    return 0;
+}
+
 // ---------------------------------------------------------------------------
 // DS-1 — coefficient and pole bound, across the full bracket.
 // ---------------------------------------------------------------------------
@@ -547,21 +561,22 @@ int testDs1CoefficientAndPoleBoundAcrossBracket() {
         return true;
     };
 
-    for (const double rate : kBracketRates) {
-        for (const std::size_t kIn : kBracketKIn) {
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
             auto cascade = buildCascade(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn),
                                         kGoldenCoefficient);
-            if (!checkChain(cascade)) return fail("DS-1 input cascade violated the coefficient/pole bound");
-        }
-        for (const std::size_t kOut : kBracketKOut) {
+            return checkChain(cascade) ? 0 : fail("DS-1 input cascade violated the coefficient/pole bound");
+        },
+        [&](double rate, std::size_t kOut) -> int {
             const auto window = buildOutputWindow(kOut);
             auto left = buildCascade(rate, window.left, kGoldenCoefficient);
             auto right = buildCascade(rate, window.right, kGoldenCoefficient);
-            if (!checkChain(left) || !checkChain(right)) {
-                return fail("DS-1 output cascade violated the coefficient/pole bound");
-            }
-        }
-    }
+            return (checkChain(left) && checkChain(right))
+                ? 0 : fail("DS-1 output cascade violated the coefficient/pole bound");
+        });
+    if (bracketResult != 0) return bracketResult;
+
     std::cout << std::setprecision(10) << "DS-1 bracket: " << sectionsChecked
               << " sections checked (g_ap=" << kGoldenCoefficient
               << ", in [0,0.9]); largest pole radius g_ap^(1/d)=" << maxPoleRadius << " (< 1)\n";
@@ -598,19 +613,22 @@ int testDs2CascadeMagnitudeFlatnessAcrossBracket() {
         return true;
     };
 
-    for (const double rate : kBracketRates) {
-        for (const std::size_t kIn : kBracketKIn) {
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
             auto cascade = buildCascade(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn),
                                         kGoldenCoefficient);
-            if (!checkCascade(cascade)) return fail("DS-2 input cascade magnitude check failed");
-        }
-        for (const std::size_t kOut : kBracketKOut) {
+            return checkCascade(cascade) ? 0 : fail("DS-2 input cascade magnitude check failed");
+        },
+        [&](double rate, std::size_t kOut) -> int {
             const auto window = buildOutputWindow(kOut);
             auto left = buildCascade(rate, window.left, kGoldenCoefficient);
             auto right = buildCascade(rate, window.right, kGoldenCoefficient);
-            if (!checkCascade(left) || !checkCascade(right)) return fail("DS-2 output cascade magnitude check failed");
-        }
-    }
+            return (checkCascade(left) && checkCascade(right))
+                ? 0 : fail("DS-2 output cascade magnitude check failed");
+        });
+    if (bracketResult != 0) return bracketResult;
+
     std::cout << std::setprecision(10) << "DS-2 bracket: " << cascadesChecked
               << " full cascades checked (>= 65537 bins each), max ||A(e^jw)|-1| error=" << maxMagnitudeError << '\n';
     return maxMagnitudeError <= 1e-6 ? 0 : fail("DS-2 cascade magnitude error exceeded 1e-6");
@@ -767,19 +785,19 @@ int testDs5AdversarialPeakAcrossBracket() {
         return adversarialPeak <= bound + 1e-5;
     };
 
-    for (const double rate : kBracketRates) {
-        for (const std::size_t kIn : kBracketKIn) {
-            if (!checkCascade(kIn, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn), rate)) {
-                return fail("DS-5 input cascade adversarial peak exceeded its sqrt5^K_in bound");
-            }
-        }
-        for (const std::size_t kOut : kBracketKOut) {
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
+            return checkCascade(kIn, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn), rate)
+                ? 0 : fail("DS-5 input cascade adversarial peak exceeded its sqrt5^K_in bound");
+        },
+        [&](double rate, std::size_t kOut) -> int {
             const auto window = buildOutputWindow(kOut);
-            if (!checkCascade(kOut, window.left, rate) || !checkCascade(kOut, window.right, rate)) {
-                return fail("DS-5 output cascade adversarial peak exceeded its sqrt5^K_out bound");
-            }
-        }
-    }
+            return (checkCascade(kOut, window.left, rate) && checkCascade(kOut, window.right, rate))
+                ? 0 : fail("DS-5 output cascade adversarial peak exceeded its sqrt5^K_out bound");
+        });
+    if (bracketResult != 0) return bracketResult;
+
     std::cout << std::setprecision(10) << "DS-5 bracket: largest measured peak=" << measuredPeakOverall
               << ", largest checked bound=" << largestBoundChecked
               << " (fixed K_in=4 bound=" << std::pow(std::sqrt(5.0), 4.0)
@@ -818,6 +836,14 @@ int testDs6EchoDensityRecorded() {
             }
             if (!hasNonzeroSample(response)) return fail("DS-6 anti-vacuity: rendered fixture was all silence");
 
+            // `crossingCount` is a sign-flip (zero-crossing) count between
+            // consecutive nonzero samples of the rendered impulse response --
+            // it does NOT count same-sign consecutive arrivals the way the
+            // idealized lattice echo-density formula below does. The two are
+            // structurally different quantities (a zero-crossing rate is a
+            // proxy for, not a measurement of, arrival density), so printing
+            // them side by side is expected to show a divergence; that is not
+            // itself evidence of a bug.
             std::size_t crossingCount = 0;
             float previousNonzero = response[0];
             std::vector<std::size_t> crossingsAtCheckpoint(checkpoints.size(), 0);
@@ -845,7 +871,8 @@ int testDs6EchoDensityRecorded() {
                 const double idealized = rate * std::pow(n, static_cast<double>(kIn) - 1.0)
                                         / (std::tgamma(static_cast<double>(kIn)) * delayProduct);
                 const double measuredRate = static_cast<double>(crossingsAtCheckpoint[i]) / checkpoints[i].seconds;
-                std::cout << checkpoints[i].label << "(idealized=" << idealized << "/s, measured=" << measuredRate << "/s) ";
+                std::cout << checkpoints[i].label << "(idealized=" << idealized
+                          << "/s, measured zero-crossing rate=" << measuredRate << "/s) ";
             }
             std::cout << '\n';
         }
@@ -882,14 +909,29 @@ int testDs10NonFiniteSubstitutionAtInputHead() {
         return fail("DS-10 NaN head sample was not recorded as exactly one wrapper fault");
     }
     if (clean.nonFiniteCount() != 0) return fail("DS-10 all-zero control fixture unexpectedly faulted");
+    // This comparison deliberately excludes sample index 0, but not because of
+    // block-boundary reset timing (recovery is deferred to the next block
+    // either way, so that timing is identical for every sample here). The
+    // real reason: DiffusionStereoPath::processOne (src/dsp/DiffusionStereoPath.cpp)
+    // computes its dry-mix term as `mix.dry * mono` using the raw,
+    // unsubstituted `mono` parameter -- by ADR-006 (g) design, the dry path is
+    // not part of the wet diffusion/FDN chain this ADR governs, so it is never
+    // routed through the head-substitution this test is checking. With
+    // `mono == NaN` at index 0, `mix.dry * NaN` is legitimately NaN in both
+    // `faulting` and (via the untouched dry term) would-be comparisons, so
+    // index 0 is excluded because it is a dry-path artifact, not because
+    // wet-path substitution is untested there. Do not "fix" this test to
+    // start at n=0: the wet-path substitution guarantee this test targets
+    // does not extend to (and was never meant to extend to) the dry path.
     for (std::size_t n = 1; n < kFrames; ++n) {
         if (faultingLeft[n] != cleanLeft[n] || faultingRight[n] != cleanRight[n]) {
             return fail("DS-10 substitution at the input-chain head did not reproduce the all-zero control from sample 1 onward");
         }
     }
     std::cout << "DS-10 substitution-at-head: " << (kFrames - 1)
-              << " post-fault samples were bit-identical to an all-zero control (recovery is deferred to the "
-                 "next block, so this isolates the head-substitution property from block-boundary reset timing)\n";
+              << " post-fault samples were bit-identical to an all-zero control (sample 0 is excluded because "
+                 "processOne's dry-mix term uses the raw, unsubstituted mono input by ADR-006 (g) design, not "
+                 "because of block-boundary reset timing)\n";
     return 0;
 }
 
@@ -1110,8 +1152,9 @@ int testDs11DeterminismAndRaggedPartition() {
 
 int testDs12BracketConfigurationsAreRunnable() {
     std::size_t configsChecked = 0;
-    for (const double rate : kBracketRates) {
-        for (const std::size_t kIn : kBracketKIn) {
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
             auto cascade = buildCascade(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn),
                                         kGoldenCoefficient);
             if (cascade.empty()) return fail("DS-12 bracket input cascade did not prepare");
@@ -1121,8 +1164,9 @@ int testDs12BracketConfigurationsAreRunnable() {
                 }
             }
             ++configsChecked;
-        }
-        for (const std::size_t kOut : kBracketKOut) {
+            return 0;
+        },
+        [&](double rate, std::size_t kOut) -> int {
             const auto window = buildOutputWindow(kOut);
             auto left = buildCascade(rate, window.left, kGoldenCoefficient);
             auto right = buildCascade(rate, window.right, kGoldenCoefficient);
@@ -1134,8 +1178,10 @@ int testDs12BracketConfigurationsAreRunnable() {
                 }
             }
             ++configsChecked;
-        }
-    }
+            return 0;
+        });
+    if (bracketResult != 0) return bracketResult;
+
     std::cout << "DS-12 bracket: " << configsChecked
               << " K_in in {2,3,4,5} / K_out in {1,2} standalone cascades built directly from SchroederAllpass "
                  "(not via DiffusionStereoConfig) prepared and ran successfully at both fixture rates\n";
@@ -1206,6 +1252,7 @@ int main() {
     std::cout << "DiffusionStereoPath Task 1/2b/3 tests passed\n";
 
     if (testAntiVacuityInfrastructure() != 0) return 1;
+    if (testGeometricTargetsSingleElementDegeneracy() != 0) return 1;
     if (testDs1CoefficientAndPoleBoundAcrossBracket() != 0) return 1;
     if (testDs2CascadeMagnitudeFlatnessAcrossBracket() != 0) return 1;
     if (testDs3DelayLengthDerivationAcrossBracket() != 0) return 1;

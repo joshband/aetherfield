@@ -105,6 +105,41 @@ inline std::vector<double> geometricTargets(double a, double b, std::size_t k) {
     return targets;
 }
 
+// ---- shared bracket-iteration helper (ADR-006 (c)'s K_in x K_out x
+// sample-rate bracket) ----
+//
+// DS-1/2/5/12 (and, per Task 4's plan, a future sub-task 4b's DS-4/7/8/9) all
+// iterate the same two shapes: once per (rate, K_in) on the input side and
+// once per (rate, K_out) on the output side, varying only what check runs per
+// cascade and how that cascade gets built (some checks want a single built
+// cascade, some want raw targets to build more than one cascade themselves,
+// e.g. left/right output legs) -- so the callbacks receive only (rate, K)
+// and are left to build whatever cascade(s) they need from it. Each callback
+// returns 0 on success or a `fail(...)`-style nonzero result, matching this
+// test suite's int-returning check-function convention; iteration stops at
+// the first nonzero result. `rates`, `kIns` and `kOuts` are passed in rather
+// than fixed here so callers can share their own bracket constants (e.g.
+// kBracketRates/kBracketKIn/kBracketKOut) without this header needing to know
+// their names or types.
+//
+// DS-3 does not fit this shape (its K_out loop is nested inside its K_in loop
+// and shares FDN state across both) and is intentionally left iterating by
+// hand rather than forced through this helper.
+template <typename RateContainer, typename KInContainer, typename KOutContainer, typename InputCheck,
+          typename OutputCheck>
+int forEachBracketCascade(const RateContainer& rates, const KInContainer& kIns, const KOutContainer& kOuts,
+                          InputCheck&& checkInput, OutputCheck&& checkOutput) {
+    for (const auto& rate : rates) {
+        for (const auto& kIn : kIns) {
+            if (const int result = checkInput(rate, kIn); result != 0) return result;
+        }
+        for (const auto& kOut : kOuts) {
+            if (const int result = checkOutput(rate, kOut); result != 0) return result;
+        }
+    }
+    return 0;
+}
+
 // ---- anti-vacuity guards (docs/phases/phase1-ds-integration-plan.md Task 4's
 // first bullet: fixtures must contain nonzero wet samples before a
 // decay/correlation/centroid/density result is accepted). ----
