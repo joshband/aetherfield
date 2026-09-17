@@ -81,33 +81,38 @@ document.
 
 ## Dependencies not yet decided (read before the tables)
 
-**Floor dependency, for every case below without exception:** all twenty
-cases require an actual S2 fixture — a decided line count `N` and a decided
-delay-length set `mᵢ` — to be executable at all. ADR-002 defers both to a
-follow-up ADR (baseline `N = 8`, bracketed by `N = 4` and `N = 16`); ADR-003
-restates this ("Still DEFERRED, unchanged: `N`, the delay lengths `mᵢ`...").
-Until that follow-up ADR is accepted, none of these cases can be run
-against real numbers — only against illustrative/assumed values, exactly as
-ADR-003's and ADR-004's own worked arithmetic in their Evidence sections
-used clearly labelled *assumed* `mᵢ` spans, never a decision.
+**Floor dependency, now discharged by ADR-005:** all twenty cases required
+an actual S2 fixture — a decided line count `N` and a decided delay-length
+set `mᵢ` — to be executable at all. ADR-002 deferred both to a follow-up ADR
+(baseline `N = 8`, bracketed by `N = 4` and `N = 16`). **ADR-005
+(decisions.md) now decides** `N_fixture = 8` and the concrete co-prime delay
+set derived from a 27–81 ms time-domain specification at both 48 kHz and
+44.1 kHz. The S2 evaluation fixture's line count and delay lengths are no
+longer deferred for the purpose of executing these twenty cases. **The
+product's final `N` remains DEFERRED** to S2's measured evidence, per ADR-005.
 
-The "Depends on (undecided)" column in each table lists only quantities
-**beyond** that `N`/`mᵢ` floor that a case's bound formula names explicitly.
-"None beyond the delay-set floor" means the case needs nothing else once
-`N`/`mᵢ` exist.
+Three quantities still block a subset of cases and remain genuinely deferred:
+`T60_min`, `T60_max` (ADR-004 defers these as *derived* quantities depending
+on the decided delay set, now computable), and `D_max` (deferred to testing.md's
+Sonic acceptance gate per ADR-004).
+
+The "Depends on (undecided)" column in each table lists quantities **beyond**
+the now-fixed `N_fixture` and `mᵢ` that a case's bound formula names explicitly.
+"None beyond the delay-set floor" means the case needs nothing else once the
+fixture is prepared.
 
 ## Gate: Fixed late network (testing.md row 2; ADR-003 §(c), NS-1..NS-11)
 
 | ID | Case | What it tests (ADR-003 §(c)) | Build target | Depends on (undecided) |
 |---|---|---|---|---|
-| NS-1 | Matrix orthogonality | `‖AᵀA − I‖∞ ≤ 1e-6` in `float`, `≤ 1e-12` in double, computed independently of the construction | `aetherfield_dsp_fdn_tests` | `N` (fixes `A`'s dimension) |
+| NS-1 | Matrix orthogonality | `‖AᵀA − I‖∞ ≤ 1e-6` in `float`, `≤ 1e-12` in double, computed independently of the construction | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor (ADR-005 fixes `N_fixture = 8`) |
 | NS-2 | Bounded-realness, exact | For every `i`: `max(\|Hᵢ(1)\|, \|Hᵢ(−1)\|) ≤ 1`. `\|Hᵢ(1)\| = 1` and `\|Hᵢ(−1)\| = (1−aᵢ)/(1+aᵢ)` | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor — the two-point check is generic over any valid `aᵢ ∈ [0, a_max]`; representative/test `aᵢ` values can exercise it before the real delay set exists, but per-line coverage over the *accepted* `mᵢ` needs the delay set |
 | NS-3 | Bounded-realness, falsification | Dense grid of ≥ 2¹⁶ points on `[0, π]`: `sup\|Hᵢ(e^{jω})\| ≤ 1 + 1e-6`. Required *even though* NS-2 is exact, per ADR-002: measured, never assumed | `aetherfield_dsp_fdn_tests` | Same note as NS-2 |
-| NS-4 | Margin | Record `ρ = σ_max(ΓA)`, require `ρ ≤ maxᵢ gᵢ·(1 + 1e-6)` and `1 − ρ ≥ δ_margin` | `aetherfield_dsp_fdn_tests` | `mᵢ` and a `T60₀` target (to form `Γ`); `δ_margin` is fixed at `≥ 1e-3` by ADR-003, not deferred |
+| NS-4 | Margin | Record `ρ = σ_max(ΓA)`, require `ρ ≤ maxᵢ gᵢ·(1 + 1e-6)` and `1 − ρ ≥ δ_margin` | `aetherfield_dsp_fdn_tests` | A `T60₀` target (to form `Γ`); `mᵢ` fixed by ADR-005; `δ_margin` is fixed at `≥ 1e-3` by ADR-003, not deferred |
 | NS-5 | Coefficient finiteness | Every stored coefficient finite and inside its stated interval, at every supported rate and at both `T60` extremes | `aetherfield_dsp_fdn_tests` | `T60_min`, `T60_max` (ADR-004 defers both as quantities *derived* from `m_min`/`m_max`, not yet computable) |
-| NS-6 | Decay law | Measured energy decay curve vs. `10^(−3n/(f_s·T60₀))` at DC, and realized `T60(ω)` vs. target in ≥ 8 bands; **record the maximum band error in percent** and compare it against the reported `T60` JNDs (4–12 % per Schlecht and Habets, cited in ADR-003) | `aetherfield_dsp_fdn_tests` | `mᵢ` (delay lengths fix the per-band realized response) |
+| NS-6 | Decay law | Measured energy decay curve vs. `10^(−3n/(f_s·T60₀))` at DC, and realized `T60(ω)` vs. target in ≥ 8 bands; **record the maximum band error in percent** and compare it against the reported `T60` JNDs (4–12 % per Schlecht and Habets, cited in ADR-003) | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor (ADR-005 fixes the delay lengths) |
 | NS-7 | Worst-case combination | `T60₀ = T60_max` × minimum damping (`aᵢ = 0`) × full-scale input, ≥ 120 s, across block partitions `{1, 13, 64, 512, ragged}`, at every supported rate. Required: no non-finite sample; detector counter zero; peak internal magnitude recorded; output overshoot reported, never clipped away | `aetherfield_dsp_fdn_tests` | `T60_max` explicitly named in the bound (deferred, ADR-004) |
-| NS-8 | Finite-time silence | From a full-scale impulse with zero input thereafter, the network reaches **exactly zero** on every state within `T_silence ≤ (m_max/f_s)·ln(ε/‖s₀‖₂)/ln ρ`. Record measured time-to-silence, and time-to-first-denormal with the cutoff disabled | `aetherfield_dsp_fdn_tests` | `m_max` explicitly named in the bound (delay-set dependent); `ε = 1e-20` is fixed by ADR-003, not deferred |
+| NS-8 | Finite-time silence | From a full-scale impulse with zero input thereafter, the network reaches **exactly zero** on every state within `T_silence ≤ (m_max/f_s)·ln(ε/‖s₀‖₂)/ln ρ`. Record measured time-to-silence, and time-to-first-denormal with the cutoff disabled | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor (ADR-005 fixes the delay set, hence `m_max`); `ε = 1e-20` is fixed by ADR-003, not deferred |
 | NS-9 | Denormal cost | Cost with cutoff, without cutoff, and with/without `FPCR.FZ` — four measurements. `FPCR.FZ` may only be adopted on this evidence | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor (needs a real `N`-line network to measure realistic per-sample cost) |
 | NS-10 | Double-precision reference | Same fixture in double, with a justified tolerance (ADR-002 S2 item 7) | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor |
 | NS-11 | Determinism | Repeated renders byte-identical (testing.md). The cutoff keeps this true; anti-denormal noise would have put it at risk | `aetherfield_dsp_fdn_tests` | None beyond the delay-set floor |
