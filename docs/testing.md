@@ -207,6 +207,47 @@ audition. **No sonic-quality claim is made by this entry.** Sol's
 "reviews consequences" step and the owner's listening notes remain
 outstanding; this gate is not marked satisfied.
 
+### Owner listening notes, round 1 (2026-09-17)
+
+`tools/render_reverb/main.cpp` was extended to accept `decay`/`damp`/`mix`
+as optional CLI arguments (defaults unchanged), and five renders were
+generated to isolate one control each: `1-baseline` (Decay=0.6, Damp=0.3,
+Mix=1.0), `2-damping-off` (Damp=0.0), `3-short-decay` (Decay=0.3,
+`T60₀≈0.14s`), `4-long-decay` (Decay=0.75, `T60₀≈14.3s`), `5-blend-mix`
+(Mix=0.5). The owner listened to all five. Findings:
+
+- **Decay length (3 vs. 4) was clearly, unambiguously perceptually
+  distinct.** This is a genuine positive result: it corroborates, on the
+  perceptual side, what the earlier structural check already established
+  numerically (§ above: measured RMS decay rate matched the `T60₀`
+  setting's theoretical rate). Both the number and the ear agree Decay is
+  doing what it's supposed to.
+- **Mix (1 vs. 5) was *not* perceptually distinguishable — traced to a
+  real flaw in this test's design, not a DSP defect.** The two renders'
+  printed peaks (`1.253` vs. `0.886`) have ratio `≈1.414 = √2`, exactly
+  the expected equal-power scaling (`wet=1.0` vs. `wet=0.707`) — the
+  underlying Mix math is confirmed correct. But the dry path only ever
+  received a single-sample impulse (≈21μs), inaudible as a discrete
+  event, and each file was independently peak-normalized for listening,
+  which erased the one difference (wet-tail level) Mix actually produced.
+  **Lesson for future renders: use a sustained dry source, and normalize
+  a comparison batch to one shared reference peak, not per-file.**
+- **Damp (1 vs. 2, Damp=0.3 vs. 0.0) was only subtly distinguishable.**
+  Plausibly consistent with the setting itself: `D_max_fixture=48dB ×
+  0.3 = 14.4dB` of extra high-frequency attenuation over the `T60`
+  window is a real but moderate effect, and comparing separately-opened
+  files is a weaker test than instant A/B toggling. Not evidence against
+  the damping filter's correctness (already proven by NS-2/NS-3); a
+  perceptual-magnitude observation, not a correctness one.
+
+**A corrected Mix comparison and a more extreme Damp=1.0 comparison were
+proposed but not generated in this round** — deferred to a future
+listening pass rather than done now. This round's notes are real
+evidence toward the Sonic acceptance gate, but the gate remains
+unsatisfied: no musical corpus exists, Sol has not reviewed consequences,
+and one positive (Decay) plus two inconclusive-by-test-design results
+(Mix, Damp) do not constitute a rendered product's sonic acceptance.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.

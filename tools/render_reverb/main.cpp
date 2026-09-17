@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
 namespace {
@@ -34,25 +35,27 @@ void writeU32(std::ofstream& output, std::uint32_t value) {
 } // namespace
 
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        std::cerr << "Usage: aetherfield_render_reverb OUTPUT.wav\n";
+    if (argc < 2 || argc > 5) {
+        std::cerr << "Usage: aetherfield_render_reverb OUTPUT.wav [decay=0.6] [damp=0.3] [mix=1.0]\n"
+                   << "  decay/damp/mix are normalized [0,1] controls (ADR-004); defaults produce\n"
+                   << "  the original baseline render (T60_0~=3.06s, moderate damping, full wet).\n";
         return 2;
     }
 
     // Stated, deterministic fixture and parameter choices. None of these
     // is a product default or a tuned recommendation; N/tMin/tMax/dMaxFixture
     // are the ADR-005/phase1-pt-plan.md fixture values already exercised by
-    // the test suites, and the normalized control values below were picked
-    // only to produce an audible, moderate-length tail for this first
-    // listen.
+    // the test suites, and the normalized control values below (overridable
+    // via argv for A/B listening) were picked only to produce an audible,
+    // moderate-length tail for this first listen.
     constexpr double sampleRate = 48000.0;
     constexpr std::size_t lineCount = 8;
     constexpr double tMinSeconds = 0.027;
     constexpr double tMaxSeconds = 0.081;
     constexpr double dMaxFixture = 48.0;
-    constexpr double decayNormalized = 0.6;
-    constexpr double dampNormalized = 0.3;
-    constexpr double mixNormalized = 1.0; // full wet: this render has no dry path
+    const double decayNormalized = (argc > 2) ? std::stod(argv[2]) : 0.6;
+    const double dampNormalized = (argc > 3) ? std::stod(argv[3]) : 0.3;
+    const double mixNormalized = (argc > 4) ? std::stod(argv[4]) : 1.0;
 
     aetherfield::dsp::FeedbackDelayNetwork network;
     // Initial T60 values here are placeholders: ParameterAutomation
@@ -90,12 +93,14 @@ int main(int argc, char* argv[]) {
         static_cast<std::size_t>(sampleRate * std::min(std::max(3.0 * t60Zero, 2.0), 10.0));
 
     std::vector<float> output(durationSamples, 0.0F);
+    aetherfield::dsp::ParameterAutomation::MixGains finalMix{0.0F, 0.0F};
     for (std::size_t n = 0; n < durationSamples; ++n) {
         automation.checkForNewTargets();
         const auto mix = automation.advance(network);
         const float input = (n == 0) ? 1.0F : 0.0F; // full-scale impulse at n=0, silence thereafter
         const float wet = network.processSample(input);
         output[n] = mix.dry * input + mix.wet * wet;
+        finalMix = mix; // settled after the priming ramp above; unchanged for the rest of this render
     }
 
     if (network.nonFiniteCount() != 0) {
@@ -161,7 +166,8 @@ int main(int argc, char* argv[]) {
                << (static_cast<double>(output.size()) / sampleRate) << "s) at " << sampleRateU32 << " Hz mono.\n"
                << "Fixture: N=" << lineCount << ", T60_0=" << t60Zero << "s (Decay=" << decayNormalized
                << " normalized), Damp=" << dampNormalized << " normalized (D_max_fixture=" << dMaxFixture
-               << "dB, test-only), Mix=" << mixNormalized << " (full wet).\n"
+               << "dB, test-only), Mix=" << mixNormalized << " normalized (as-applied dry=" << finalMix.dry
+               << ", wet=" << finalMix.wet << ", equal-power).\n"
                << "Pre-normalization: peak=" << peak << ", RMS=" << rms << ". Applied gain="
                << appliedGain << " for listening level.\n"
                << "This is a bare impulse response of the fixed late network plus its parameter "
