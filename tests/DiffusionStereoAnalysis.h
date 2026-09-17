@@ -2,12 +2,12 @@
 
 // Test-only DS-A/DS-B analysis helpers.
 //
-// Shared by tests/DiffusionStereoPathTests.cpp (sub-task 4a of
-// docs/phases/phase1-ds-integration-plan.md's Task 4) and intended for reuse
-// by a future sub-task 4b's DS-4 (decay-law regression), DS-7 (interchannel
-// coherence) and DS-8/DS-9 (mono compatibility, channel balance) measurements
-// in the same file. This header is NOT linked into aetherfield_dsp and must
-// not be included from any src/ file.
+// Shared by tests/DiffusionStereoPathTests.cpp for both halves of
+// docs/phases/phase1-ds-integration-plan.md's Task 4: sub-task 4a's
+// DS-1/2/3/5/6/10/11/12 measurements and sub-task 4b's DS-4 (decay-law
+// regression), DS-7 (interchannel coherence) and DS-8/DS-9 (mono
+// compatibility, channel balance) measurements. This header is NOT linked
+// into aetherfield_dsp and must not be included from any src/ file.
 //
 // Every function here is `inline` so the header stays safe to include from
 // more than one test translation unit without an ODR violation, even though
@@ -18,6 +18,7 @@
 // below rather than including this header — that file predates this header
 // and is not touched by this sub-task.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -140,6 +141,247 @@ int forEachBracketCascade(const RateContainer& rates, const KInContainer& kIns, 
     return 0;
 }
 
+// ---- Welch cross-spectral estimation (ADR-006 correction note C2) ----
+//
+// C2 requires DS-7's coherence to come from a Welch estimator with at least
+// two complete segments, and to record the excitation, segment count and
+// length, window, overlap, FFT length and silent-bin floor; a single
+// periodogram is explicitly prohibited. These helpers are that estimator, and
+// they carry every one of those settings back in the result so a reporting
+// site cannot print a coherence number without also holding the parameters
+// that produced it.
+//
+// Window choice, recorded rather than assumed: a *periodic* Hann window. Hann
+// is the standard Welch default -- its -31 dB first sidelobe keeps a strong
+// low-frequency component from leaking across the band, which matters here
+// because a reverb tail's spectrum is not flat -- and at 50 % overlap
+// consecutive periodic Hann segments sum to a constant, so no part of the
+// record is systematically under-weighted. Nothing in the estimator depends
+// on this particular window; a caller that prefers another one changes the
+// single function below and records the change.
+
+// Periodic (DFT-even) Hann window: w[n] = 0.5 - 0.5*cos(2*pi*n/length).
+// Periodic rather than symmetric because these windows are used for spectral
+// estimation, where the periodic form is the one that satisfies the
+// constant-overlap-add condition at 50 % overlap.
+inline std::vector<double> hannWindow(std::size_t length) {
+    std::vector<double> window(length);
+    if (length == 0) return window;
+    if (length == 1) {
+        window[0] = 1.0;
+        return window;
+    }
+    for (std::size_t n = 0; n < length; ++n) {
+        window[n] = 0.5
+                  - 0.5 * std::cos(2.0 * std::numbers::pi * static_cast<double>(n) / static_cast<double>(length));
+    }
+    return window;
+}
+
+// One-sided Welch auto- and cross-spectral estimates over bins
+// 0 .. fftLength/2 inclusive, plus the settings that produced them.
+// `segmentCount == 0` means no complete segment fitted in the record, which
+// hasMinimumWelchSegments() below rejects.
+struct WelchCrossSpectra {
+    std::size_t segmentCount = 0;
+    std::size_t segmentLength = 0;
+    std::size_t hopSize = 0;   // segmentLength/2 is 50 % overlap
+    std::size_t fftLength = 0;
+    std::vector<double> sxx;   // |X|^2 averaged over segments
+    std::vector<double> syy;   // |Y|^2 averaged over segments
+    std::vector<Complex> sxy;  // X * conj(Y) averaged over segments
+};
+
+// Welch estimate over `x` and `y`, which must be sampled at the same rate and
+// aligned sample-for-sample. Segments advance by `hopSize`; only *complete*
+// segments are used (a partial trailing segment is discarded rather than
+// zero-padded, which would bias its spectrum downward). The FFT length is the
+// next power of two at or above `segmentLength`, so a non-power-of-two
+// segment is zero-padded to the transform length -- that interpolates bins,
+// it does not add resolution, and callers should prefer a power-of-two
+// segment length. Scaling is 1/(segmentCount * sum(w^2)), which is constant
+// across bins and therefore cancels in a coherence ratio; it is applied so
+// that PSD magnitudes are comparable between records of different lengths.
+inline WelchCrossSpectra welchCrossSpectra(const std::vector<double>& x, const std::vector<double>& y,
+                                           std::size_t segmentLength, std::size_t hopSize) {
+    WelchCrossSpectra result;
+    if (segmentLength == 0 || hopSize == 0) return result;
+    const std::size_t usable = std::min(x.size(), y.size());
+    if (usable < segmentLength) return result;
+
+    const std::size_t fftLength = nextPowerOfTwo(segmentLength);
+    const std::size_t bins = fftLength / 2 + 1;
+    const std::vector<double> window = hannWindow(segmentLength);
+    double windowEnergy = 0.0;
+    for (const double weight : window) windowEnergy += weight * weight;
+    if (!(windowEnergy > 0.0)) return result;
+
+    result.sxx.assign(bins, 0.0);
+    result.syy.assign(bins, 0.0);
+    result.sxy.assign(bins, Complex(0.0, 0.0));
+    std::vector<Complex> bufferX(fftLength);
+    std::vector<Complex> bufferY(fftLength);
+
+    for (std::size_t offset = 0; offset + segmentLength <= usable; offset += hopSize) {
+        std::fill(bufferX.begin(), bufferX.end(), Complex(0.0, 0.0));
+        std::fill(bufferY.begin(), bufferY.end(), Complex(0.0, 0.0));
+        for (std::size_t n = 0; n < segmentLength; ++n) {
+            bufferX[n] = Complex(x[offset + n] * window[n], 0.0);
+            bufferY[n] = Complex(y[offset + n] * window[n], 0.0);
+        }
+        radix2Fft(bufferX);
+        radix2Fft(bufferY);
+        for (std::size_t bin = 0; bin < bins; ++bin) {
+            result.sxx[bin] += std::norm(bufferX[bin]);
+            result.syy[bin] += std::norm(bufferY[bin]);
+            result.sxy[bin] += bufferX[bin] * std::conj(bufferY[bin]);
+        }
+        ++result.segmentCount;
+    }
+    if (result.segmentCount == 0) return result;
+
+    const double scale = 1.0 / (static_cast<double>(result.segmentCount) * windowEnergy);
+    for (std::size_t bin = 0; bin < bins; ++bin) {
+        result.sxx[bin] *= scale;
+        result.syy[bin] *= scale;
+        result.sxy[bin] *= scale;
+    }
+    result.segmentLength = segmentLength;
+    result.hopSize = hopSize;
+    result.fftLength = fftLength;
+    return result;
+}
+
+// Magnitude-squared coherence summarized over the bins that survive a
+// silent-bin floor, together with the floor and the bin counts a report has
+// to state alongside it.
+struct CoherenceSummary {
+    std::size_t segmentCount = 0;
+    std::size_t examinedBins = 0;   // bins offered to the floor test
+    std::size_t retainedBins = 0;   // bins that passed it
+    double floorAbsolute = 0.0;     // the floor actually applied
+    double minimum = 0.0;
+    double maximum = 0.0;
+    double mean = 0.0;
+    double median = 0.0;
+};
+
+// MSC = |Sxy|^2 / (Sxx * Syy), summarized over retained bins.
+//
+// DC (bin 0) and Nyquist (bin fftLength/2) are excluded unconditionally: both
+// are real-valued for a real record, so their "coherence" is 1 by
+// construction regardless of the signals, and including them would inflate
+// every summary by an amount that says nothing about the path.
+//
+// A bin is retained only when *both* auto-spectra reach
+// `floorFraction * max(Sxx, Syy)` over the examined bins. Below that the
+// ratio is dominated by the float round-off of the render rather than by the
+// signal, and a 0/0-shaped bin would contribute an arbitrary value. The
+// fraction is the caller's declared silent-bin floor and is reported back in
+// `floorAbsolute` so the applied threshold, not just the policy, is on record.
+inline CoherenceSummary magnitudeSquaredCoherence(const WelchCrossSpectra& spectra, double floorFraction) {
+    CoherenceSummary summary;
+    summary.segmentCount = spectra.segmentCount;
+    const std::size_t bins = spectra.sxx.size();
+    if (bins < 3 || spectra.segmentCount == 0) return summary;
+
+    double peak = 0.0;
+    for (std::size_t bin = 1; bin + 1 < bins; ++bin) {
+        peak = std::max({peak, spectra.sxx[bin], spectra.syy[bin]});
+        ++summary.examinedBins;
+    }
+    summary.floorAbsolute = floorFraction * peak;
+
+    std::vector<double> values;
+    values.reserve(summary.examinedBins);
+    for (std::size_t bin = 1; bin + 1 < bins; ++bin) {
+        if (spectra.sxx[bin] < summary.floorAbsolute || spectra.syy[bin] < summary.floorAbsolute) continue;
+        const double denominator = spectra.sxx[bin] * spectra.syy[bin];
+        if (!(denominator > 0.0)) continue;
+        values.push_back(std::norm(spectra.sxy[bin]) / denominator);
+    }
+    summary.retainedBins = values.size();
+    if (values.empty()) return summary;
+
+    std::sort(values.begin(), values.end());
+    summary.minimum = values.front();
+    summary.maximum = values.back();
+    double sum = 0.0;
+    for (const double value : values) sum += value;
+    summary.mean = sum / static_cast<double>(values.size());
+    const std::size_t middle = values.size() / 2;
+    summary.median = (values.size() % 2 == 0) ? 0.5 * (values[middle - 1] + values[middle]) : values[middle];
+    return summary;
+}
+
+// ---- time-domain correlation (ADR-006 correction note C2's second half) ----
+//
+// C2 requires the normalized zero-lag cross-correlation and a *declared*
+// short-lag range to be reported separately from coherence, precisely because
+// allpass phase differences can drive correlation down while leaving the
+// ideal magnitude-squared coherence at 1.
+
+// Pearson correlation coefficient between x[n] and y[n+lag], computed over
+// exactly the overlap the lag leaves, with each series' mean removed over
+// that same overlap (so it is a correlation coefficient, not a raw normalized
+// inner product, and a small DC offset in either record cannot masquerade as
+// correlation). Returns 0 for an overlap shorter than two samples or for a
+// constant series, both of which are degenerate rather than uncorrelated;
+// callers gate on their own anti-vacuity checks first.
+inline double pearsonCorrelationAtLag(const std::vector<double>& x, const std::vector<double>& y,
+                                      long long lag) noexcept {
+    const auto count = static_cast<long long>(std::min(x.size(), y.size()));
+    const long long begin = std::max<long long>(0, -lag);
+    const long long end = std::min<long long>(count, count - lag);
+    if (end - begin < 2) return 0.0;
+
+    const auto span = static_cast<double>(end - begin);
+    double sumX = 0.0;
+    double sumY = 0.0;
+    for (long long n = begin; n < end; ++n) {
+        sumX += x[static_cast<std::size_t>(n)];
+        sumY += y[static_cast<std::size_t>(n + lag)];
+    }
+    const double meanX = sumX / span;
+    const double meanY = sumY / span;
+
+    double sxy = 0.0;
+    double sxx = 0.0;
+    double syy = 0.0;
+    for (long long n = begin; n < end; ++n) {
+        const double dx = x[static_cast<std::size_t>(n)] - meanX;
+        const double dy = y[static_cast<std::size_t>(n + lag)] - meanY;
+        sxy += dx * dy;
+        sxx += dx * dx;
+        syy += dy * dy;
+    }
+    if (!(sxx > 0.0) || !(syy > 0.0)) return 0.0;
+    return sxy / std::sqrt(sxx * syy);
+}
+
+// Largest |Pearson correlation| over the symmetric lag range [-maxLag, maxLag]
+// and the lag that attained it. The range is the caller's declared short-lag
+// window; this helper never invents one.
+struct ShortLagCorrelation {
+    double magnitude = 0.0;
+    long long lag = 0;
+    double signedValue = 0.0;
+};
+
+inline ShortLagCorrelation maxShortLagCorrelation(const std::vector<double>& x, const std::vector<double>& y,
+                                                  long long maxLag) noexcept {
+    ShortLagCorrelation best;
+    for (long long lag = -maxLag; lag <= maxLag; ++lag) {
+        const double value = pearsonCorrelationAtLag(x, y, lag);
+        if (std::abs(value) > best.magnitude) {
+            best.magnitude = std::abs(value);
+            best.lag = lag;
+            best.signedValue = value;
+        }
+    }
+    return best;
+}
+
 // ---- anti-vacuity guards (docs/phases/phase1-ds-integration-plan.md Task 4's
 // first bullet: fixtures must contain nonzero wet samples before a
 // decay/correlation/centroid/density result is accepted). ----
@@ -155,11 +397,30 @@ bool hasNonzeroSample(const Container& buffer, double epsilon = 1e-9) noexcept {
 // A Welch-style spectral estimate (coherence, PSD-averaged fit, etc.) needs
 // at least two complete, independent segments to mean anything; a
 // single-segment "average" is a periodogram wearing a Welch label (ADR-006
-// correction note C2 prohibits exactly this as a width/coherence gate). A
-// future DS-7 coherence measurement must gate on this before accepting any
-// computed MSC/coherence value.
+// correction note C2 prohibits exactly this as a width/coherence gate). DS-7
+// gates on this before accepting any computed MSC/coherence value.
 inline bool hasMinimumWelchSegments(std::size_t segmentCount) noexcept {
     return segmentCount >= 2;
+}
+
+// A CoherenceSummary computed over zero (or one) retained bin is as vacuous
+// as a single-segment estimate: every bin fell under the silent-bin floor, so
+// the reported min/max/mean/median describe an empty or single-element set
+// while still printing like a spectrum-wide result. DS-7 gates on this
+// alongside hasMinimumWelchSegments(), and reports retained/examined bin
+// counts so a barely-passing estimate is visible rather than merely legal.
+inline bool hasMinimumRetainedBins(std::size_t retainedBins) noexcept {
+    return retainedBins >= 2;
+}
+
+// A log-magnitude decay regression through one point is undefined and through
+// two is an exact interpolation with no residual freedom -- either would
+// report a "fitted slope" that measures nothing. Eight sampled points is the
+// declared minimum at which a slope through a decaying envelope is a
+// regression; DS-4 gates every fit (full path and bare-network reference) on
+// this before reporting a slope or a T60 derived from one.
+inline bool hasMinimumFitPoints(std::size_t pointCount) noexcept {
+    return pointCount >= 8;
 }
 
 } // namespace aetherfield::dsp_test

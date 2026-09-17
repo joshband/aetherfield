@@ -61,16 +61,25 @@ int fail(const char* message) {
 // ---- Task 4a bracket infrastructure: ADR-006 (c)'s generalized rule built
 // directly from SchroederAllpass, never through DiffusionStereoConfig (which
 // stays fixed at K_in=4/K_out=2). Shared by the DS-1/2/3/5/6/12 bracket tests
-// below. ----
+// below. The shared-header names follow; Task 4b's DS-4/7/8/9 measurements
+// draw on the same list. ----
 
+using aetherfield::dsp_test::CoherenceSummary;
 using aetherfield::dsp_test::Complex;
 using aetherfield::dsp_test::forEachBracketCascade;
 using aetherfield::dsp_test::geometricTargets;
+using aetherfield::dsp_test::hasMinimumFitPoints;
+using aetherfield::dsp_test::hasMinimumRetainedBins;
 using aetherfield::dsp_test::hasMinimumWelchSegments;
 using aetherfield::dsp_test::hasNonzeroSample;
 using aetherfield::dsp_test::isPrime;
+using aetherfield::dsp_test::magnitudeSquaredCoherence;
+using aetherfield::dsp_test::makeNoiseScript;
+using aetherfield::dsp_test::maxShortLagCorrelation;
 using aetherfield::dsp_test::nextPowerOfTwo;
+using aetherfield::dsp_test::pearsonCorrelationAtLag;
 using aetherfield::dsp_test::radix2Fft;
+using aetherfield::dsp_test::welchCrossSpectra;
 
 constexpr std::array<double, 2> kBracketRates {48000.0, 44100.0};
 constexpr double kInputWindowMinSeconds = 0.001;
@@ -326,7 +335,25 @@ struct OrderedReferencePath {
             && automation.prepare(network, config.sampleRate, config.dMaxDb);
     }
 
-    aetherfield::dsp::StereoSample processSample(float mono) {
+    // Task 4b needs the pre-Mix wet channels and this sample's Mix gains,
+    // which the production wrapper deliberately does not expose (DS-8's
+    // dry/wet covariance and DS-9's wet-only arrival/centroid are defined on
+    // exactly those intermediate values). They are surfaced here, on the
+    // reference implementation, rather than by adding an accessor to
+    // DiffusionStereoPath. processSample() below is this function with the
+    // extra fields dropped -- the same expressions in the same order on the
+    // same values -- so the bit-exactness asserted by
+    // testProcessSampleMatchesExactOrderedReference() is unaffected.
+    struct DetailedSample {
+        float left;
+        float right;
+        float wetLeft;
+        float wetRight;
+        float dryGain;
+        float wetGain;
+    };
+
+    DetailedSample processSampleDetailed(float mono) {
         automation.checkForNewTargets();
         const auto mix = automation.advance(network);
 
@@ -343,7 +370,12 @@ struct OrderedReferencePath {
         float right = taps.odd * tapScale;
         for (auto& section : leftOutput) left = section.processSample(left).value;
         for (auto& section : rightOutput) right = section.processSample(right).value;
-        return {mix.dry * mono + mix.wet * left, mix.dry * mono + mix.wet * right, false};
+        return {mix.dry * mono + mix.wet * left, mix.dry * mono + mix.wet * right, left, right, mix.dry, mix.wet};
+    }
+
+    aetherfield::dsp::StereoSample processSample(float mono) {
+        const auto detailed = processSampleDetailed(mono);
+        return {detailed.left, detailed.right, false};
     }
 };
 
@@ -520,8 +552,26 @@ int testAntiVacuityInfrastructure() {
     if (!hasMinimumWelchSegments(2) || !hasMinimumWelchSegments(3)) {
         return fail("anti-vacuity guard rejected a valid multi-segment coherence estimate");
     }
-    std::cout << "Anti-vacuity infrastructure: rejects all-silent fixtures and single-segment "
-                 "coherence estimates; accepts a real signal and >=2-segment estimates\n";
+
+    // Task 4b's two additional guards, covered directly here for the same
+    // reason 4a covered its own: they are shared header helpers, so a call
+    // site happening to exercise them is not the same as testing them.
+    if (hasMinimumRetainedBins(0) || hasMinimumRetainedBins(1)) {
+        return fail("anti-vacuity guard accepted a coherence summary over fewer than two retained bins");
+    }
+    if (!hasMinimumRetainedBins(2)) {
+        return fail("anti-vacuity guard rejected a coherence summary with enough retained bins");
+    }
+    if (hasMinimumFitPoints(0) || hasMinimumFitPoints(2) || hasMinimumFitPoints(7)) {
+        return fail("anti-vacuity guard accepted a decay fit through too few points");
+    }
+    if (!hasMinimumFitPoints(8) || !hasMinimumFitPoints(600)) {
+        return fail("anti-vacuity guard rejected a decay fit with enough points");
+    }
+
+    std::cout << "Anti-vacuity infrastructure: rejects all-silent fixtures, single-segment coherence "
+                 "estimates, coherence summaries over fewer than two retained bins and decay fits through "
+                 "fewer than eight points; accepts a real signal and valid estimates of each kind\n";
     return 0;
 }
 
@@ -1234,6 +1284,1077 @@ int testDs12CostWithAndWithoutDiffusion() {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Task 4b: DS-4, DS-7, DS-8, DS-9 -- full-wet-path measurements.
+//
+// These four cases are measurements of the wrapper's fixed K_in=4 / K_out=2
+// configuration ("the full wet path", "out_L/out_R"), not of the
+// K_in x K_out bracket that DS-1/2/5/12 sweep, so they deliberately do not
+// go through forEachBracketCascade().
+//
+// Every one of them needs Decay/Damp/Mix control, and DiffusionStereoPath
+// exposes none (it owns its ParameterAutomation privately and correctly so).
+// OrderedReferencePath above -- the manual reference implementation whose
+// sample-for-sample bit-exactness against the production wrapper is asserted
+// by testProcessSampleMatchesExactOrderedReference() -- holds its automation
+// as a public member, and is therefore the supported route to a controlled
+// fixture. No accessor was added to src/.
+// ---------------------------------------------------------------------------
+
+// DS-A's own stated relative-energy limit (docs/testing.md), reused unchanged
+// so a cascade result is directly comparable with the section result it
+// extends.
+constexpr double kEnergyToleranceRelative = 1e-5;
+
+// Welch settings, declared here once and reported at every DS-7/DS-8 call
+// site (ADR-006 correction note C2 requires the settings on record beside the
+// number). The hop is always half a segment: the standard 50 % overlap at
+// which consecutive periodic Hann segments sum to a constant.
+//
+// DS-7 estimates every sweep point at TWO segment lengths rather than one.
+// The reason is measured, not stylistic: a Welch coherence estimate
+// under-reports MSC when the system's impulse response is longer than the
+// analysis segment, because energy that entered during one segment leaves
+// during a later one. This fixture's impulse response is seconds long, so a
+// single short-segment number would read as "the channels are incoherent"
+// when it actually reads "the segment was short". 4096 samples (85.3 ms at
+// 48 kHz, 11.72 Hz bins) and 16384 samples (341.3 ms, 2.93 Hz bins) bracket
+// that effect, and testDs7CoherenceSegmentLengthSensitivity() below extends
+// the same fixture to 65536 to show where the trend goes.
+constexpr std::array<std::size_t, 2> kWelchSegmentLengths {4096, 16384};
+
+// The single segment length DS-8's spectrum report uses. DS-8 compares the
+// mono sum against each channel in the same record, so both sides of that
+// ratio carry the same bias and it cancels; the shorter segment is kept there
+// for bin-count economy.
+constexpr std::size_t kWelchSegmentLength = 4096;
+constexpr std::size_t kWelchHopSize = kWelchSegmentLength / 2;
+
+// Analysis record length shared by DS-7, DS-8 and DS-9. 131072 samples is
+// 2.73 s at 48 kHz: long enough to hold 63 complete 4096-sample segments or
+// 15 complete 16384-sample ones, both far above C2's two-segment minimum.
+constexpr std::size_t kAnalysisRecordSamples = 131072;
+
+// Silent-bin floor: a bin is retained only if both auto-spectra reach 1e-12
+// (-120 dB) of the record's peak auto-spectrum. Below that a bin carries the
+// render's float round-off rather than its signal.
+constexpr double kSilentBinFloorFraction = 1e-12;
+
+// Declared symmetric short-lag range for the cross-correlation report: 5 ms.
+// Chosen because it spans the mechanism that could displace an interchannel
+// correlation peak away from lag zero -- the two output diffusion chains'
+// total delays differ by 2.63 ms at 48 kHz / 2.77 ms at 44.1 kHz (ADR-006
+// (f)) -- with margin on both sides. It is a declared window, not a bound.
+constexpr double kShortLagSeconds = 0.005;
+
+// The three T60_0 values DS-7 sweeps, in seconds. They are requested as times
+// and converted to the normalized Decay the automation actually accepts,
+// because T60_0 is what ADR-006 DS-7 names. They span a decade and a bit
+// around the fixture's mid-decay setting and all three lie inside
+// [T60_min, T60_max] at both fixture rates.
+constexpr std::array<double, 3> kCoherenceT60Seconds {0.25, 1.0, 3.0};
+
+// Decay-fit settings. The stride is NS-6's own (every 64th sample); the floor
+// is two decades above the 1e-20 recursive-memory cutoff, below which the
+// envelope is being truncated by that cutoff rather than decaying, so log10
+// of it stops measuring the decay law.
+constexpr std::size_t kDecayFitStride = 64;
+constexpr double kDecayFitFloor = 1e-18;
+
+// The comparability fixture's decay target: 1.0 s with damping bypassed, the
+// same network decay NS-6's bare-FDN fixture uses, so the two fitted slopes
+// printed side by side differ only by the path and not by the target.
+constexpr double kComparabilityT60Seconds = 1.0;
+
+// The DS-7 measurements below are only as trustworthy as the estimator that
+// produces them, and a silently wrong Welch/MSC implementation would make
+// every coherence number in this file meaningless without failing anything.
+// This is the same discipline ADR-006 DS-2 applies to the allpass magnitude
+// response -- measure the thing that is exact in theory rather than assume
+// it -- turned on the analysis code itself. Three cases with known answers:
+// identical channels (MSC = 1 exactly), one channel a pure delay of the other
+// (MSC = 1 in theory, since a delay is a unit-magnitude transfer function),
+// and two independent noise sequences (MSC is not 0 but ~1/segmentCount, the
+// known bias of an S-segment estimate).
+int testWelchCoherenceEstimatorSelfCheck() {
+    constexpr std::size_t kRecord = 131072;
+    constexpr std::size_t kSegment = 4096;
+    constexpr std::size_t kDelay = 17;
+
+    const std::vector<float> scriptA = makeNoiseScript(kRecord, 0x5D1E2C7BU);
+    const std::vector<float> scriptB = makeNoiseScript(kRecord, 0x91A4F30DU);
+    std::vector<double> a(kRecord);
+    std::vector<double> b(kRecord);
+    std::vector<double> delayed(kRecord, 0.0);
+    for (std::size_t n = 0; n < kRecord; ++n) {
+        a[n] = static_cast<double>(scriptA[n]);
+        b[n] = static_cast<double>(scriptB[n]);
+        if (n >= kDelay) delayed[n] = a[n - kDelay];
+    }
+
+    const auto identical = magnitudeSquaredCoherence(
+        welchCrossSpectra(a, a, kSegment, kSegment / 2), kSilentBinFloorFraction);
+    const auto shifted = magnitudeSquaredCoherence(
+        welchCrossSpectra(a, delayed, kSegment, kSegment / 2), kSilentBinFloorFraction);
+    const auto independent = magnitudeSquaredCoherence(
+        welchCrossSpectra(a, b, kSegment, kSegment / 2), kSilentBinFloorFraction);
+    if (!hasMinimumWelchSegments(identical.segmentCount) || !hasMinimumRetainedBins(identical.retainedBins)
+        || !hasMinimumRetainedBins(shifted.retainedBins) || !hasMinimumRetainedBins(independent.retainedBins)) {
+        return fail("Welch estimator self-check produced a vacuous estimate");
+    }
+
+    // A pure delay moves the correlation peak to exactly that lag and leaves
+    // its magnitude at ~1; at lag 0 two shifted noise records are nearly
+    // uncorrelated. This also pins maxShortLagCorrelation's lag convention,
+    // which DS-7 reports.
+    const double selfCorrelation = pearsonCorrelationAtLag(a, a, 0);
+    const double shiftedAtZero = pearsonCorrelationAtLag(a, delayed, 0);
+    const auto shiftedPeak = maxShortLagCorrelation(a, delayed, 240);
+
+    std::cout << std::setprecision(10) << "Welch/MSC estimator self-check (" << identical.segmentCount
+              << " x " << kSegment << " periodic-Hann segments, 50% overlap): identical channels MSC min="
+              << identical.minimum << " mean=" << identical.mean << "; " << kDelay
+              << "-sample pure delay MSC min=" << shifted.minimum << " median=" << shifted.median
+              << " mean=" << shifted.mean << "; independent noise MSC mean=" << independent.mean
+              << " (1/segmentCount=" << 1.0 / static_cast<double>(independent.segmentCount)
+              << ") max=" << independent.maximum << "; Pearson rho(a,a,0)=" << selfCorrelation
+              << ", rho(a,delayed,0)=" << shiftedAtZero << ", peak |rho|=" << shiftedPeak.magnitude
+              << " at lag " << shiftedPeak.lag << '\n';
+
+    if (identical.minimum < 1.0 - 1e-9 || identical.maximum > 1.0 + 1e-9) {
+        return fail("Welch MSC of a channel against itself was not 1");
+    }
+    if (shifted.median < 0.95) return fail("Welch MSC of a pure delay was far below its theoretical 1");
+    if (independent.mean > 0.2) return fail("Welch MSC of independent noise was implausibly high");
+    if (std::abs(selfCorrelation - 1.0) > 1e-9) return fail("Pearson correlation of a record with itself was not 1");
+    if (shiftedPeak.lag != static_cast<long long>(kDelay) || shiftedPeak.magnitude < 0.99) {
+        return fail("short-lag correlation did not find a pure delay at its own lag");
+    }
+    return 0;
+}
+
+template <std::size_t N>
+std::vector<double> toTargets(const std::array<double, N>& seconds) {
+    return std::vector<double>(seconds.begin(), seconds.end());
+}
+
+// ---- full-path fixture harness ----
+
+// Applies a normalized Decay/Damp/Mix triple so that it is in force from
+// sample 0 with no in-flight 20 ms ramp. ParameterAutomation.h's contract:
+// set*() publishes a target, checkForNewTargets() adopts it as a NEW ramp
+// target starting from the ramp's current value, and reset() then snaps every
+// smoother onto its target and cancels the ramp. reset() deliberately does
+// not touch the network, so the network is reset separately, exactly as that
+// comment requires. `reference` must already be prepared.
+bool applyReferenceControls(OrderedReferencePath& reference, double decayNormalized, double damp, double mix) {
+    if (!reference.automation.setDecay(decayNormalized) || !reference.automation.setDamp(damp)
+        || !reference.automation.setMix(mix)) {
+        return false;
+    }
+    reference.automation.checkForNewTargets();
+    reference.automation.reset();
+    reference.network.reset();
+    for (auto& section : reference.input) section.reset();
+    for (auto& section : reference.leftOutput) section.reset();
+    for (auto& section : reference.rightOutput) section.reset();
+    return true;
+}
+
+// Inverts ParameterAutomation's geometric Decay mapping so a fixture can be
+// requested as a T60_0 in seconds. Clamped to [0,1] like the control itself.
+double normalizedDecayForT60(const ParameterAutomation& automation, double t60Seconds) {
+    const double low = automation.t60Min();
+    const double high = automation.t60Max();
+    if (!(low > 0.0) || !(high > low) || !(t60Seconds > 0.0)) return 0.0;
+    return std::clamp(std::log(t60Seconds / low) / std::log(high / low), 0.0, 1.0);
+}
+
+// Mirrors ParameterAutomation::publish()'s mapping, including its two
+// exactly-assigned endpoints, so a report states the T60_0 the automation
+// actually realized rather than the one the fixture asked for.
+double realizedT60Zero(const ParameterAutomation& automation, double decayNormalized) {
+    if (decayNormalized <= 0.0) return automation.t60Min();
+    if (decayNormalized >= 1.0) return automation.t60Max();
+    return automation.t60Min() * std::pow(automation.t60Max() / automation.t60Min(), decayNormalized);
+}
+
+struct FullPathRender {
+    std::vector<double> dry;      // the mono input actually presented
+    std::vector<double> left;     // out_L, i.e. dry(m)*x + wet(m)*y_L'
+    std::vector<double> right;    // out_R
+    std::vector<double> wetLeft;  // y_L', pre-Mix, post-output-diffuser
+    std::vector<double> wetRight; // y_R'
+    double dryGain = 0.0;
+    double wetGain = 0.0;
+};
+
+FullPathRender renderFullPath(OrderedReferencePath& reference, const std::vector<float>& script,
+                              std::size_t skipSamples) {
+    FullPathRender render;
+    const std::size_t kept = script.size() > skipSamples ? script.size() - skipSamples : 0;
+    render.dry.reserve(kept);
+    render.left.reserve(kept);
+    render.right.reserve(kept);
+    render.wetLeft.reserve(kept);
+    render.wetRight.reserve(kept);
+    for (std::size_t n = 0; n < script.size(); ++n) {
+        const auto sample = reference.processSampleDetailed(script[n]);
+        render.dryGain = static_cast<double>(sample.dryGain);
+        render.wetGain = static_cast<double>(sample.wetGain);
+        if (n < skipSamples) continue;
+        render.dry.push_back(static_cast<double>(script[n]));
+        render.left.push_back(static_cast<double>(sample.left));
+        render.right.push_back(static_cast<double>(sample.right));
+        render.wetLeft.push_back(static_cast<double>(sample.wetLeft));
+        render.wetRight.push_back(static_cast<double>(sample.wetRight));
+    }
+    return render;
+}
+
+double meanSquare(const std::vector<double>& signal) {
+    if (signal.empty()) return 0.0;
+    double sum = 0.0;
+    for (const double value : signal) sum += value * value;
+    return sum / static_cast<double>(signal.size());
+}
+
+double meanProduct(const std::vector<double>& a, const std::vector<double>& b) {
+    const std::size_t count = std::min(a.size(), b.size());
+    if (count == 0) return 0.0;
+    double sum = 0.0;
+    for (std::size_t n = 0; n < count; ++n) sum += a[n] * b[n];
+    return sum / static_cast<double>(count);
+}
+
+double meanOf(const std::vector<double>& signal) {
+    if (signal.empty()) return 0.0;
+    double sum = 0.0;
+    for (const double value : signal) sum += value;
+    return sum / static_cast<double>(signal.size());
+}
+
+double covarianceOf(const std::vector<double>& a, const std::vector<double>& b) {
+    const std::size_t count = std::min(a.size(), b.size());
+    if (count < 2) return 0.0;
+    const double meanA = meanOf(a);
+    const double meanB = meanOf(b);
+    double sum = 0.0;
+    for (std::size_t n = 0; n < count; ++n) sum += (a[n] - meanA) * (b[n] - meanB);
+    return sum / static_cast<double>(count);
+}
+
+std::vector<double> sumOf(const std::vector<double>& a, const std::vector<double>& b) {
+    const std::size_t count = std::min(a.size(), b.size());
+    std::vector<double> result(count);
+    for (std::size_t n = 0; n < count; ++n) result[n] = a[n] + b[n];
+    return result;
+}
+
+std::vector<double> scaledCopy(const std::vector<double>& signal, double gain) {
+    std::vector<double> result(signal.size());
+    for (std::size_t n = 0; n < signal.size(); ++n) result[n] = signal[n] * gain;
+    return result;
+}
+
+// Sigma n*x[n]^2 / Sigma x[n]^2, in samples, relative to the buffer's own
+// first sample. Truncation-dependent for a decaying response: the window is
+// always declared at the call site.
+double energyCentroidSamples(const std::vector<double>& signal) {
+    double weighted = 0.0;
+    double total = 0.0;
+    for (std::size_t n = 0; n < signal.size(); ++n) {
+        const double energy = signal[n] * signal[n];
+        weighted += static_cast<double>(n) * energy;
+        total += energy;
+    }
+    return total > 0.0 ? weighted / total : 0.0;
+}
+
+std::size_t firstNonzeroIndex(const std::vector<double>& signal) {
+    for (std::size_t n = 0; n < signal.size(); ++n) {
+        if (signal[n] != 0.0) return n;
+    }
+    return signal.size();
+}
+
+double rmsOf(const std::vector<double>& signal) { return std::sqrt(meanSquare(signal)); }
+
+// ---------------------------------------------------------------------------
+// DS-4 (first half) -- energy conservation of each full cascade.
+//
+// DS-A closed this for a single section (relative error <= 1e-5 for an impulse
+// and for bounded noise); 4a did not extend it to cascades. Here it is the
+// wrapper's three actual cascades -- the K_in=4 input chain and the two K_out=2
+// output chains -- at both fixture rates, for an impulse and for the shared
+// deterministic noise fixture, each drained by 128*sum(d) zeros so the chain's
+// own tail is inside the measured window rather than truncated out of it.
+// ---------------------------------------------------------------------------
+
+struct CascadeEnergyResult {
+    double relativeError = 0.0;
+    double inputEnergy = 0.0;
+    double outputEnergy = 0.0;
+    std::size_t drainSamples = 0;
+    bool valid = false;
+};
+
+CascadeEnergyResult cascadeEnergyError(double rate, const std::vector<double>& targets,
+                                       const std::vector<float>& script) {
+    auto cascade = buildCascade(rate, targets, kGoldenCoefficient);
+    if (cascade.empty()) return {};
+    std::size_t delaySum = 0;
+    for (const auto& section : cascade) delaySum += section.delaySamples();
+
+    CascadeEnergyResult result;
+    result.drainSamples = 128 * std::max<std::size_t>(delaySum, 1);
+    std::vector<double> output;
+    output.reserve(script.size() + result.drainSamples);
+    for (std::size_t n = 0; n < script.size() + result.drainSamples; ++n) {
+        const float input = n < script.size() ? script[n] : 0.0F;
+        result.inputEnergy += static_cast<double>(input) * static_cast<double>(input);
+        const auto sample = runCascadeSample(cascade, input);
+        if (sample.nonFinite) return {};
+        output.push_back(static_cast<double>(sample.value));
+        result.outputEnergy += output.back() * output.back();
+    }
+    if (!hasNonzeroSample(output) || !(result.inputEnergy > 0.0)) return {}; // anti-vacuity guard
+    result.relativeError = std::abs(result.outputEnergy - result.inputEnergy) / result.inputEnergy;
+    result.valid = true;
+    return result;
+}
+
+int testDs4CascadeEnergyConservation() {
+    const std::array<const char*, 3> labels {"input K_in=4", "output-L K_out=2", "output-R K_out=2"};
+    double worstImpulse = 0.0;
+    double worstNoise = 0.0;
+
+    for (const double rate : kBracketRates) {
+        const DiffusionStereoConfig config = validConfig(rate);
+        const std::array<std::vector<double>, 3> chains {
+            toTargets(config.inputDelaySeconds),
+            toTargets(config.leftOutputDelaySeconds),
+            toTargets(config.rightOutputDelaySeconds),
+        };
+        const std::vector<float> impulse {1.0F};
+        const std::vector<float> noise = makeNoiseScript(4096);
+
+        for (std::size_t chain = 0; chain < chains.size(); ++chain) {
+            const CascadeEnergyResult impulseResult = cascadeEnergyError(rate, chains[chain], impulse);
+            const CascadeEnergyResult noiseResult = cascadeEnergyError(rate, chains[chain], noise);
+            if (!impulseResult.valid || !noiseResult.valid) {
+                return fail("DS-4 cascade energy fixture failed to render a finite, nonzero response");
+            }
+            worstImpulse = std::max(worstImpulse, impulseResult.relativeError);
+            worstNoise = std::max(worstNoise, noiseResult.relativeError);
+            std::cout << std::setprecision(10) << "DS-4 energy " << labels[chain] << " @ " << rate
+                      << "Hz: impulse relative error=" << impulseResult.relativeError
+                      << ", 4096-sample noise relative error=" << noiseResult.relativeError
+                      << " (drain=" << impulseResult.drainSamples << " zeros)\n";
+        }
+    }
+
+    std::cout << std::setprecision(10) << "DS-4 energy conservation: worst impulse=" << worstImpulse
+              << ", worst noise=" << worstNoise << " (stated tolerance " << kEnergyToleranceRelative
+              << ", DS-A's own single-section limit reused unchanged)\n";
+    if (worstImpulse > kEnergyToleranceRelative || worstNoise > kEnergyToleranceRelative) {
+        return fail("DS-4 cascade energy relative error exceeded the stated 1e-5 tolerance");
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// DS-4 (second half) -- full-path decay-law regression.
+//
+// ADR-006 correction note C1: no full-path fitted-decay equality with the bare
+// FDN is implied or accepted. This test therefore asserts NEITHER equality NOR
+// inequality against NS-6. It fits the full wet path with NS-6's own method,
+// re-measures the bare network with the identical method purely so the two
+// numbers can be printed side by side, and leaves interpretation to review.
+// NS-6 itself (tests/FdnTests.cpp) is untouched and remains the network-only
+// regression C1 says it must remain.
+// ---------------------------------------------------------------------------
+
+struct DecayFit {
+    double slopeLog10PerSample = 0.0;
+    double impliedT60Seconds = 0.0;
+    std::size_t windowStart = 0;
+    std::size_t windowStop = 0;
+    std::size_t pointCount = 0;
+    bool valid = false;
+};
+
+// The last index whose magnitude still reaches kDecayFitFloor. Past it the
+// envelope is being truncated by the 1e-20 recursive-memory cutoff rather than
+// decaying, and log10 of it stops measuring the decay law.
+std::size_t decayFitFloorStop(const std::vector<double>& signal) {
+    for (std::size_t n = signal.size(); n > 0; --n) {
+        if (std::abs(signal[n - 1]) >= kDecayFitFloor) return n;
+    }
+    return 0;
+}
+
+// NS-6's method verbatim (tests/FdnTests.cpp testDecayLaw): linear regression
+// of log10|x[n]| on n over a declared window, sampling every kDecayFitStride
+// samples and skipping exact zeros. Reproduced here rather than shared with
+// FdnTests.cpp because NS-6 is a closed, independently verified regression
+// this sub-task must not touch; DS-4's fairness requirement is that the
+// *method* match, not that the code be shared.
+DecayFit fitLog10DecaySlope(const std::vector<double>& signal, std::size_t start, std::size_t stop,
+                            double sampleRate) {
+    DecayFit fit;
+    fit.windowStart = start;
+    fit.windowStop = stop;
+    if (start >= stop || stop > signal.size()) return fit;
+
+    double sumX = 0.0;
+    double sumY = 0.0;
+    double sumXY = 0.0;
+    double sumXX = 0.0;
+    for (std::size_t n = start; n < stop; n += kDecayFitStride) {
+        const double magnitude = std::abs(signal[n]);
+        if (magnitude <= 0.0) continue;
+        const double x = static_cast<double>(n);
+        const double y = std::log10(magnitude);
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumXX += x * x;
+        ++fit.pointCount;
+    }
+    if (!hasMinimumFitPoints(fit.pointCount)) return fit; // anti-vacuity guard
+    const double count = static_cast<double>(fit.pointCount);
+    const double meanX = sumX / count;
+    const double meanY = sumY / count;
+    const double denominator = sumXX - count * meanX * meanX;
+    if (!(std::abs(denominator) > 0.0)) return fit;
+    fit.slopeLog10PerSample = (sumXY - count * meanX * meanY) / denominator;
+    if (!std::isfinite(fit.slopeLog10PerSample) || !(fit.slopeLog10PerSample < 0.0)) return fit;
+    // A log10-domain slope s per sample reaches -60 dB (three decades) after
+    // -3/s samples, which is the T60 the fit implies.
+    fit.impliedT60Seconds = -3.0 / (fit.slopeLog10PerSample * sampleRate);
+    fit.valid = true;
+    return fit;
+}
+
+// NS-6 starts its window at 2*m_min, "before the shortest line has even
+// contributed". The full wet path adds two stages NS-6's bare network has
+// not: an input diffusion chain that keeps injecting for its own tail, and an
+// output diffusion chain that shifts energy later. The declared full-path
+// start is therefore 2*m_min + sum(input delays) + max over the two output
+// chains of sum(output delays) -- NS-6's onset skip plus one complete fill of
+// the longest diffusion path.
+std::size_t fullPathFitStart(OrderedReferencePath& reference) {
+    std::size_t inputSum = 0;
+    for (const auto& section : reference.input) inputSum += section.delaySamples();
+    std::size_t leftSum = 0;
+    std::size_t rightSum = 0;
+    for (std::size_t index = 0; index < reference.leftOutput.size(); ++index) {
+        leftSum += reference.leftOutput[index].delaySamples();
+        rightSum += reference.rightOutput[index].delaySamples();
+    }
+    return 2 * reference.network.delaySamples(0) + inputSum + std::max(leftSum, rightSum);
+}
+
+void reportDecayFit(const char* label, const DecayFit& fit, double sampleRate) {
+    std::cout << std::setprecision(10) << "DS-4 decay " << label << ": slope=" << fit.slopeLog10PerSample
+              << " log10/sample, implied T60=" << fit.impliedT60Seconds << "s, fit window=["
+              << fit.windowStart << ", " << fit.windowStop << ") samples (["
+              << std::setprecision(6) << static_cast<double>(fit.windowStart) / sampleRate << "s, "
+              << static_cast<double>(fit.windowStop) / sampleRate << "s)), points=" << fit.pointCount
+              << " (stride " << kDecayFitStride << ")\n";
+}
+
+// One declared fixture: full-scale impulse, one wet-path render, both channels
+// fitted separately (the two output chains have different poles, so averaging
+// them would fold two different observations into one number).
+int measureFullPathDecay(double sampleRate, const char* fixtureLabel, double decayNormalized, double damp,
+                         std::size_t renderSamples, double& leftSlopeOut, double& rightSlopeOut) {
+    OrderedReferencePath reference;
+    const DiffusionStereoConfig config = validConfig(sampleRate);
+    if (!reference.prepare(config)) return fail("DS-4 decay fixture preparation failed");
+    if (!applyReferenceControls(reference, decayNormalized, damp, 1.0)) {
+        return fail("DS-4 decay fixture control application failed");
+    }
+    const double t60Zero = realizedT60Zero(reference.automation, decayNormalized);
+
+    std::vector<float> script(renderSamples, 0.0F);
+    script[0] = 1.0F;
+    const FullPathRender render = renderFullPath(reference, script, 0);
+    if (!hasNonzeroSample(render.left) || !hasNonzeroSample(render.right)) {
+        return fail("DS-4 anti-vacuity: full-path decay fixture rendered silence");
+    }
+
+    const std::size_t start = fullPathFitStart(reference);
+    const std::size_t leftStop = std::min(decayFitFloorStop(render.left), render.left.size());
+    const std::size_t rightStop = std::min(decayFitFloorStop(render.right), render.right.size());
+    const DecayFit leftFit = fitLog10DecaySlope(render.left, start, leftStop, sampleRate);
+    const DecayFit rightFit = fitLog10DecaySlope(render.right, start, rightStop, sampleRate);
+    if (!leftFit.valid || !rightFit.valid) {
+        return fail("DS-4 full-path decay fit produced too few points or a non-decaying slope");
+    }
+
+    std::cout << std::setprecision(10) << "DS-4 fixture '" << fixtureLabel << "' @ " << sampleRate
+              << "Hz: full-scale impulse, Mix=1.0 (full wet), normalized Decay=" << decayNormalized
+              << " (realized T60_0=" << t60Zero << "s), normalized Damp=" << damp << ", render="
+              << renderSamples << " samples\n";
+    reportDecayFit("full path out_L", leftFit, sampleRate);
+    reportDecayFit("full path out_R", rightFit, sampleRate);
+    leftSlopeOut = leftFit.slopeLog10PerSample;
+    rightSlopeOut = rightFit.slopeLog10PerSample;
+    return 0;
+}
+
+int testDs4FullPathDecayLawRecorded() {
+    for (const double rate : kBracketRates) {
+        // Fixture A: the minimum-Decay / high-Damp fixture C1 explicitly
+        // requires. Normalized Decay=0.0 is T60_min exactly (a few
+        // milliseconds), Damp=1.0 is the fixture's full 48 dB of excess
+        // high-frequency damping. One second of render is far longer than the
+        // network's own T60 here on purpose: the diffusion chains' own tails
+        // outlast it, which is the point of measuring the full path.
+        double minDecayLeft = 0.0;
+        double minDecayRight = 0.0;
+        if (const int result = measureFullPathDecay(rate, "minimum Decay, high Damp", 0.0, 1.0,
+                                                    static_cast<std::size_t>(rate * 1.0), minDecayLeft,
+                                                    minDecayRight);
+            result != 0) {
+            return result;
+        }
+
+        // Fixture B: a comparability fixture at the same network decay target
+        // NS-6's bare-FDN fixture uses (T60_0 = T60_pi = 1.0 s), so the
+        // side-by-side numbers below differ by the path and not by the target.
+        OrderedReferencePath probe;
+        if (!probe.prepare(validConfig(rate))) return fail("DS-4 comparability probe preparation failed");
+        const double comparabilityDecay = normalizedDecayForT60(probe.automation, kComparabilityT60Seconds);
+        double comparabilityLeft = 0.0;
+        double comparabilityRight = 0.0;
+        if (const int result = measureFullPathDecay(rate, "T60_0 = 1.0 s, Damp bypassed", comparabilityDecay,
+                                                    0.0, static_cast<std::size_t>(rate * 3.0),
+                                                    comparabilityLeft, comparabilityRight);
+            result != 0) {
+            return result;
+        }
+
+        // The bare network, re-measured here with the identical method purely
+        // so the two numbers can be printed together. NS-6's own assertion
+        // lives in tests/FdnTests.cpp and is untouched.
+        FeedbackDelayNetwork bare;
+        if (!bare.prepare(rate, 8, kTMin, kTMax, kComparabilityT60Seconds, kComparabilityT60Seconds)) {
+            return fail("DS-4 bare-network reference preparation failed");
+        }
+        const auto bareSamples = static_cast<std::size_t>(rate * kComparabilityT60Seconds * 3.0);
+        std::vector<float> bareInput(bareSamples, 0.0F);
+        std::vector<float> bareOutput(bareSamples, 0.0F);
+        bareInput[0] = 1.0F;
+        bare.process(bareInput.data(), bareOutput.data(), bareSamples);
+        std::vector<double> bareDouble(bareSamples);
+        for (std::size_t n = 0; n < bareSamples; ++n) bareDouble[n] = static_cast<double>(bareOutput[n]);
+        if (!hasNonzeroSample(bareDouble)) return fail("DS-4 anti-vacuity: bare-network reference was silent");
+
+        // Two windows on the same buffer: NS-6's own (2*m_min to end-0.2s) and
+        // this test's full-path window, so the comparison cannot be confounded
+        // by the window choice alone.
+        const std::size_t ns6Start = bare.delaySamples(0) * 2;
+        const std::size_t ns6Stop = bareSamples - static_cast<std::size_t>(rate * 0.2);
+        const DecayFit bareNs6Window = fitLog10DecaySlope(bareDouble, ns6Start, ns6Stop, rate);
+        const std::size_t fullStart = fullPathFitStart(probe);
+        const DecayFit bareFullWindow =
+            fitLog10DecaySlope(bareDouble, fullStart, std::min(decayFitFloorStop(bareDouble), ns6Stop), rate);
+        if (!bareNs6Window.valid || !bareFullWindow.valid) {
+            return fail("DS-4 bare-network reference fit produced too few points or a non-decaying slope");
+        }
+        reportDecayFit("bare network (NS-6 window)", bareNs6Window, rate);
+        reportDecayFit("bare network (full-path window)", bareFullWindow, rate);
+
+        const double idealSlope = -3.0 / (rate * kComparabilityT60Seconds);
+        std::cout << std::setprecision(10) << "DS-4 side-by-side @ " << rate
+                  << "Hz at T60_0=1.0s (NO equality or inequality claim is made or asserted, per ADR-006 "
+                     "correction note C1): full path out_L=" << comparabilityLeft << ", out_R="
+                  << comparabilityRight << ", bare network (NS-6 window)=" << bareNs6Window.slopeLog10PerSample
+                  << ", bare network (full-path window)=" << bareFullWindow.slopeLog10PerSample
+                  << ", homogeneous-law ideal=" << idealSlope << " log10/sample\n";
+        // Two reference slopes printed beside the minimum-Decay result, both
+        // arithmetic rather than measured, so a reader can see what the fitted
+        // value is and is not close to. The first is the slope the network's
+        // own T60_min would produce alone. The second is the slope of the
+        // slowest pole anywhere in the diffusion chains -- the longest input
+        // section's, radius g_ap^(1/d), i.e. log10(g_ap)/d per sample. NO
+        // claim is made that the measured slope equals either; they are
+        // context for review, which is what C1 asks this case to produce.
+        std::size_t longestInputDelay = 0;
+        for (const auto& section : probe.input) {
+            longestInputDelay = std::max(longestInputDelay, section.delaySamples());
+        }
+        const double slowestDiffuserSlope =
+            std::log10(kGoldenCoefficient) / static_cast<double>(longestInputDelay);
+        std::cout << std::setprecision(10) << "DS-4 minimum-Decay/high-Damp full-path slopes @ " << rate
+                  << "Hz: out_L=" << minDecayLeft << ", out_R=" << minDecayRight
+                  << " log10/sample (recorded only; for context the network's own T60_min slope at this "
+                     "setting is " << -3.0 / (rate * probe.automation.t60Min())
+                  << " log10/sample, and the slowest diffusion pole -- the longest input section, d="
+                  << longestInputDelay << " -- decays at " << slowestDiffuserSlope << " log10/sample)\n";
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// DS-7 -- interchannel coherence, diagnostic only.
+//
+// ADR-006 correction note C2: for an ideal fixed linear mono-input path,
+// L = H_L X and R = H_R X imply MSC = 1 wherever both spectra are nonzero, so
+// a zero-coherence target is prohibited as an acceptance criterion and the
+// prediction of decorrelation is conditional on an unproven assumption. This
+// test therefore RECORDS the Welch MSC and, separately, the time-domain
+// correlation coefficient, and gates only on the estimate being
+// non-vacuous -- never on the coherence value itself.
+//
+// Mix is held at 1.0 (full wet) throughout. A dry contribution is summed
+// identically into both channels (ADR-006 (g)), so any Mix < 1 would drive
+// both MSC and correlation toward 1 for a reason that has nothing to do with
+// the stereo path.
+// ---------------------------------------------------------------------------
+
+void reportCoherence(const char* excitation, double rate, double t60Zero, const CoherenceSummary& summary,
+                     const aetherfield::dsp_test::WelchCrossSpectra& spectra, double zeroLag,
+                     const aetherfield::dsp_test::ShortLagCorrelation& shortLag) {
+    std::cout << std::setprecision(8) << "DS-7 " << excitation << " @ " << rate << "Hz, T60_0="
+              << t60Zero << "s: segments=" << spectra.segmentCount << " x " << spectra.segmentLength
+              << " samples, hop=" << spectra.hopSize << " (50% overlap), periodic Hann, FFT="
+              << spectra.fftLength << ", silent-bin floor=" << kSilentBinFloorFraction
+              << " of peak PSD (absolute " << summary.floorAbsolute << "), retained "
+              << summary.retainedBins << "/" << summary.examinedBins
+              << " bins (DC and Nyquist excluded); MSC min=" << summary.minimum << " median="
+              << summary.median << " mean=" << summary.mean << " max=" << summary.maximum
+              << "; normalized cross-correlation at lag 0=" << zeroLag << ", max |rho| over +/-"
+              << kShortLagSeconds << "s=" << shortLag.magnitude << " (signed " << shortLag.signedValue
+              << ") at lag " << shortLag.lag << " samples\n";
+}
+
+int measureCoherenceRecord(const char* excitation, double rate, double t60Zero,
+                           const std::vector<double>& left, const std::vector<double>& right,
+                           long long maxLag) {
+    if (!hasNonzeroSample(left) || !hasNonzeroSample(right)) {
+        return fail("DS-7 anti-vacuity: coherence fixture rendered a silent channel");
+    }
+    // The time-domain correlation is a property of the record, not of a
+    // spectral setting, so it is computed once and repeated on each line for
+    // readability.
+    const double zeroLag = pearsonCorrelationAtLag(left, right, 0);
+    const auto shortLag = maxShortLagCorrelation(left, right, maxLag);
+    if (!std::isfinite(zeroLag)) return fail("DS-7 correlation summary was not finite");
+
+    for (const std::size_t segmentLength : kWelchSegmentLengths) {
+        const auto spectra = welchCrossSpectra(left, right, segmentLength, segmentLength / 2);
+        if (!hasMinimumWelchSegments(spectra.segmentCount)) {
+            return fail("DS-7 anti-vacuity: coherence estimate had fewer than two complete Welch segments");
+        }
+        const CoherenceSummary summary = magnitudeSquaredCoherence(spectra, kSilentBinFloorFraction);
+        if (!hasMinimumRetainedBins(summary.retainedBins)) {
+            return fail("DS-7 anti-vacuity: every coherence bin fell under the silent-bin floor");
+        }
+        if (!std::isfinite(summary.mean)) return fail("DS-7 coherence summary was not finite");
+        reportCoherence(excitation, rate, t60Zero, summary, spectra, zeroLag, shortLag);
+    }
+    return 0;
+}
+
+int testDs7InterchannelCoherenceRecorded() {
+    const auto analysis = static_cast<std::size_t>(kAnalysisRecordSamples);
+    for (const double rate : kBracketRates) {
+        const auto maxLag = static_cast<long long>(std::llround(kShortLagSeconds * rate));
+        for (const double t60Target : kCoherenceT60Seconds) {
+            OrderedReferencePath noisePath;
+            if (!noisePath.prepare(validConfig(rate))) return fail("DS-7 fixture preparation failed");
+            const double decay = normalizedDecayForT60(noisePath.automation, t60Target);
+            const double t60Zero = realizedT60Zero(noisePath.automation, decay);
+            if (!applyReferenceControls(noisePath, decay, 0.0, 1.0)) {
+                return fail("DS-7 fixture control application failed");
+            }
+
+            // Continuous deterministic broadband noise (the plan's required
+            // DS-7 excitation), with a warm-up of one T60_0 discarded so the
+            // analyzed record is the steady-state response rather than the
+            // buildup transient. The warm-up is capped at 3 s so a long-decay
+            // sweep point cannot dominate the suite's runtime.
+            const auto warmup = static_cast<std::size_t>(std::min(t60Zero, 3.0) * rate);
+            const std::vector<float> noiseScript = makeNoiseScript(warmup + analysis);
+            const FullPathRender noiseRender = renderFullPath(noisePath, noiseScript, warmup);
+            if (const int result = measureCoherenceRecord("noise  ", rate, t60Zero, noiseRender.left,
+                                                          noiseRender.right, maxLag);
+                result != 0) {
+                return result;
+            }
+
+            // Impulse excitation, which ADR-006 DS-7 also names. Its segments
+            // are successive windows of one decaying response rather than
+            // independent realizations, so this estimate is reported for
+            // completeness beside the noise one and is NOT the primary
+            // result; it is still a multi-segment Welch average and never a
+            // single periodogram, which the plan prohibits.
+            OrderedReferencePath impulsePath;
+            if (!impulsePath.prepare(validConfig(rate))) return fail("DS-7 impulse fixture preparation failed");
+            if (!applyReferenceControls(impulsePath, decay, 0.0, 1.0)) {
+                return fail("DS-7 impulse fixture control application failed");
+            }
+            const std::size_t impulseLength = 2 * impulsePath.network.delaySamples(0) + analysis;
+            std::vector<float> impulseScript(impulseLength, 0.0F);
+            impulseScript[0] = 1.0F;
+            const FullPathRender impulseRender = renderFullPath(impulsePath, impulseScript, 0);
+            const std::size_t arrival = firstNonzeroIndex(impulseRender.left);
+            if (arrival + analysis > impulseRender.left.size()) {
+                return fail("DS-7 impulse fixture was too short to hold a full analysis record");
+            }
+            const std::vector<double> impulseLeft(impulseRender.left.begin() + static_cast<long>(arrival),
+                                                  impulseRender.left.begin()
+                                                      + static_cast<long>(arrival + analysis));
+            const std::vector<double> impulseRight(impulseRender.right.begin() + static_cast<long>(arrival),
+                                                   impulseRender.right.begin()
+                                                       + static_cast<long>(arrival + analysis));
+            if (const int result =
+                    measureCoherenceRecord("impulse", rate, t60Zero, impulseLeft, impulseRight, maxLag);
+                result != 0) {
+                return result;
+            }
+        }
+    }
+    std::cout << "DS-7: recorded only. ADR-006 correction note C2 -- the zero-coherence prediction is "
+                 "conditional on an unproven assumption, a zero-MSC target is prohibited as an acceptance "
+                 "criterion, and nothing above is gated on a coherence value.\n";
+    return 0;
+}
+
+// DS-7 methodology diagnostic: how much of the reported MSC is the estimator.
+//
+// C2's own algebra says a fixed linear mono-input path has MSC = 1 wherever
+// both spectra are nonzero, yet the estimates above report a median well
+// below 1 that rises with segment length and falls as T60_0 rises. That is
+// the known Welch coherence bias for a system whose impulse response is
+// longer than the analysis segment: energy that entered during one segment
+// leaves during a later one, so the estimator cannot see that the two
+// channels share a driver, and it under-reports coherence by an amount set by
+// the segment length rather than by the path.
+//
+// This is not a third DS-7 result; it is the evidence a reader needs in order
+// to read the DS-7 table correctly. One fixture on a longer record is
+// re-estimated at three segment lengths, each well above C2's two-segment
+// minimum, extending the table's own two-length trend far enough to show
+// where it is heading.
+int testDs7CoherenceSegmentLengthSensitivity() {
+    constexpr double kRate = 48000.0;
+    constexpr std::size_t kDiagnosticRecordSamples = 262144;
+    constexpr std::array<std::size_t, 3> kSegmentLengths {4096, 16384, 65536};
+
+    OrderedReferencePath reference;
+    if (!reference.prepare(validConfig(kRate))) return fail("DS-7 sensitivity fixture preparation failed");
+    const double decay = normalizedDecayForT60(reference.automation, kComparabilityT60Seconds);
+    const double t60Zero = realizedT60Zero(reference.automation, decay);
+    if (!applyReferenceControls(reference, decay, 0.0, 1.0)) {
+        return fail("DS-7 sensitivity fixture control application failed");
+    }
+    const auto warmup = static_cast<std::size_t>(kComparabilityT60Seconds * kRate);
+    const std::vector<float> script = makeNoiseScript(warmup + kDiagnosticRecordSamples);
+    const FullPathRender render = renderFullPath(reference, script, warmup);
+    if (!hasNonzeroSample(render.left) || !hasNonzeroSample(render.right)) {
+        return fail("DS-7 anti-vacuity: the sensitivity fixture rendered a silent channel");
+    }
+
+    for (const std::size_t segmentLength : kSegmentLengths) {
+        const auto spectra = welchCrossSpectra(render.left, render.right, segmentLength, segmentLength / 2);
+        if (!hasMinimumWelchSegments(spectra.segmentCount)) {
+            return fail("DS-7 sensitivity estimate had fewer than two complete Welch segments");
+        }
+        const CoherenceSummary summary = magnitudeSquaredCoherence(spectra, kSilentBinFloorFraction);
+        if (!hasMinimumRetainedBins(summary.retainedBins)) {
+            return fail("DS-7 sensitivity estimate retained too few bins");
+        }
+        std::cout << std::setprecision(8) << "DS-7 segment-length sensitivity @ " << kRate << "Hz, T60_0="
+                  << t60Zero << "s (" << kDiagnosticRecordSamples
+                  << "-sample noise record, periodic Hann, 50% overlap): segment=" << segmentLength
+                  << " samples (" << 1000.0 * static_cast<double>(segmentLength) / kRate << "ms, "
+                  << spectra.segmentCount << " segments, FFT=" << spectra.fftLength << "), retained "
+                  << summary.retainedBins << "/" << summary.examinedBins << " bins, MSC min="
+                  << summary.minimum << " median=" << summary.median << " mean=" << summary.mean
+                  << " max=" << summary.maximum << '\n';
+    }
+    std::cout << "DS-7 sensitivity: the MSC estimate rises with segment length on an unchanged fixture, so "
+                 "the DS-7 table's values are segment-length-limited estimates and are NOT evidence that "
+                 "out_L and out_R are incoherent. ADR-006 correction note C2's own algebra (MSC = 1 for a "
+                 "fixed linear mono-input path wherever both spectra are nonzero) is the prediction these "
+                 "estimates are biased away from; recorded, not resolved.\n";
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// DS-8 -- mono compatibility and the Mix consequence.
+//
+// ADR-006 correction note C5 requires E[L^2], E[R^2], E[L R], the actual sum
+// power and the dry/wet covariance across the Mix sweep, and says the
+// +3.01 dB incoherent-wet-sum figure is conditional on all-lag
+// uncorrelatedness and is NOT an acceptance value. It is reported here as a
+// measured comparison and gates nothing.
+// ---------------------------------------------------------------------------
+
+int testDs8MonoCompatibilityAcrossMixSweep() {
+    constexpr double kRate = 48000.0;
+    constexpr std::array<double, 5> kMixSweep {0.0, 0.25, 0.5, 0.75, 1.0};
+    constexpr std::array<double, 5> kBandEdgesHz {0.0, 500.0, 2000.0, 8000.0, 24000.0};
+
+    std::cout << std::setprecision(8) << "DS-8 fixture: " << kRate
+              << "Hz, continuous deterministic broadband noise, T60_0=" << kComparabilityT60Seconds
+              << "s with Damp bypassed, one-T60_0 warm-up discarded, " << kAnalysisRecordSamples
+              << "-sample analysis record\n";
+
+    for (const double mix : kMixSweep) {
+        OrderedReferencePath reference;
+        if (!reference.prepare(validConfig(kRate))) return fail("DS-8 fixture preparation failed");
+        const double decay = normalizedDecayForT60(reference.automation, kComparabilityT60Seconds);
+        if (!applyReferenceControls(reference, decay, 0.0, mix)) {
+            return fail("DS-8 fixture control application failed");
+        }
+        const auto warmup = static_cast<std::size_t>(kComparabilityT60Seconds * kRate);
+        const std::vector<float> script = makeNoiseScript(warmup + kAnalysisRecordSamples);
+        const FullPathRender render = renderFullPath(reference, script, warmup);
+        if (!hasNonzeroSample(render.dry)) return fail("DS-8 anti-vacuity: the dry fixture was silent");
+        if (!hasNonzeroSample(render.wetLeft) || !hasNonzeroSample(render.wetRight)) {
+            return fail("DS-8 anti-vacuity: the pre-Mix wet path was silent");
+        }
+
+        const std::vector<double> sum = sumOf(render.left, render.right);
+        const double eLL = meanSquare(render.left);
+        const double eRR = meanSquare(render.right);
+        const double eLR = meanProduct(render.left, render.right);
+        const double eSum = meanSquare(sum);
+        // E[(L+R)^2] = E[L^2] + E[R^2] + 2E[LR] is an identity; its residual
+        // is a self-check on the accumulation, not a property of the path.
+        const double identityResidual = std::abs(eSum - (eLL + eRR + 2.0 * eLR));
+
+        // The dry and wet components of out_L as actually realized at this
+        // Mix, i.e. after the Mix gains. The covariance therefore scales with
+        // dry(m)*wet(m) and is exactly 0 at both endpoints, which is a true
+        // statement about the realized signals; the Mix-independent
+        // normalized correlation of x against y_L' is reported beside it.
+        const std::vector<double> dryComponent = scaledCopy(render.dry, render.dryGain);
+        const std::vector<double> wetComponentLeft = scaledCopy(render.wetLeft, render.wetGain);
+        const std::vector<double> wetComponentRight = scaledCopy(render.wetRight, render.wetGain);
+        const double covDryWetLeft = covarianceOf(dryComponent, wetComponentLeft);
+        const double covDryWetRight = covarianceOf(dryComponent, wetComponentRight);
+        const double rhoDryWetLeft = pearsonCorrelationAtLag(render.dry, render.wetLeft, 0);
+        const double rhoDryWetRight = pearsonCorrelationAtLag(render.dry, render.wetRight, 0);
+
+        std::cout << std::setprecision(10) << "DS-8 Mix=" << mix << " (dry gain=" << render.dryGain
+                  << ", wet gain=" << render.wetGain << "): E[L^2]=" << eLL << ", E[R^2]=" << eRR
+                  << ", E[L*R]=" << eLR << ", E[(L+R)^2]=" << eSum << " (identity residual="
+                  << identityResidual << "), per-channel power sum=" << eLL + eRR
+                  << "; mono-sum level relative to out_L=" << 10.0 * std::log10(eSum / eLL)
+                  << "dB; cov(dry, wet_L)=" << covDryWetLeft << ", cov(dry, wet_R)=" << covDryWetRight
+                  << "; Mix-independent normalized dry/wet correlation rho_L=" << rhoDryWetLeft
+                  << ", rho_R=" << rhoDryWetRight << '\n';
+
+        // "L + R level and spectrum against each channel": Welch PSD ratios of
+        // the mono sum to each channel, in four declared bands. Same estimator
+        // and settings as DS-7.
+        const auto channelSpectra = welchCrossSpectra(render.left, render.right, kWelchSegmentLength,
+                                                      kWelchHopSize);
+        const auto sumSpectra = welchCrossSpectra(sum, sum, kWelchSegmentLength, kWelchHopSize);
+        if (!hasMinimumWelchSegments(channelSpectra.segmentCount)
+            || !hasMinimumWelchSegments(sumSpectra.segmentCount)) {
+            return fail("DS-8 anti-vacuity: mono-sum spectrum had fewer than two complete Welch segments");
+        }
+        std::cout << std::setprecision(6) << "DS-8 Mix=" << mix << " mono-sum spectrum ("
+                  << sumSpectra.segmentCount << " x " << sumSpectra.segmentLength
+                  << " periodic-Hann segments, 50% overlap, FFT=" << sumSpectra.fftLength << "): ";
+        for (std::size_t band = 0; band + 1 < kBandEdgesHz.size(); ++band) {
+            const double binWidth = kRate / static_cast<double>(sumSpectra.fftLength);
+            const auto lowBin = std::max<std::size_t>(1, static_cast<std::size_t>(kBandEdgesHz[band] / binWidth));
+            const auto highBin = std::min<std::size_t>(sumSpectra.sxx.size() - 1,
+                                                       static_cast<std::size_t>(kBandEdgesHz[band + 1] / binWidth));
+            double sumBand = 0.0;
+            double leftBand = 0.0;
+            double rightBand = 0.0;
+            std::size_t binCount = 0;
+            for (std::size_t bin = lowBin; bin < highBin; ++bin) {
+                sumBand += sumSpectra.sxx[bin];
+                leftBand += channelSpectra.sxx[bin];
+                rightBand += channelSpectra.syy[bin];
+                ++binCount;
+            }
+            if (binCount == 0 || !(leftBand > 0.0) || !(rightBand > 0.0)) continue;
+            std::cout << "[" << kBandEdgesHz[band] << "-" << kBandEdgesHz[band + 1]
+                      << "Hz] sum/L=" << 10.0 * std::log10(sumBand / leftBand)
+                      << "dB sum/R=" << 10.0 * std::log10(sumBand / rightBand) << "dB ";
+        }
+        std::cout << '\n';
+
+        // The conditional +3.01 dB figure, measured on the pre-Mix wet
+        // channels (which are identical at every Mix, so this ratio is
+        // Mix-independent by construction and is printed once per sweep point
+        // only to show that it is). ADR-006 correction note C5: conditional on
+        // all-lag uncorrelatedness, never an acceptance value.
+        const std::vector<double> wetSum = sumOf(render.wetLeft, render.wetRight);
+        const double eWetL = meanSquare(render.wetLeft);
+        const double eWetR = meanSquare(render.wetRight);
+        const double eWetSum = meanSquare(wetSum);
+        const double meanChannelPower = 0.5 * (eWetL + eWetR);
+        std::cout << std::setprecision(8) << "DS-8 Mix=" << mix << " pre-Mix wet sum (CONDITIONAL check, not "
+                     "an acceptance criterion): E[y_L'^2]=" << eWetL << ", E[y_R'^2]=" << eWetR
+                  << ", E[y_L' y_R']=" << meanProduct(render.wetLeft, render.wetRight)
+                  << ", E[(y_L'+y_R')^2]=" << eWetSum << " -> measured sum gain="
+                  << 10.0 * std::log10(eWetSum / meanChannelPower)
+                  << "dB against the +3.01dB incoherent prediction\n";
+    }
+    std::cout << "DS-8: recorded only. The +3.01dB figure is conditional on all-lag uncorrelatedness "
+                 "(ADR-006 correction note C5) and gates nothing here; no perceptual tolerance follows.\n";
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
+// DS-9 -- channel balance, arrivals and energy centroids.
+//
+// ADR-006 correction note C5: the 126-sample (48 kHz) / 122-sample (44.1 kHz)
+// figure describes only the ISOLATED output diffuser chains and is not a
+// whole-path onset, balance or centroid bound. Both are measured here and
+// reported separately; any full-path centroid difference beyond the isolated
+// figure is recorded as a new finding, not explained.
+//
+// Stated L/R RMS tolerance: 1.0 dB, declared before the measurement was run.
+// Reasoning: each output allpass cascade has |A(e^jw)| = 1 at every frequency,
+// so it cannot change its channel's power at all; any L/R RMS difference must
+// come from the even/odd tap sums themselves, which ADR-006 (e) constructs
+// with equal norm and equal line count. 1 dB is a loose engineering gate sized
+// to catch a structural error (a channel built from the wrong lines, a missing
+// tap scale) rather than to assert a perceptual balance claim, which C5 says
+// may not be set before these results are reviewed.
+// ---------------------------------------------------------------------------
+
+constexpr double kChannelBalanceToleranceDb = 1.0;
+
+int testDs9ChannelBalanceAndCentroids() {
+    for (const double rate : kBracketRates) {
+        const DiffusionStereoConfig config = validConfig(rate);
+
+        // (1) Channel balance on a continuous broadband-noise fixture.
+        OrderedReferencePath noisePath;
+        if (!noisePath.prepare(config)) return fail("DS-9 noise fixture preparation failed");
+        const double decay = normalizedDecayForT60(noisePath.automation, kComparabilityT60Seconds);
+        const double t60Zero = realizedT60Zero(noisePath.automation, decay);
+        if (!applyReferenceControls(noisePath, decay, 0.0, 1.0)) {
+            return fail("DS-9 noise fixture control application failed");
+        }
+        const auto warmup = static_cast<std::size_t>(kComparabilityT60Seconds * rate);
+        const std::vector<float> noiseScript = makeNoiseScript(warmup + kAnalysisRecordSamples);
+        const FullPathRender noiseRender = renderFullPath(noisePath, noiseScript, warmup);
+        if (!hasNonzeroSample(noiseRender.left) || !hasNonzeroSample(noiseRender.right)) {
+            return fail("DS-9 anti-vacuity: the channel-balance fixture rendered a silent channel");
+        }
+        const double noiseRmsLeft = rmsOf(noiseRender.left);
+        const double noiseRmsRight = rmsOf(noiseRender.right);
+        const double noiseImbalanceDb = 20.0 * std::log10(noiseRmsLeft / noiseRmsRight);
+
+        // (2) Arrivals and full-path energy centroids on an impulse fixture.
+        // The centroid of a decaying response depends on the window, so the
+        // window is declared: 3*T60_0 of render, centroid taken over the whole
+        // of it, indices relative to the impulse at sample 0.
+        OrderedReferencePath impulsePath;
+        if (!impulsePath.prepare(config)) return fail("DS-9 impulse fixture preparation failed");
+        if (!applyReferenceControls(impulsePath, decay, 0.0, 1.0)) {
+            return fail("DS-9 impulse fixture control application failed");
+        }
+        const auto impulseLength = static_cast<std::size_t>(rate * kComparabilityT60Seconds * 3.0);
+        std::vector<float> impulseScript(impulseLength, 0.0F);
+        impulseScript[0] = 1.0F;
+        const FullPathRender impulseRender = renderFullPath(impulsePath, impulseScript, 0);
+        if (!hasNonzeroSample(impulseRender.left) || !hasNonzeroSample(impulseRender.right)) {
+            return fail("DS-9 anti-vacuity: the impulse fixture rendered a silent channel");
+        }
+        const std::size_t arrivalLeft = firstNonzeroIndex(impulseRender.left);
+        const std::size_t arrivalRight = firstNonzeroIndex(impulseRender.right);
+        const double centroidLeft = energyCentroidSamples(impulseRender.left);
+        const double centroidRight = energyCentroidSamples(impulseRender.right);
+        const double impulseRmsLeft = rmsOf(impulseRender.left);
+        const double impulseRmsRight = rmsOf(impulseRender.right);
+        const double impulseImbalanceDb = 20.0 * std::log10(impulseRmsLeft / impulseRmsRight);
+
+        // (3) The ISOLATED output diffuser chains, fed a matched unit impulse
+        // with no FDN and no input chain in front of them. This is exactly the
+        // quantity ADR-006 (f) computed algebraically, so it is also a direct
+        // cross-check of that arithmetic against a measurement.
+        auto leftChain = buildCascade(rate, toTargets(config.leftOutputDelaySeconds), kGoldenCoefficient);
+        auto rightChain = buildCascade(rate, toTargets(config.rightOutputDelaySeconds), kGoldenCoefficient);
+        if (leftChain.empty() || rightChain.empty()) return fail("DS-9 isolated output chain preparation failed");
+        std::size_t leftDelaySum = 0;
+        std::size_t rightDelaySum = 0;
+        for (const auto& section : leftChain) leftDelaySum += section.delaySamples();
+        for (const auto& section : rightChain) rightDelaySum += section.delaySamples();
+        const std::size_t isolatedLength = 128 * std::max(leftDelaySum, rightDelaySum);
+        std::vector<double> isolatedLeft(isolatedLength, 0.0);
+        std::vector<double> isolatedRight(isolatedLength, 0.0);
+        for (std::size_t n = 0; n < isolatedLength; ++n) {
+            const float input = n == 0 ? 1.0F : 0.0F;
+            const auto leftSample = runCascadeSample(leftChain, input);
+            const auto rightSample = runCascadeSample(rightChain, input);
+            if (leftSample.nonFinite || rightSample.nonFinite) return fail("DS-9 isolated chain raised a fault");
+            isolatedLeft[n] = static_cast<double>(leftSample.value);
+            isolatedRight[n] = static_cast<double>(rightSample.value);
+        }
+        if (!hasNonzeroSample(isolatedLeft) || !hasNonzeroSample(isolatedRight)) {
+            return fail("DS-9 anti-vacuity: an isolated output chain rendered silence");
+        }
+        const double isolatedCentroidLeft = energyCentroidSamples(isolatedLeft);
+        const double isolatedCentroidRight = energyCentroidSamples(isolatedRight);
+        const double isolatedDifference = isolatedCentroidRight - isolatedCentroidLeft;
+        const auto expectedDifference =
+            static_cast<double>(rightDelaySum) - static_cast<double>(leftDelaySum);
+
+        std::cout << std::setprecision(10) << "DS-9 @ " << rate << "Hz (T60_0=" << t60Zero
+                  << "s, Damp bypassed, Mix=1.0 full wet):\n"
+                  << "  channel balance, " << kAnalysisRecordSamples
+                  << "-sample noise record after a one-T60_0 warm-up: RMS_L=" << noiseRmsLeft
+                  << ", RMS_R=" << noiseRmsRight << ", 20log10(L/R)=" << noiseImbalanceDb
+                  << "dB (stated tolerance " << kChannelBalanceToleranceDb << "dB)\n"
+                  << "  channel balance, " << impulseLength << "-sample impulse response: RMS_L="
+                  << impulseRmsLeft << ", RMS_R=" << impulseRmsRight
+                  << ", 20log10(L/R)=" << impulseImbalanceDb << "dB\n"
+                  << "  first nonzero arrival: L=" << arrivalLeft << " samples ("
+                  << std::setprecision(6) << 1000.0 * static_cast<double>(arrivalLeft) / rate << "ms), R="
+                  << arrivalRight << " samples (" << 1000.0 * static_cast<double>(arrivalRight) / rate
+                  << "ms); shortest even-indexed line m_0=" << impulsePath.network.delaySamples(0)
+                  << " samples, shortest odd-indexed line m_1=" << impulsePath.network.delaySamples(1)
+                  << " samples -- the even/odd tap of ADR-006 (e), not the output diffusers, is what "
+                     "separates the two first arrivals\n"
+                  << std::setprecision(10) << "  full-path energy centroid over the declared "
+                  << impulseLength << "-sample window: L=" << centroidLeft << " samples ("
+                  << std::setprecision(6) << 1000.0 * centroidLeft / rate << "ms), R=" << std::setprecision(10)
+                  << centroidRight << " samples (" << std::setprecision(6) << 1000.0 * centroidRight / rate
+                  << "ms), R-L=" << std::setprecision(10) << centroidRight - centroidLeft << " samples ("
+                  << std::setprecision(6) << 1000.0 * (centroidRight - centroidLeft) / rate << "ms)\n"
+                  << std::setprecision(10) << "  isolated output-diffuser centroid (unit impulse, no FDN, "
+                  << isolatedLength << "-sample drain): L=" << isolatedCentroidLeft << " samples, R="
+                  << isolatedCentroidRight << " samples, R-L=" << isolatedDifference
+                  << " samples (" << std::setprecision(6) << 1000.0 * isolatedDifference / rate
+                  << "ms); ADR-006 (f) chain-length difference sum(d_R)-sum(d_L)=" << expectedDifference
+                  << " samples\n";
+
+        if (std::abs(isolatedCentroidLeft - static_cast<double>(leftDelaySum)) > 0.5
+            || std::abs(isolatedCentroidRight - static_cast<double>(rightDelaySum)) > 0.5) {
+            return fail("DS-9 isolated output-diffuser centroid did not reproduce its chain's total delay");
+        }
+        if (std::abs(isolatedDifference - expectedDifference) > 0.5) {
+            return fail("DS-9 isolated output-diffuser centroid difference did not match ADR-006 (f)");
+        }
+        if (std::abs(noiseImbalanceDb) > kChannelBalanceToleranceDb
+            || std::abs(impulseImbalanceDb) > kChannelBalanceToleranceDb) {
+            return fail("DS-9 L/R RMS imbalance exceeded the stated 1.0 dB tolerance");
+        }
+        std::cout << "  NOTE: any full-path centroid difference beyond the isolated-chain figure above is "
+                     "recorded, not explained; ADR-006 correction note C5 states the isolated figure is not "
+                     "a whole-path onset, balance or centroid bound, and this test is not designed to "
+                     "attribute a difference to a cause.\n";
+    }
+    return 0;
+}
+
 } // namespace
 
 int main() {
@@ -1268,5 +2389,14 @@ int main() {
     if (testDs12BracketCascadesDoNotAllocateDuringProcessing() != 0) return 1;
     if (testDs12CostWithAndWithoutDiffusion() != 0) return 1;
     std::cout << "DiffusionStereoPath Task 4a (DS-1,2,3,5,6,10,11,12 + anti-vacuity) measurements passed\n";
+
+    if (testWelchCoherenceEstimatorSelfCheck() != 0) return 1;
+    if (testDs4CascadeEnergyConservation() != 0) return 1;
+    if (testDs4FullPathDecayLawRecorded() != 0) return 1;
+    if (testDs7InterchannelCoherenceRecorded() != 0) return 1;
+    if (testDs7CoherenceSegmentLengthSensitivity() != 0) return 1;
+    if (testDs8MonoCompatibilityAcrossMixSweep() != 0) return 1;
+    if (testDs9ChannelBalanceAndCentroids() != 0) return 1;
+    std::cout << "DiffusionStereoPath Task 4b (DS-4,7,8,9) measurements passed\n";
     return 0;
 }
