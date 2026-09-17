@@ -1044,6 +1044,10 @@ Current and future development direction.
 
 Per-milestone index of which tool, agent role, model and reasoning effort executed each task, and whatever quantitative metrics that tool actually reported (tokens, subagent duration, tool-call counts). A derived convenience index only: the commit message for a given milestone remains the primary record, and this log must never contain a number or attribution that commit message doesn't already support. A blank cell means unmeasured, not zero — never fabricate a metric to fill one in.
 
+### `docs/phases/`
+
+Milestone-scoped implementation task plans and verification-case specifications (e.g. `phase1-s1-plan.md`, `phase1-s2-plan.md`, `phase1-s2-verification-plan.md`, `phase1-pt-plan.md`), kept separate from the durable documents above to avoid bloating them. Each such plan carries its own status banner once implemented (see any existing file there for the pattern) rather than being deleted or rewritten after the fact — they remain the historical record of what an implementation was required to follow. A new milestone's task plan belongs here, named `phaseN-<milestone>-plan.md`.
+
 ### Resuming work / session handoff
 
 Any agent or human picking up this project cold — in Claude Code, Codex, or any other tool — should reconstruct state in this order before proposing or authorizing new work:

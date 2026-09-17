@@ -15,7 +15,7 @@ separately authorized S2 implementation.
 This is the deliverable for roadmap.md Phase 1 row 4 ("Translate accepted
 design into small implementation increments"), covering ADR-002's S2
 milestone ("Fixed late network") for the **NS-1..NS-11 gate only**
-(docs/phase1-s2-verification-plan.md, docs/decisions.md ADR-003 §(c)). It
+(docs/phases/phase1-s2-verification-plan.md, docs/decisions.md ADR-003 §(c)). It
 does **not** cover the PT-1..PT-9 parameter-transition gate — that targets a
 separate parameter-transport class, is a separate future plan, and is
 authorized separately, exactly as phase1-s2-verification-plan.md's
@@ -429,7 +429,7 @@ its meaning.
 Future file: `tests/FdnTests.cpp`, `int main()`, no external test framework,
 in the exact style of `tests/DelayLineTests.cpp`'s named-case/`fail()`
 pattern. Each case below is exactly one row of
-docs/phase1-s2-verification-plan.md's NS-1..NS-11 table, run against
+docs/phases/phase1-s2-verification-plan.md's NS-1..NS-11 table, run against
 `FeedbackDelayNetwork` prepared with `lineCount ∈ {4, 8, 16}` at
 `sampleRate ∈ {48000, 44100}`, using ADR-005's decided `tMinSeconds = 0.027`,
 `tMaxSeconds = 0.081`.
@@ -456,7 +456,7 @@ the cutoff's effect.
 
 ## Build wiring (future, not applied now)
 
-Exactly docs/phase1-s2-verification-plan.md's already-specified structure;
+Exactly docs/phases/phase1-s2-verification-plan.md's already-specified structure;
 this plan does not change it:
 
 - Add `src/dsp/FeedbackDelayNetwork.cpp` to the existing `aetherfield_dsp`

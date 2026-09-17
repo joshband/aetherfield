@@ -13,7 +13,7 @@ document's status before the owner separately authorized implementation.
 This is the deliverable for roadmap.md Phase 1 row 4 ("Translate accepted
 design into small implementation increments"), covering ADR-004's
 automation/transport/smoothing design (§(b)–(d)) for the **PT-1..PT-9 gate
-only** (docs/phase1-s2-verification-plan.md, docs/decisions.md ADR-004
+only** (docs/phases/phase1-s2-verification-plan.md, docs/decisions.md ADR-004
 §(d)). It does not revisit S1 or S2, which are separately implemented and
 verified (testing.md).
 
@@ -169,7 +169,7 @@ namespace aetherfield::dsp {
 // and render-thread linear-ramp smoothing (ADR-004 (c)) for Aetherfield's
 // three accepted controls: Mix, Decay, Damp. Automates an already-prepared
 // FeedbackDelayNetwork via its setLineGain()/setDampingCoefficientC().
-// See docs/decisions.md ADR-004, docs/phase1-pt-plan.md.
+// See docs/decisions.md ADR-004, docs/phases/phase1-pt-plan.md.
 class ParameterAutomation {
 public:
     ParameterAutomation() noexcept;
@@ -340,7 +340,7 @@ plan introduces no second source of the delay set.
 
 Future file: `tests/ParameterTransitionTests.cpp`, `int main()`, no
 external test framework, in the exact style of `tests/FdnTests.cpp`. Each
-case is exactly one row of docs/phase1-s2-verification-plan.md's PT-1..
+case is exactly one row of docs/phases/phase1-s2-verification-plan.md's PT-1..
 PT-9 table, run against a `FeedbackDelayNetwork` (`N = 8`, 48 kHz, ADR-005's
 delay set) automated by a `ParameterAutomation` prepared with
 `dMaxDb = 48.0` (this document's fixture value).
@@ -366,7 +366,7 @@ delay set) automated by a `ParameterAutomation` prepared with
   linked against `aetherfield_dsp`, same `-Wall -Wextra -Wpedantic -Werror`
   as every other target, registered as `add_test(NAME
   aetherfield_dsp_param_tests COMMAND aetherfield_dsp_param_tests)` — the
-  exact structure docs/phase1-s2-verification-plan.md already specified.
+  exact structure docs/phases/phase1-s2-verification-plan.md already specified.
 
 None of the above is applied by this document.
 
