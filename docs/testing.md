@@ -1132,6 +1132,181 @@ listening evidence toward it, not the gate's acceptance itself, and Sol's
 "reviews consequences" step has not yet run — but every render generated
 this round has now been auditioned.
 
+**Disclosure Sol's review below caught, recorded here because it changes
+how the corpus notes above should be read:** every round-2 musical-corpus
+render and the stereo-vs-mono comparison (`tools/render_listening_batch/
+main.cpp`'s `renderInto(source, decay=0.5, damp=0.0, mix=1.0)` calls) used
+**zero damping and 100% wet, no dry signal present at all** — the
+fixture's maximum-coloration corner, not a product-representative
+setting. This was not stated plainly enough above (only as "the wrapper's
+default settings"), and it materially affects how the "metallic" corpus
+observation should be weighed — see Sol's review.
+
+## Sol review — DS-B Sonic acceptance consequences (2026-09-18)
+
+The Sonic acceptance gate's "Sol reviews consequences" step for the DS-B
+component, dispatched as a high-effort review (per this project's
+Sol/Astra/Terra/Luna convention) after round 2's listening notes above
+were complete. Full sources read: both ADR-002 and ADR-006 in full, the
+DS-B integration plan (confirmed every checkbox including DS-10 closed),
+every DS-1..12 section above plus both listening rounds, roadmap.md, and
+`tools/render_listening_batch/main.cpp` itself (to check what each
+round-2 render actually rendered, which surfaced the disclosure above).
+This is a recommendation only — it authorizes no implementation, no ADR
+amendment, and no tool change; no files were touched and no build/test
+was run producing it.
+
+**Per named ADR-006 "Revisit When" trigger, against all evidence (not
+just the numeric measurements):**
+
+- **DS-6 (echo density): not tripped.** The transient-burst corpus item's
+  "pretty good echo density" is the only direct perceptual evidence, and
+  it is arguably *stronger* than the numeric leg here, since DS-6's own
+  zero-crossing proxy is explicitly amplitude-blind and the lattice model
+  it's compared against is asymptotic (diverges at 1ms by design).
+- **DS-7 (coherence): not tripped, and the trigger as ADR-006 states it is
+  stale.** Read literally, DS-7's 65536-sample diagnostic (MSC=0.95235)
+  *would* trip a bare "coherence materially above zero" reading — but
+  correction note C2 already established MSC=1 is the *expected* result
+  for any fixed linear mono-input path, which makes a high MSC unable to
+  falsify the uncorrelated-lines assumption ADR-006 (e) rests on. The
+  quantity C2 actually made diagnostic (short-lag time-domain correlation,
+  `ρ(0)=0.010545`, `max|ρ|`=0.058743 over ±5ms) stays low, and the
+  stereo-vs-mono listening confirms it perceptually. Recommended
+  documentation fix (no re-decision): restate ADR-006's DS-7 trigger in
+  terms of the short-lag correlation C2 defines, since the MSC formulation
+  it currently names was retired by C2 itself.
+- **DS-8 (mono fold-down): not tripped, but its listening leg was never
+  actually exercised.** The measured 3.13dB dry-bias swing matches
+  ADR-006 (g)'s predicted 3.01dB mechanism closely. But per the disclosure
+  above, the round-2 mono-fold render was Mix=1.0 wet-only — the dry-bias
+  effect is by definition a *mixed-signal* consequence (zero at Mix=0 and
+  Mix=1, maximal in between) — so the thing DS-8 is actually about was
+  never perceptually probed. Real gap, not a failure; the width finding
+  that render did produce remains valid on its own terms.
+- **DS-5 (peak headroom under ordinary programme material): not
+  tripped, and still formally unmeasured under the condition it names.**
+  The recorded 33.36/55.90 peak figure came from a deliberately
+  worst-case-aligned bracket fixture, not ordinary material. Round 2's
+  corpus renders are this project's first ordinary-material runs, and the
+  tool already prints each group's pre-normalization peak/RMS to stderr —
+  but those numbers were not captured into this file. Recommended fix:
+  record pre-normalization peak/RMS for every listening render as a
+  standing convention going forward.
+
+**ADR-002's "convincing ambient field, or metallic" open question: the
+transient-burst observation does not move it, in either direction.** Four
+confounds stack in that one render, and the owner's own hedge (the source
+material) is judged the *least* likely of the four: (1) `damp=0.0` is the
+fixture's maximum-coloration corner — no real ambient reverb would be
+auditioned this way; (2) `mix=1.0` with no dry reference in the file; (3)
+the ~27ms structural pre-gap onto sparse arrival, which ADR-005/ADR-006
+both predicted in writing as a "sparse, audibly discrete onset" — not new
+evidence against `N=8`; (4) the synthesized burst source itself (broadband,
+no resonance of its own — least likely culprit of the four). **This must
+not be recorded as evidence that N=8 sounds metallic.** Recommended
+follow-up, in increasing cost: a dry-reference control render; a Damp
+sweep `{0.0, 0.5, 1.0}` on the same item (if "metallic" tracks damp and
+mostly disappears by 0.5, it's an evaluation-setting artifact, not
+topology); a `mix=0.3` (product-plausible) pass; and, as the only real
+path from "impression" to "argued N decision" — a quantified per-band
+magnitude-spectrum coloration metric (the standard-deviation-in-dB measure
+ADR-002 already cites from Dal Santo/Prawda/Schlecht/Välimäki) computed
+across ADR-005's `N∈{4,8,16}` bracket. That last item would need its own
+authorization and is not blocking.
+
+**The Mix=0.5 stereo-swap and the pluck-chord tail-thinning are judged the
+same underlying phenomenon, not two mysteries** — and neither implicates a
+defect. Mechanism: ADR-006 (e)'s disjoint tap support (L taps lines
+{0,2,4,6}, R taps {1,3,5,7}) means both channels share the network's poles
+but observe *different residues* of them. Broadband/impulsive excitation
+averages this out (matching DS-9's measured ~0.6dB RMS symmetry); narrowband
+or sparse excitation does not, producing exactly the kind of transient
+image wander and late-tail thinning both round-2 notes describe. **This
+review does not accept the round-2 entry's tentative DS-7-coherence link
+for the tail-thinning finding above — that connection is judged the wrong
+mechanism** (DS-7's coherence rises with measurement-*window* length, not
+with elapsed time within a decaying signal) **and is superseded by the
+modal-residue account here**, itself still a hypothesis, not verified by
+new measurement.
+
+**This does not justify ADR-006 (e)'s named successors.** A signed tap
+pattern would not change which lines feed which channel, so the observed
+per-channel residue asymmetry would survive it untouched — the wrong fix
+for the evidence. Dattorro-style intra-line taps (c3) are ADR-006's named
+successor for *insufficient echo density* (DS-6), which listening found
+adequate — the right tool for a different, untripped trigger. What is
+actually missing is a measurement class, not more listening or a tap
+change: **no per-frequency information about the whole wet path's `H_L`
+and `H_R` exists anywhere in this project's evidence** (DS-2 measured
+individual allpass cascades only), and that gap is exactly where both
+round-2 findings fell.
+
+**On the already-measured DS-9 asymmetry** (L always arrives ~4.46ms
+before R, at every rate/Decay, by construction of the even/odd interleave
+putting the shortest line in L): structurally real, not covered by any
+named trigger, and so far perceptually unconfirmed (no listener reported
+an image pulled left; the one image note describes a wander, not a bias).
+Not actionable now; recommended as a named item in a future listening
+round since it is cheap to check now and expensive to discover after host
+integration.
+
+### Verdict
+
+**The DS-B evaluation baseline (ADR-006, as measured and as auditioned) is
+an acceptable continuation basis for further product work. No
+architectural revision is warranted by this evidence.** Every named
+Revisit-When trigger is untripped; the two new findings both trace to one
+already-documented, already-named structural property (disjoint tap
+support) that ADR-006 explicitly called a non-decision and never measured
+per-frequency; nothing found requires a nonlinearity, a bug, or a topology
+change to explain.
+
+**Recommended next authorized task: "DS-B round 3 — per-channel response
+and confound isolation"** (measurement plus renders; no DSP change, no ADR
+change):
+1. A DS-2-style dense sweep of `|H_L(e^{jω})|`/`|H_R(e^{jω})|` through the
+   *whole* wet path (pre-Mix), both rates — recorded as a new DS-13 case,
+   no pass/fail gate, same as DS-6/DS-7. This is the measurement that
+   confirms or kills the modal-residue hypothesis.
+2. A cheap listening falsification: regenerate the Mix=0.5 tone render at
+   three frequencies (e.g. 220/277/330Hz) — if the "swap" character
+   differs per frequency, modal-residue is confirmed perceptually; if
+   identical at every frequency, that points toward a defect instead.
+3. Metallic-confound isolation on the transient-burst item: dry reference,
+   Damp sweep, and a `mix=0.3` pass (the three items above, cost items
+   1-3).
+4. Record pre-normalization peak/RMS for every listening render (closes
+   DS-5's actual trigger condition); add one single-transient centre-image
+   check for the DS-9 arrival/level asymmetry.
+
+**Explicitly NOT recommended:** a signed tap pattern; Dattorro-style
+intra-line taps; nested allpass sections or a `K_in`/`K_out` change;
+reopening `N`, ADR-005's delay set, or `t_min`; changing ADR-006 (g)'s
+dry-centring convention; adding pre-delay/early-reflection to close the
+27ms gap (a real contributor, but not yet isolated as *the* cause among
+four confounds); any modulation of any kind; and further open-ended
+listening rounds beyond round 3 (round 3's items have specific,
+discriminating answers — if it produces another impression with no
+structure behind it, the correct response is a measurement, not a fifth
+audition).
+
+**Gate status:** Sol's "reviews consequences" step is recommended complete
+for the DS-B component, with this review as its evidence. **The Sonic
+acceptance gate itself remains formally unsatisfied**, pending round 3 —
+specifically because every round-2 corpus render used a non-product-
+representative setting not disclosed clearly enough (see the disclosure
+above), the corpus is thin (three synthetic items) against the gate's own
+"repeatable musical corpus" wording, and "ringing" and "unintended pitch
+movement" were never explicitly assessed (the latter should be a
+confirmed null, since no modulation exists — worth one recorded line).
+Round 3 as scoped is judged sufficient to close the gate's DS-B component;
+nothing beyond it should be treated as blocking.
+
+Per this project's division of labor, this review is Sol's recommendation
+only — Astra/the owner has not yet accepted it, and round 3 is not yet
+authorized.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
@@ -1142,6 +1317,6 @@ These gates describe future work. None is an executed reverb test, and none chan
 | Fixed late network | Independently computed matrix orthogonality and damping bounds; finite deterministic impulse/silence/noise renders; double-precision reference comparison; long zero-input decay; rate/block partition coverage. Concrete bounds NS-1…NS-11 are defined in ADR-003 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-16; see "IMPLEMENTED: Phase 1 S2" above** |
 | Parameter transitions | Endpoints, invalid values, repeated retargeting and changing block partitions; no discontinuity from smoother state reset; signal-transition metrics plus audition; no allocation or blocking on render path. Concrete cases PT-1…PT-9 are defined in ADR-004 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-17; see "IMPLEMENTED: Phase 1 parameter transitions" above** |
 | Modulation experiment | Fixed baseline retained; endpoint/rate stress; interpolation boundary tests; measured decay and output growth under worst-case combinations; explicit approval before enabling | Sol reviews stability limits; Terra experiments; Luna reproduces |
-| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17; DS-B diffusion/stereo impulse, isolation (decay/damp/mix/stereo-vs-mono) and a synthetic musical corpus all prepared and fully auditioned by 2026-09-18 (round 2, "IN PROGRESS: Sonic acceptance" above), with two candidate findings flagged; Sol's review is the one remaining step for the DS-B component** |
+| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17; DS-B component's full cycle (Terra prepares, owner auditions, Sol reviews) complete as of 2026-09-18 — see "Sol review — DS-B Sonic acceptance consequences" above. Verdict: no architectural revision warranted; the gate itself remains formally unsatisfied (non-product-representative corpus settings, thin corpus, ringing/pitch-movement not explicitly assessed) pending the recommended, not-yet-authorized "round 3" measurement+listening task** |
 
 For all future tests: use named cases, print the failed condition, and return nonzero on failure even in Release. Preserve seeds, parameter settings, sample rates and block sequences with evidence. Missing measurements are **unmeasured**, never passes. Report output overshoots and safety interventions rather than hiding them by clipping or regenerating reference data. Exact byte comparisons apply only where the operation/toolchain contract supports them; nonlinear or transcendental implementations need justified numerical tolerances.
