@@ -945,6 +945,35 @@ unsatisfied: no musical corpus exists, Sol has not reviewed consequences,
 and one positive (Decay) plus two inconclusive-by-test-design results
 (Mix, Damp) do not constitute a rendered product's sonic acceptance.
 
+## IN PROGRESS: Sonic acceptance — DS-B diffusion/stereo wet path first listen (2026-09-18)
+
+A new offline tool, `tools/render_diffusion_stereo/main.cpp`
+(`aetherfield_render_diffusion_stereo`), renders a full-scale mono impulse
+through the complete measured DS-B wet path (`DiffusionStereoPath`: input
+diffusion → FDN → even/odd taps → output diffusion → Mix), using the
+identical evaluation-fixture config `validConfig()` in
+`tests/DiffusionStereoPathTests.cpp` already exercises — not a tuned
+product preset. `DiffusionStereoPath` exposes no control-thread API yet (no
+`setDecay`/`setDamp`/`setMix`), so unlike `render_reverb`'s Decay/Damp/Mix
+CLI overrides, this tool can only vary sample rate and render duration; the
+wrapper's built-in automation defaults (Decay=0.5, Damp=0, Mix=1, realized
+`T60₀≈1.0934s` at 48kHz) are fixed. Both channels are peak-normalized by a
+single shared gain (not independently per channel), so the render's actual
+stereo balance — including DS-9's recorded ~0.6dB L/R RMS imbalance and
+~4.5ms R-later-arrival — is preserved rather than masked.
+
+The owner listened to `artifacts/6-diffusion-stereo_wrapper-defaults.wav`
+(48kHz, 8s) and reported it sounded good. **This is a real, positive
+listening note, and it is the first one covering the diffusion/stereo wet
+path DS-B Task 4 measured** — but it is a single overall impression at the
+wrapper's one fixed control setting, not the per-control isolation notes
+round 1 above produced for S2/PT, not a musical corpus, and not Sol's
+"reviews consequences" step. Per this gate's own acceptance bar, it remains
+**unsatisfied**: no musical corpus exists, no detailed notes on ringing,
+onset density, width or unintended pitch movement were recorded for this
+path, and Sol's review is outstanding. Recorded here as real, honest
+partial evidence, not inflated into gate closure.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
@@ -955,6 +984,6 @@ These gates describe future work. None is an executed reverb test, and none chan
 | Fixed late network | Independently computed matrix orthogonality and damping bounds; finite deterministic impulse/silence/noise renders; double-precision reference comparison; long zero-input decay; rate/block partition coverage. Concrete bounds NS-1…NS-11 are defined in ADR-003 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-16; see "IMPLEMENTED: Phase 1 S2" above** |
 | Parameter transitions | Endpoints, invalid values, repeated retargeting and changing block partitions; no discontinuity from smoother state reset; signal-transition metrics plus audition; no allocation or blocking on render path. Concrete cases PT-1…PT-9 are defined in ADR-004 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-17; see "IMPLEMENTED: Phase 1 parameter transitions" above** |
 | Modulation experiment | Fixed baseline retained; endpoint/rate stress; interpolation boundary tests; measured decay and output growth under worst-case combinations; explicit approval before enabling | Sol reviews stability limits; Terra experiments; Luna reproduces |
-| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **impulse component prepared 2026-09-17, see "IN PROGRESS: Sonic acceptance" above; musical corpus, listening notes and Sol's review remain outstanding** |
+| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17 and DS-B diffusion/stereo impulse component prepared 2026-09-18 (both "IN PROGRESS: Sonic acceptance" entries above); musical corpus, detailed per-control listening notes and Sol's review remain outstanding for both** |
 
 For all future tests: use named cases, print the failed condition, and return nonzero on failure even in Release. Preserve seeds, parameter settings, sample rates and block sequences with evidence. Missing measurements are **unmeasured**, never passes. Report output overshoots and safety interventions rather than hiding them by clipping or regenerating reference data. Exact byte comparisons apply only where the operation/toolchain contract supports them; nonlinear or transcendental implementations need justified numerical tolerances.
