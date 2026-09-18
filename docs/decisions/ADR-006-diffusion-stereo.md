@@ -1,7 +1,7 @@
 ---
 id: "ADR-006"
 status: accepted
-implementation: task-1-lifecycle-preparation-task-2a-read-only-taps-task-2b-routing-task-3-recovery-and-task-4-partial-measured-evidence
+implementation: task-1-lifecycle-preparation-task-2a-read-only-taps-task-2b-routing-task-3-recovery-task-4-ds-1-through-ds-13-measured-evidence-and-control-forwarding
 review: resolved-by-contract
 review_document: "../phases/phase1-ds-review.md"
 depends_on: [ADR-002, ADR-003, ADR-004, ADR-005]
@@ -13,10 +13,17 @@ depends_on: [ADR-002, ADR-003, ADR-004, ADR-005]
 
 - **Decision:** accept an input-diffusion, injection, output-tap, and stereo architecture as an **evaluation baseline**.
 - **Why:** it supplies a bounded candidate product path around the fixed FDN without changing FDN internals.
-- **Implementation:** **DS-B Task 1 lifecycle/preparation, Task 2a's read-only FDN pre-step tap accessor, Task 2b's one-sample route, and Task 3 aggregate detection/block recovery are implemented. Task 4 has partial measured evidence, corrected 2026-09-17 and extended 2026-09-17.** Task 2b routes through input diffusion, normalized FDN injection, pre-advance even/odd taps, output diffusion and Mix without altering FDN internals. Task 3 adds wrapper-owned saturated fault accounting and next-nonempty-block recovery without changing standalone FDN behavior. Task 4 records useful DS-1..12 measurements. Its bracket checks now include an independent double recurrence and per-cascade energy/determinism/allocation coverage across every `(K_in,K_out,rate)` configuration, and DS-9's RMS/arrival/full-path-centroid measurement now covers the full Mix sweep (its isolated-diffuser centroid remains a once-per-rate measurement, being Mix-invariant by construction). The one remaining named gap is DS-10: output `S_j` rows are still measured-window illustrations rather than a propagated cessation-state proof, deliberately deferred to its own dedicated pass (see `docs/phases/phase1-ds-integration-plan.md`'s DS-10 bullet for why). See `docs/testing.md` for the exact current evidence and gaps. No Task 4 measurement establishes sonic acceptance or authorizes successor topology/tap/control work.
+- **Implementation:** **DS-B Tasks 1–4 are implemented and measured.** Task 2b routes through input diffusion, normalized FDN injection, pre-advance even/odd taps, output diffusion and Mix without altering FDN internals. Task 3 adds wrapper-owned saturated fault accounting and next-nonempty-block recovery without changing standalone FDN behavior. Task 4 records DS-1…DS-13, including independent recurrence/bracket coverage, per-Mix channel metrics, a propagated whole-chain cessation bound, and per-channel whole-path magnitude response. `DiffusionStereoPath` also exposes owner-authorized Mix/Decay/Damp forwarding for the two offline render tools. The DS-B Sonic acceptance component is closed after three owner listening rounds and Sol review; no architectural revision is warranted. See `docs/testing.md` for the exact evidence. None of this authorizes successor topology/tap/control work, a product signal path, host integration, UI, or modulation.
 - **Review status:** **resolved-by-contract, 2026-09-17.** The five algebraic/acceptance corrections below replace the superseded claims in the historical ADR record. They permit a bounded integration plan; they do not authorize implementation or establish product quality.
 
 ## Correction note — contracts replacing superseded claims (2026-09-17)
+
+**Current completion note (2026-09-18).** The correction contracts below are
+implemented and evidenced by DS-B Task 4, including the propagated C3 bound;
+DS-13 and three owner listening rounds additionally close the DS-B Sonic
+acceptance component. The dated language below records the contract at the
+time it was written. It does not authorize work beyond the implemented
+evaluation baseline.
 
 This note is part of ADR-006's current contract. The original record below is
 preserved for decision history. Where it conflicts with this note, this note

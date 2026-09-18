@@ -6,12 +6,17 @@ A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable prod
 For decisions, use the [ADR index](docs/decisions/index.md); each record has a
 short review summary, machine-readable metadata, and its complete original reasoning.
 
-**Implemented:** the portable C++ host loop, `DelayLine`, fixed
-`FeedbackDelayNetwork`, Mix/Decay/Damp `ParameterAutomation`, a standalone
-fixed `SchroederAllpass`, and a mono impulse renderer. Five host test suites
-cover these increments. Full diffusion and stereo remain planned; ADR-006 needs the corrections recorded in its
-[readiness review](docs/phases/phase1-ds-review.md). AUv3 and UI are deferred.
-See the current-state guide for the active plan and supporting evidence.
+**Implemented and measured:** the portable C++ host loop, `DelayLine`, fixed
+`FeedbackDelayNetwork`, Mix/Decay/Damp `ParameterAutomation`,
+`SchroederAllpass`, and the ADR-006 `DiffusionStereoPath` evaluation baseline
+(input/output diffusion, normalized FDN injection, stereo taps, Mix, aggregate
+fault recovery, and owner-authorized control forwarding). Six host CTest suites
+cover these increments. DS-B Tasks 1–4 and DS-1…DS-13 are closed; the DS-B
+Sonic acceptance component is closed after three owner listening rounds,
+DS-13, and Sol review. This is evidence for the fixed evaluation baseline, not
+authorization for a product signal path, AUv3 wrapper, UI, modulation, Freeze,
+Bloom, Texture, or a final product line count. AUv3 and UI are deferred.
+See the current-state guide for evidence and the owner-gated next decision.
 
 ## Build, test, render, inspect
 
@@ -42,14 +47,19 @@ A second tool, `aetherfield_render_reverb`, renders a single deterministic impul
 ./build/aetherfield_render_reverb artifacts/s2-pt-impulse.wav
 ```
 
-This is explicitly an **observation, not an acceptance** (ADR-002): no diffusion, stereo, or product signal path exists yet, and the fixture's parameter values are stated and non-tuned, not product defaults.
+This is explicitly an **S2/PT observation, not an acceptance** (ADR-002): it
+predates the implemented DS-B evaluation path, and its fixture values are
+stated and non-tuned, not product defaults. DS-B's separate Sonic acceptance
+component is closed in [testing.md](docs/testing.md); neither result authorizes
+a product signal path.
 
 See [testing.md](docs/testing.md) for decoded-sample inspection and actual verification evidence.
 
 ## Durable project context
 
 - [Architecture](docs/architecture.md): current boundaries and Mermaid diagram.
-- [DSP design](docs/dsp-design.md): implemented gain, delay, fixed network and automation contracts, with planned diffusion/stereo scope.
+- [DSP design](docs/dsp-design.md): implemented gain, delay, fixed network,
+  automation, and DS-B evaluation-path contracts, with product scope deferred.
 - [Decision index](docs/decisions/index.md): individual ADRs, status, dependencies, and implementation/review state. [Legacy links](docs/decisions.md) remain available.
 - [Roadmap](docs/roadmap.md): Phase 1 scope, agent routing and deferred recommendations.
 - [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and measured metrics. Consult it when attribution or historical verification matters.

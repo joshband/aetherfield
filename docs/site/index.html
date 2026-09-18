@@ -412,9 +412,9 @@
 
     <div class="sidebar-foot">
       <div class="stat"><span>Phase</span><b>1 of 6</b></div>
-      <div class="stat"><span>ADRs recorded</span><b>6</b></div>
-      <div class="stat"><span>Gates closed</span><b>3 / 5</b></div>
-      <div class="stat"><span>Tests passing</span><b>5 / 5</b></div>
+      <div class="stat"><span>ADRs recorded</span><b>7</b></div>
+      <div class="stat"><span>Gates closed</span><b>3 + DS-B / 5</b></div>
+      <div class="stat"><span>Tests passing</span><b>6 / 6</b></div>
     </div>
   </aside>
 
@@ -428,12 +428,12 @@
 
       <div class="note">Read the <a href="../start-here.md">current-state guide</a> or
         <a href="../decisions/index.md">decision index</a> before starting work.
-        ADR-006 defines a diffusion/stereo evaluation baseline; Task 1 owns
-        transactional preparation, Task 2a exposes read-only pre-step taps,
-        Task 2b implements one-sample routing through the baseline path, and
-        Task 3 implements wrapper-owned aggregate fault recovery.
-        The <a href="../phases/phase1-ds-plan.md">DS-A primitive</a> is implemented;
-        Full diffusion/stereo measurement and evaluation remain subject to separate authorization.
+        ADR-006's fixed diffusion/stereo evaluation baseline is implemented:
+        DS-B Tasks 1–4, DS-1…DS-13, control forwarding, and the offline render
+        tools are recorded in <a href="../testing.md">testing.md</a>. Three owner
+        listening rounds and Sol review close the DS-B Sonic acceptance component;
+        no architectural revision is warranted. Product, host, UI, and modulation
+        work remain owner-gated.
         This site summarizes the local records; published copies may lag.</div>
 
       <div class="hero">
@@ -442,7 +442,7 @@
             <span class="pill good">Phase 0 — implemented</span>
             <span class="pill pending">Phase 1 — in progress</span>
           </div>
-          <p>Three DSP components exist and pass their tests today: <code>DelayLine</code>, <code>FeedbackDelayNetwork</code> (eight lines through an orthogonal feedback matrix with per-line damping), and <code>ParameterAutomation</code> (Mix/Decay/Damp, lock-free and click-free). A first rendered impulse response exists too, with one real owner listening round on record.</p>
+          <p>The portable core and the fixed DS-B evaluation path are implemented and measured: <code>DelayLine</code>, <code>FeedbackDelayNetwork</code>, <code>ParameterAutomation</code>, <code>SchroederAllpass</code>, and <code>DiffusionStereoPath</code>. Six host suites pass; DS-B Sonic acceptance is closed after three owner listening rounds, DS-13, and Sol review.</p>
         </div>
         <figure class="hero-scope">
           <canvas id="decayCanvas" width="600" height="280"></canvas>
@@ -478,14 +478,14 @@
         <div class="sub">what's actually built, not what's planned</div>
         <div class="grid cols-3">
           <div class="card stat-tile">
-            <div class="num">5</div>
+            <div class="num">6</div>
             <div class="label">Accepted ADRs</div>
             <div class="detail">topology → damping → parameters → fixture</div>
           </div>
           <div class="card stat-tile">
-            <div class="num">3/5</div>
+            <div class="num">3 + DS-B / 5</div>
             <div class="label">Verification gates closed</div>
-            <div class="detail">delay/lifecycle · fixed late network · parameter transitions</div>
+            <div class="detail">delay/lifecycle · fixed late network · parameter transitions · DS-B Sonic acceptance closed</div>
           </div>
           <div class="card stat-tile">
             <div class="num">6.6e-8</div>
@@ -591,7 +591,7 @@ flowchart LR
     DSP --> PCM["Processed samples"]
     PCM --> WRITER["Renderer-owned<br/>WAV writer"]
     WRITER --> WAV["PCM WAV artifact"]
-    DIFF["Input/output diffusion,<br/>stereo tap (deferred)"] -.-> DSP
+    DIFF["DiffusionStereoPath:<br/>input/output diffusion + stereo taps"] --> DSP
     FUTURE["AUv3 integration<br/>(deferred)"] -.-> DSP
     UI["UI + parameter comms<br/>(deferred)"] -.-> FUTURE
         </pre>
@@ -599,14 +599,14 @@ flowchart LR
 
       <section class="block">
         <h2>What's deliberately absent</h2>
-        <p style="color:var(--text-dim); font-size:14px; max-width:60ch;">Modulation of any kind, input/output diffusion, stereo extraction, the AUv3 wrapper, presets, and external DSP dependencies. Three DSP components exist — a delay line, an 8-line network, and its parameter automation — none wired into a product signal path yet.</p>
+        <p style="color:var(--text-dim); font-size:14px; max-width:60ch;">Modulation of any kind, the AUv3 wrapper, presets, external DSP dependencies, and a product signal path. The fixed diffusion/stereo route is an implemented evaluation baseline, not authorization to ship host or product behavior.</p>
       </section>
     </section>
 
     <!-- ============ DECISIONS ============ -->
     <section class="page" data-page="decisions">
       <div class="eyebrow">Architecture · Decision Records</div>
-      <h1>Six decisions, with implementation tracked separately.</h1>
+      <h1>Seven decisions, with implementation tracked separately.</h1>
       <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
 
       <div class="adr">
@@ -663,16 +663,32 @@ flowchart LR
         <div class="adr-head">
           <span class="id">ADR-006</span>
           <h3>Input diffusion and stereo extraction</h3>
-          <span class="pill pending">Plan pending authorization</span>
+          <span class="pill good">Implemented evaluation baseline</span>
         </div>
-        <div class="decision">The recorded design uses fixed allpass cascades,
-          normalized injection and interleaved stereo taps. Task 1 owns
-          preparation/lifecycle; Task 2a adds read-only pre-step taps; Task 2b adds one-sample audio routing; Task 3 adds aggregate fault recovery.
-          The correction contract resolves prior overclaims for decay, coherence,
-          silence, detector ownership and channel metrics; DS-B routing and
-          Tasks 3–4 are unimplemented and need separate authorization.</div>
+        <div class="decision">The fixed allpass, normalized-injection and
+          interleaved-tap route is implemented as an evaluation baseline. DS-B
+          Tasks 1–4, DS-1…DS-13, owner-authorized Mix/Decay/Damp forwarding, and
+          offline render tools are complete. Three listening rounds and Sol review
+          close its Sonic acceptance component; this authorizes no product, host,
+          UI, or modulation work.</div>
         <div class="adr-meta"><a href="../decisions/ADR-006-diffusion-stereo.md">Full ADR</a>
           <a href="../phases/phase1-ds-review.md">Readiness review</a></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-007</span>
+          <h3>Native Apple APIs versus JUCE for iOS/iPadOS AUv3</h3>
+          <span class="pill pending">Proposed — owner acceptance pending</span>
+        </div>
+        <div class="decision">Proposes native Apple AUv3 APIs around the portable C++ core for the
+          current single-format iOS/iPadOS scope, over JUCE's wider but
+          unrequired platform/format support. Documentation-only comparison:
+          it authorizes no wrapper, UI, dependency, or host/device work, and
+          does not supersede ADR-001's deferred integration boundary while
+          proposed.</div>
+        <div class="adr-meta"><a href="../decisions/ADR-007-auv3-integration-comparison.md">Full ADR</a>
+          <a href="../superpowers/plans/2026-09-18-auv3-integration-evaluation.md">Decision-only evaluation plan</a></div>
       </div>
       <p><a href="../decisions/index.md">All ADR summaries, metadata and full records</a></p>
 
@@ -683,7 +699,7 @@ flowchart LR
     <section class="page" data-page="roadmap">
       <div class="eyebrow">Roadmap · Verification Gates</div>
       <h1>What's authorized is exactly what's tested.</h1>
-      <p class="lede">The roadmap authorizes no work beyond the active milestone. Five verification gates cover Phase 1; three are closed, one is in progress, one hasn't started.</p>
+      <p class="lede">The roadmap authorizes no work beyond the active milestone. Three primary gates are closed; the DS-B component of Sonic acceptance is closed, while modulation has not started.</p>
 
       <section class="block">
         <h2>Gate progress</h2>
@@ -694,7 +710,7 @@ flowchart LR
           <div class="gate-seg closed">Closed</div>
           <div class="gate-seg closed">Closed</div>
           <div class="gate-seg open">Not started</div>
-          <div class="gate-seg partial">In progress</div>
+          <div class="gate-seg partial">DS-B closed</div>
         </div>
       </section>
 
@@ -709,7 +725,7 @@ flowchart LR
               <tr><td>Fixed late network (NS-1…NS-11)</td><td>Matrix orthogonality, bounded-realness, decay law, denormal cost, determinism</td><td><span class="pill good">Closed</span></td></tr>
               <tr><td>Parameter transitions (PT-1…PT-9)</td><td>Endpoint exactness, torn reads, retargeting, no allocation on render path</td><td><span class="pill good">Closed</span></td></tr>
               <tr><td>Modulation experiment</td><td>Fixed baseline retained, worst-case combinations, explicit approval to enable</td><td><span class="pill deferred">Not started</span></td></tr>
-              <tr><td>Sonic acceptance</td><td>Peak/RMS/decay/stereo measurements + human listening review</td><td><span class="pill pending">In progress — impulse render + round-1 listening done; musical corpus and Sol's review outstanding</span></td></tr>
+              <tr><td>Sonic acceptance</td><td>Peak/RMS/decay/stereo measurements + human listening review</td><td><span class="pill pending">DS-B component closed — three owner rounds, DS-13, and Sol review; S2/PT notes were not carried further</span></td></tr>
             </tbody>
           </table>
         </div>
@@ -724,14 +740,14 @@ flowchart LR
             <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">CODE → BUILD → TEST → RENDER → INSPECT, proven on a trivial gain fixture.</p>
           </div>
           <div class="card">
-            <div class="pill pending" style="margin-bottom:10px;">Next — in progress</div>
-            <b>Phase 1: core reverb architecture</b>
-            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Topology, damping, parameters decided; S1 + S2 + parameter automation all implemented and verified; first render and listening round done.</p>
+            <div class="pill pending" style="margin-bottom:10px;">Next — owner decision</div>
+            <b>AUv3 integration comparison</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Compare native Apple APIs and JUCE on documentation evidence only; no wrapper, UI, dependency, or host/device claim is authorized.</p>
           </div>
           <div class="card">
             <div class="pill neutral" style="margin-bottom:10px;">Later</div>
-            <b>Diffusion, stereo, AUv3 integration</b>
-            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Native Apple APIs vs. JUCE is still an open comparison. Diffusion/stereo topology needs its own ADR before any plan or implementation.</p>
+            <b>Product integration and behavior</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">The DS-B evaluation baseline is closed. AUv3 implementation, UI, modulation, and product behavior still require explicit owner authorization.</p>
           </div>
         </div>
       </section>
@@ -789,7 +805,7 @@ flowchart LR
       </section>
 
       <section class="block">
-        <h2>Sonic acceptance: round 1</h2>
+        <h2>Historical: S2/PT Sonic acceptance round 1</h2>
         <div class="sub">the impulse render's own measured decay, plus the owner's first listening pass</div>
 
         <p style="color:var(--text-dim); font-size:13.5px; margin-bottom:14px;">A single deterministic impulse response (N=8, Decay=0.6 → T60₀=3.056s, Damp=0.3) was rendered and its RMS measured in 1-second windows — real audio, not a unit test:</p>
@@ -809,7 +825,7 @@ flowchart LR
           <div class="listen-cell"><div class="lc-id">04</div><div class="lc-var">Long decay</div><span class="lc-result clear">Clear</span></div>
           <div class="listen-cell"><div class="lc-id">05</div><div class="lc-var">Mix blend</div><span class="lc-result subtle">Inconclusive</span></div>
         </div>
-        <p style="color:var(--text-faint); font-size:12px; margin-top:14px;">Decay length (03 vs. 04) was unambiguous — the ear and the number agree. Mix (01 vs. 05) and Damp (01 vs. 02) were inconclusive, traced to identified test-design issues (a single-sample dry impulse masked by per-file normalization; a moderate 14.4dB damping setting compared without instant A/B toggling) — not DSP defects. A corrected round is planned, not yet run.</p>
+        <p style="color:var(--text-faint); font-size:12px; margin-top:14px;">Decay length (03 vs. 04) was unambiguous — the ear and the number agree. Mix (01 vs. 05) and Damp (01 vs. 02) were inconclusive, traced to identified test-design issues (a single-sample dry impulse masked by per-file normalization; a moderate 14.4dB damping setting compared without instant A/B toggling) — not DSP defects. These are historical S2/PT notes; the separate DS-B component was later closed after three listening rounds, DS-13, and Sol review.</p>
       </section>
 
       <section class="block">
