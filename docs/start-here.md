@@ -69,17 +69,22 @@ pre-authorized *implementation* task.
 [ADR-007](decisions/ADR-007-auv3-integration-comparison.md) — native Apple
 APIs versus JUCE for a future AUv3 wrapper — is **accepted (2026-09-18)**.
 That acceptance selects an architectural direction only: it authorizes no
-wrapper, UI, dependency, or other product implementation. The active
-continuation is an **owner-gated decision on which post-acceptance design
-prerequisite to authorize next** (see the
-[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)'s
-"Post-acceptance planning prerequisites" — the parameter-event bridge,
-production bus/state contracts, lifecycle/device matrix, and the eventual
-wrapper implementation plan itself are each still separately gated). Do not
-infer authorization from the fact that measurement, comparison, or framework
-acceptance is finished — read roadmap.md's current continuation and ask, per
-this project's own repeated pattern in testing.md/ADRs of never treating
-"measured," "compared," or "accepted" as "authorized to implement."
+wrapper, UI, dependency, or other product implementation. Three of the
+post-acceptance design prerequisites are now drafted as **proposed** ADRs,
+none yet reviewed or accepted:
+[ADR-008](decisions/ADR-008-parameter-event-bridge.md) (parameter-event
+bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md) (production
+bus/dry-bypass/buffer-aliasing policy), and
+[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (device/OS/rate/
+block-size matrix and lifecycle/failure scope). Each names its own
+"Remaining decisions" that only the owner can resolve. The state schema and
+the eventual wrapper implementation plan remain unstarted and are
+downstream of these three. Do not infer authorization from the fact that
+measurement, comparison, framework acceptance, or these drafts existing is
+finished — read roadmap.md's current continuation and ask, per this
+project's own repeated pattern in testing.md/ADRs of never treating
+"measured," "compared," "drafted," or "accepted" as "authorized to
+implement."
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
 **implemented** and independently covered by the fifth CTest suite. It does
