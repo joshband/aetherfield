@@ -1086,14 +1086,51 @@ comparison on the pad. The owner listened and reported, per file:
   expected, presumably clearer result; the owner did not report it as
   ambiguous the way round 1's Damp comparison was.
 
-**Not yet reported**: the three corpus items individually
-(`round2-corpus-pluck-chord`, `round2-corpus-sustained-pad`,
-`round2-corpus-transient-bursts`). This round's notes are real, partial
-evidence — one concrete tool bug found and fixed, one genuine new
-candidate finding flagged for Sol's review, and three reassuring
-confirmations (dry bypass, audible stereo width, decay/damp behaving as
-expected) — but the Sonic acceptance gate remains **unsatisfied**: not
-every render has been auditioned yet, and Sol's review has not run.
+- **`round2-corpus-pluck-chord_defaults.wav`: "at the tail end of the 5
+  seconds it almost sounds like a quick shift from stereo chord to mono or
+  fewer notes right at the end."** A second, independent listening
+  observation pointing at the same general area as the Mix=0.5 finding
+  above — but here there is an already-measured candidate explanation
+  rather than a wholly new mystery: DS-7 (above) already measured that
+  this wet path's inter-channel coherence is **segment-length-limited**,
+  converging *toward* ADR-006 C2's ideal of `MSC=1` (a fixed linear
+  mono-input path is expected to be coherent) as the measurement window
+  grows relative to the decay. A late tail thinning to a few
+  longest-surviving, shared modes becoming perceptually more mono-like is
+  *consistent with* that already-recorded numeric trend. **Offered as a
+  plausible connection, not a verified cause** — nothing new was measured
+  to confirm it specifically explains this render.
+- **`round2-corpus-sustained-pad_defaults.wav`: "sounds similar but
+  doesn't have the tail-end issues."** Recorded as reported; consistent
+  with the pad's held, always-present source material occupying most of
+  the file (unlike the pluck's rapid decay into a long, source-free tail),
+  though this is also not independently verified.
+- **`round2-corpus-transient-bursts_defaults.wav`: "pretty good echo
+  density... sounds metallic but that may just be due to the transient."**
+  The echo-density impression is a positive, real confirmation on genuinely
+  transient/percussive material, complementing DS-6's numeric echo-density
+  record. **The "metallic" observation is significant and should not be
+  understated**: it is the first listening evidence bearing directly on
+  ADR-002's own explicitly named open question — *"whether N = 8 with the
+  chosen delays sounds like a convincing ambient field, or metallic, is an
+  empirical question"* (ADR-002, "What remains a hypothesis"). The owner's
+  own hedge is preserved here, not discarded: they attributed it to
+  possibly being a property of the synthesized burst source itself (a
+  one-pole-lowpass-filtered noise click), not necessarily the network's
+  own coloration, and that ambiguity is real and unresolved — a source
+  that itself has no metallic quality would be needed to isolate the
+  cause, which this corpus item does not provide.
+
+This round's notes are now complete for every round-2 render: one concrete
+tool bug found and fixed, two candidate findings flagged for Sol's review
+(the Mix=0.5 stereo-swap observation, and the tail/echo-density
+observations bearing on ADR-002's metallic-coloration question), and
+several reassuring confirmations (dry bypass, audible stereo width,
+decay/damp behaving as expected, real echo density on transient material).
+**The Sonic acceptance gate remains formally unsatisfied** — this is
+listening evidence toward it, not the gate's acceptance itself, and Sol's
+"reviews consequences" step has not yet run — but every render generated
+this round has now been auditioned.
 
 ## PLANNED validation gates after Phase 1
 
@@ -1105,6 +1142,6 @@ These gates describe future work. None is an executed reverb test, and none chan
 | Fixed late network | Independently computed matrix orthogonality and damping bounds; finite deterministic impulse/silence/noise renders; double-precision reference comparison; long zero-input decay; rate/block partition coverage. Concrete bounds NS-1…NS-11 are defined in ADR-003 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-16; see "IMPLEMENTED: Phase 1 S2" above** |
 | Parameter transitions | Endpoints, invalid values, repeated retargeting and changing block partitions; no discontinuity from smoother state reset; signal-transition metrics plus audition; no allocation or blocking on render path. Concrete cases PT-1…PT-9 are defined in ADR-004 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-17; see "IMPLEMENTED: Phase 1 parameter transitions" above** |
 | Modulation experiment | Fixed baseline retained; endpoint/rate stress; interpolation boundary tests; measured decay and output growth under worst-case combinations; explicit approval before enabling | Sol reviews stability limits; Terra experiments; Luna reproduces |
-| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17 and DS-B diffusion/stereo impulse component prepared 2026-09-18 (both "IN PROGRESS: Sonic acceptance" entries above); musical corpus, detailed per-control listening notes and Sol's review remain outstanding for both** |
+| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17; DS-B diffusion/stereo impulse, isolation (decay/damp/mix/stereo-vs-mono) and a synthetic musical corpus all prepared and fully auditioned by 2026-09-18 (round 2, "IN PROGRESS: Sonic acceptance" above), with two candidate findings flagged; Sol's review is the one remaining step for the DS-B component** |
 
 For all future tests: use named cases, print the failed condition, and return nonzero on failure even in Release. Preserve seeds, parameter settings, sample rates and block sequences with evidence. Missing measurements are **unmeasured**, never passes. Report output overshoots and safety interventions rather than hiding them by clipping or regenerating reference data. Exact byte comparisons apply only where the operation/toolchain contract supports them; nonlinear or transcendental implementations need justified numerical tolerances.
