@@ -25,3 +25,8 @@ Canonical record: [ADR-005](decisions/ADR-005-evaluation-fixture.md)
 ## ADR-006 — Input diffusion, network injection, output tap design and stereo decorrelation
 
 Canonical record: [ADR-006](decisions/ADR-006-diffusion-stereo.md)
+
+## ADR-007 — Native Apple APIs versus JUCE for iOS/iPadOS AUv3
+
+Canonical record: [ADR-007](decisions/ADR-007-auv3-integration-comparison.md).
+Proposed; owner acceptance pending. Documentation-only comparison; no implementation authorized.

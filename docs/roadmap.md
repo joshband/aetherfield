@@ -19,6 +19,15 @@ wrapper, UI, Xcode project, dependency, host/device validation, modulation,
 or other product implementation. The historical milestone sections below
 retain their original scope; they are not a substitute for this current status.
 
+[ADR-007](decisions/ADR-007-auv3-integration-comparison.md) proposes native
+Apple APIs while preserving the portable C++ core. It remains **proposed**,
+pending owner acceptance. The
+[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)
+records research, review and owner-decision checks. A bounded nonblocking
+parameter-event bridge, production bus/state contracts and separate owner
+authorization are prerequisites to any later wrapper implementation plan.
+UI technology remains deferred; CLAP remains not planned.
+
 ## NOW
 
 **Phase 0 — Greenfield bootstrap (IMPLEMENTED; evidence in testing.md).** Prove CODE → BUILD → TEST → RENDER → INSPECT with trivial gain, a portable DSP library, deterministic tests, and a WAV renderer. No reverb, AUv3, UI, presets, or feedback network is implemented.
@@ -47,7 +56,7 @@ Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the 
 |---|---|---|---|---|---|---|
 | Decide and implement future product work in bounded increments | First audible ambient field | Owner scope decision | L | Evaluation evidence mistaken for product readiness | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence; DS-B is closed as an evaluation baseline, while product behavior remains unauthorized |
 | Expand corpus and analysis when real decay exists | Detect ringing, stereo and decay regressions | Core DSP | M | Metrics mistaken for listening | Terra; Luna | Repeatable impulse/noise/musical fixtures and justified baselines; never refresh merely to pass |
-| Decide native Apple APIs versus JUCE, then implement iOS/iPadOS AUv3 wrapper and eventual UI | Playable host integration with appropriate maintenance cost | Proven DSP and parameter contracts | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration comparison/implementation; Luna verification | Integration ADR comparing lifecycle, automation/state, UI, device/host validation, build complexity, licensing and actual format needs; then device/host evidence and measured CPU |
+| Implement iOS/iPadOS AUv3 wrapper and eventual UI only after the current framework decision | Playable host integration with appropriate maintenance cost | Owner acceptance of [ADR-007](decisions/ADR-007-auv3-integration-comparison.md), reviewed event bridge and product bus/state contracts, separately authorized plan | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Proposed comparison is documentation only; later implementation needs actual device/host evidence and measured CPU. UI technology remains undecided |
 | Mobile performance and render-thread instrumentation | Reliable audio on supported devices | Nontrivial DSP and Apple integration | M | Host smoke tests overstate realtime safety | Terra; Luna; Sol review | Measured deadlines, allocation checks and documented supported configurations |
 | Broaden build verification to another host/toolchain and add CI if useful | Detect portability regressions | Stable portable loop | S | Platform assumptions | Luna | Actual clean builds and tests; platform independence alone is not verified portability |
 | Resolve project license, identifiers and name clearance before distribution | Clear distribution terms and identity | Distribution intent | M | Unresolved ownership/naming | Owner; Terra assists | Explicit owner decisions; no license or clearance assumed |
