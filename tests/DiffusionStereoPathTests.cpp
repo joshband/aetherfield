@@ -1814,10 +1814,11 @@ int testDs2IndependentDoubleRecurrenceAcrossBracket() {
               << " cascades checked (impulse + deterministic noise against a second, independently "
                  "implemented difference-equation reference -- not the radix2Fft magnitude check above), "
                  "max abs error=" << maximumError << '\n';
-    // DS-A's own single-section version of this check uses 2e-5; this
-    // extends to cascades of up to 5 sections, so a slightly wider (but
-    // still tight) tolerance is used. The measured worst case across the
-    // full bracket is ~2e-7, two orders of magnitude inside this bound.
+    // DS-A's own single-section version of this check uses 2e-5; 1e-5 here is
+    // tighter, not looser, kept deliberately close to that figure despite
+    // covering cascades of up to 5 sections rather than one. The measured
+    // worst case across the full bracket is ~2e-7, two orders of magnitude
+    // inside this bound.
     return maximumError <= 1e-5 ? 0 : fail("DS-2 independent double recurrence error exceeded tolerance");
 }
 
@@ -2547,10 +2548,26 @@ int testDs9ChannelBalanceAndCentroids() {
     for (const double rate : kBracketRates) {
         const DiffusionStereoConfig config = validConfig(rate);
 
+        // Shortest even/odd FDN line, reported once per rate (Mix-invariant)
+        // beside the first-arrival rows below: ADR-006 (e)'s even/odd tap
+        // split, not the output diffusers, is what actually separates the
+        // two first arrivals at Mix=1.
+        FeedbackDelayNetwork arrivalProbe;
+        if (!buildFdnFixture(rate, arrivalProbe)) return fail("DS-9 arrival-probe fixture preparation failed");
+        const std::size_t m0 = arrivalProbe.delaySamples(0);
+        const std::size_t m1 = arrivalProbe.delaySamples(1);
+
         // (1)+(2) Channel RMS, first nonzero arrival and full-path energy
         // centroid, at every declared Mix fixture. Decay is fixed at the
         // shared comparability T60_0 (Damp bypassed) across the sweep, so
-        // only Mix varies between rows.
+        // only Mix varies between rows. NOTE: at Mix=0 the equal-power
+        // crossfade (ParameterAutomation) gives dry=1/wet=0 exactly, so
+        // out_L and out_R are the same channel-duplicated dry impulse/noise
+        // -- a degenerate data point that exercises the crossfade endpoint,
+        // not the diffusion path. Rows at Mix in {0.25, 0.5, 0.75, 1} are
+        // the ones that actually measure the diffuser's contribution to
+        // RMS/arrival/centroid; DS-8's separate pre-Mix wet-sum figures
+        // remain the Mix-invariant way to see the diffuser alone.
         for (const double mix : kDs9MixSweep) {
             OrderedReferencePath noisePath;
             if (!noisePath.prepare(config)) return fail("DS-9 noise fixture preparation failed");
@@ -2605,13 +2622,17 @@ int testDs9ChannelBalanceAndCentroids() {
                       << "  first nonzero arrival: L=" << arrivalLeft << " samples ("
                       << std::setprecision(6) << 1000.0 * static_cast<double>(arrivalLeft) / rate << "ms), R="
                       << arrivalRight << " samples (" << 1000.0 * static_cast<double>(arrivalRight) / rate
-                      << "ms)\n"
+                      << "ms); shortest even-indexed line m_0=" << m0 << " samples, shortest odd-indexed line m_1="
+                      << m1 << " samples\n"
                       << std::setprecision(10) << "  full-path energy centroid over the declared "
                       << impulseLength << "-sample window: L=" << centroidLeft << " samples ("
                       << std::setprecision(6) << 1000.0 * centroidLeft / rate << "ms), R=" << std::setprecision(10)
                       << centroidRight << " samples (" << std::setprecision(6) << 1000.0 * centroidRight / rate
                       << "ms), R-L=" << std::setprecision(10) << centroidRight - centroidLeft << " samples ("
-                      << std::setprecision(6) << 1000.0 * (centroidRight - centroidLeft) / rate << "ms)\n";
+                      << std::setprecision(6) << 1000.0 * (centroidRight - centroidLeft) / rate << "ms)"
+                      << (mix == 0.0 ? " [Mix=0: degenerate dry-passthrough point, not a diffuser measurement]"
+                                     : "")
+                      << '\n';
         }
 
         // (3) The ISOLATED output diffuser chains, fed a matched unit impulse
