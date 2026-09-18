@@ -1365,6 +1365,83 @@ shared-group-normalization convention as round 2):
 Listening notes for all of the above are the one remaining item before
 round 3, and the DS-B Sonic acceptance gate, can be considered closed.
 
+### Owner listening notes, round 3 (2026-09-18)
+
+- **`round3-transient-confound-{damp0.0,damp0.5,damp1.0}_mix1.0.wav`, first
+  generation (4-hit sequence, 220ms gaps): "all sound the same."** A real
+  test-design bug, not a DSP defect — caught, diagnosed and fixed in the
+  same turn (see the fix commit above): the 220ms inter-hit gap is far
+  shorter than this fixture's ~1.09s `T60₀`, so successive tails pile up
+  rather than decaying to a clean, quiet window between hits, masking
+  Damp's spectral coloring. Regenerated with a single burst instead of
+  four.
+- **Regenerated `damp0.0` vs `damp0.5`: "sound the same."** This is
+  **consistent with round 1's own already-recorded finding** that
+  Damp=0.3-vs-0.0 was "only subtly distinguishable" on the bare S2/PT
+  network — the same known nonlinear-at-moderate-settings perceptual
+  pattern, not a new concern, and not contradicted by round 2's
+  clearly-distinguishable Damp=0.0-vs-1.0 comparison (the extremes, not a
+  moderate step). `damp1.0` was not reported as indistinguishable from the
+  other two.
+- **`round3-transient-confound-damp0.0_mix0.3.wav`: "sounds good."** A
+  positive counterpoint to the original "metallic" observation: at a
+  realistic wet/dry blend, no complaint was raised.
+- **`round3-mix-swap-{220,277,330}hz_decay0.5_damp0.0_mix0.5.wav`: "277Hz
+  and 330Hz sound similar to each other but different from 220Hz."** This
+  is the falsification round 3 was built to run, and it resolved in favor
+  of the frequency-dependence (modal-residue) hypothesis, not a defect:
+  the swap character is **not** identical across frequencies. It also
+  shows a real, if inexact, correspondence with DS-13's measured numbers
+  above: at 48kHz the three frequencies' `|20·log₁₀(|H_L|/|H_R|)|`
+  magnitudes are 220Hz≈**7.68dB**, 277Hz≈**2.83dB**, 330Hz≈**4.40dB** — 277
+  and 330 are closer to each other in magnitude than either is to 220,
+  matching the reported perceptual grouping. Offered as a real
+  correspondence, not proof of the specific causal mechanism, which DS-13
+  measures the whole-path ratio for but does not, on its own, decompose
+  into "which line/residue is responsible."
+- **`round3-single-transient-center-check_defaults.wav`: "centered."** A
+  positive, reassuring result: despite DS-9's measured, structurally real
+  ~4.46ms/~0.6dB L-channel advantage (the network's shortest line always
+  landing in L, by construction of the even/odd interleave), a single
+  isolated transient's onset image was not reported as pulled to either
+  side.
+- **Confirmed null, recorded per Sol's review** (worth one line, since no
+  fresh listening test is needed to establish it): **no unintended pitch
+  movement is possible in this signal path**, by construction — ADR-002
+  authorizes no modulation of any kind, and none exists anywhere in
+  `DiffusionStereoPath`, `FeedbackDelayNetwork`, `SchroederAllpass`, or
+  `ParameterAutomation`'s smoothing (which ramps scalar gain/mix
+  coefficients, never a delay length or a resampling operation). "Ringing"
+  is addressed by the metallic-coloration confound isolation above rather
+  than as a separate listening item.
+
+### Round 3 and the DS-B Sonic acceptance gate: closed (2026-09-18)
+
+Every item Sol's review scoped for round 3 is now complete: the DS-13
+measurement, the closed DS-5 evidence gap, and all four listening
+falsifications/confound isolations above, including one real test-design
+bug (the transient-confound sequence's inter-hit gap) caught by the
+owner's own listening report, diagnosed against round 2's already-recorded
+contradicting result, fixed, and reverified in the same session — the same
+standard of catching a flaw rather than trusting a plausible-looking
+result that this project's testing.md has applied throughout. Per Sol's
+own stated closing condition ("round 3 as scoped... is sufficient to close
+the gate's DS-B component"), **the DS-B component of the Sonic acceptance
+gate is now closed**: impulse and a repeatable synthetic musical corpus
+exist; peak/RMS/decay/stereo measurements are recorded, including the new
+DS-13 per-channel response; and listening notes now cover ringing (via the
+confound isolation), onset density (DS-6 plus the transient corpus item),
+width (the stereo-vs-mono comparison), and unintended pitch movement
+(confirmed null, above). Terra prepared, the owner audited every render
+across three rounds, and Sol reviewed consequences — the full division of
+labor this gate names.
+
+This does **not** authorize any implementation beyond what has already
+been built (the control-thread API and the listening/measurement tooling,
+both already committed). Sol's own verdict stands: no architectural
+revision is warranted by any of this evidence, and nothing here reopens
+`N`, the delay set, the tap design, or any other ADR-006/ADR-002 decision.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
@@ -1375,6 +1452,6 @@ These gates describe future work. None is an executed reverb test, and none chan
 | Fixed late network | Independently computed matrix orthogonality and damping bounds; finite deterministic impulse/silence/noise renders; double-precision reference comparison; long zero-input decay; rate/block partition coverage. Concrete bounds NS-1…NS-11 are defined in ADR-003 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-16; see "IMPLEMENTED: Phase 1 S2" above** |
 | Parameter transitions | Endpoints, invalid values, repeated retargeting and changing block partitions; no discontinuity from smoother state reset; signal-transition metrics plus audition; no allocation or blocking on render path. Concrete cases PT-1…PT-9 are defined in ADR-004 (decisions.md); the consolidated case list (build targets, dependency flags) is in docs/phases/phase1-s2-verification-plan.md | **Satisfied 2026-09-17; see "IMPLEMENTED: Phase 1 parameter transitions" above** |
 | Modulation experiment | Fixed baseline retained; endpoint/rate stress; interpolation boundary tests; measured decay and output growth under worst-case combinations; explicit approval before enabling | Sol reviews stability limits; Terra experiments; Luna reproduces |
-| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17; DS-B component's full cycle (Terra prepares, owner auditions, Sol reviews) complete as of 2026-09-18 — see "Sol review — DS-B Sonic acceptance consequences" above. Verdict: no architectural revision warranted; the gate itself remains formally unsatisfied (non-product-representative corpus settings, thin corpus, ringing/pitch-movement not explicitly assessed) pending the recommended, not-yet-authorized "round 3" measurement+listening task** |
+| Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17 (not carried further). DS-B component: CLOSED 2026-09-18** after three listening rounds, DS-13's new per-channel measurement, and Sol's review — see "Round 3 and the DS-B Sonic acceptance gate: closed" above. Verdict: no architectural revision warranted; nothing reopens `N`, the delay set, or the tap design |
 
 For all future tests: use named cases, print the failed condition, and return nonzero on failure even in Release. Preserve seeds, parameter settings, sample rates and block sequences with evidence. Missing measurements are **unmeasured**, never passes. Report output overshoots and safety interventions rather than hiding them by clipping or regenerating reference data. Exact byte comparisons apply only where the operation/toolchain contract supports them; nonlinear or transcendental implementations need justified numerical tolerances.
