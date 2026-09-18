@@ -13,46 +13,63 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   diffusion, FDN pre-step taps, output diffusion and Mix.
 - **DS-B Task 3:** wrapper-owned aggregate fault detection and next-block
   whole-path recovery.
-- **DS-B Task 4:** measured DS-1..12 evidence (energy/pole/magnitude bounds,
+- **DS-B Task 4:** measured DS-1..13 evidence (energy/pole/magnitude bounds,
   echo density, full-path decay, interchannel coherence, mono compatibility,
   channel balance/centroids, a propagated whole-chain numerical-safety
-  cessation bound, determinism, cost) against the Task 1-3 baseline, per
-  ADR-006's correction note.
+  cessation bound, whole-path per-channel magnitude response, determinism,
+  cost) against the Task 1-3 baseline, per ADR-006's correction note. **Every
+  checkbox in the [DS-B integration plan](phases/phase1-ds-integration-plan.md)
+  is now closed**, including DS-10's propagated bound.
 - **Control-thread API (2026-09-18, owner-authorized directly, not part of
   Tasks 1-4):** `DiffusionStereoPath::setDecay()`/`setDamp()`/`setMix()`
-  forward to its already-owned `ParameterAutomation`, and
-  `tools/render_diffusion_stereo` uses them for isolation-listening renders
-  of the diffusion/stereo wet path. The owner's first listen at fixed
-  defaults reported it sounded good — a real but partial Sonic-acceptance
-  data point, not gate closure; see testing.md.
+  forward to its already-owned `ParameterAutomation`. Two tools use it:
+  `tools/render_diffusion_stereo` (single ad hoc renders) and
+  `tools/render_listening_batch` (a fixed batch of isolation/corpus/
+  falsification renders into `artifacts/`, three rounds of which are
+  recorded in testing.md).
+- **DS-B Sonic acceptance component: CLOSED (2026-09-18).** Three owner
+  listening rounds, a new DS-13 whole-path L/R magnitude-response
+  measurement, and a Sol-level architectural review of consequences are all
+  recorded in testing.md. **Verdict: no architectural revision warranted** —
+  every ADR-006 "Revisit When" trigger is untripped, and the stereo
+  observations round 2/3 surfaced are attributed to an already-named,
+  already-accepted structural property (ADR-006 (e)'s disjoint tap support),
+  not a defect. This closes evidence-gathering for the DS-B component; it
+  authorizes **no further implementation** beyond what is already committed.
+  The S2/PT-only Sonic acceptance component (mono network, no diffusion) was
+  not carried further and remains as testing.md's round-1 notes left it.
 
-The latest recorded baseline is a Release configure/build and CTest result from
-2026-09-18: **6/6 suites passed**, including the new control-thread API tests.
-Read [testing.md](testing.md) for commands, diagnostics, scope limits,
-renderer evidence, the standalone DS-A measurements, and DS-B Task 4's full
-measured record (including open findings review has not yet interpreted).
+The latest recorded baseline is a Release configure/build and CTest result
+from 2026-09-18: **6/6 suites passed**, including DS-13 and the
+control-thread API tests. Read [testing.md](testing.md) for commands,
+diagnostics, scope limits, renderer evidence, the standalone DS-A
+measurements, DS-B Task 4's full measured record, and all three Sonic
+acceptance listening rounds plus Sol's review.
 
 ## What is decided, and what is not
 
 ADR-001 through ADR-005 are accepted decisions with bounded implementation status described in each record's YAML metadata and review summary. A fixed FDN is implemented; that does not mean a complete audible product signal path, diffusion, stereo output, host integration, UI, modulation, Freeze, Bloom, Texture, or a final product line count is implemented.
 
 ADR-006 accepts an input-diffusion, injection, output-tap, and stereo
-architecture as an **evaluation baseline**, with **Tasks 1-3 implemented and
-Task 4 partially measured**:
-Task 1 lifecycle/preparation, Task 2a's read-only FDN pre-step taps, Task 2b's
-one-sample route, Task 3 recovery, and Task 4's partial DS-1..12 evidence.
-Its [review](phases/phase1-ds-review.md) corrections are resolved by an
-explicit contract and the bounded [DS-B integration plan](phases/phase1-ds-integration-plan.md).
-Full-chain decay, coherence, silence and channel measurements are recorded in
-`testing.md`. Bracket-wide independent-reference/energy/determinism/allocation
-coverage, per-Mix RMS/arrival/centroid coverage, and the propagated DS-10
-whole-chain cessation-bound are now all complete: the FDN's own
-injection/matrix/damping topology is chained analytically through the input
-cascade's own bound (see the [integration plan](phases/phase1-ds-integration-plan.md)'s
-DS-10 bullet), independently reviewed, with one caught implementation bug
-fixed and a dedicated nonzero-damping coverage test added.
-**Measuring any of this is not sonic acceptance**, which remains a separate,
-unmet gate (roadmap).
+architecture as an **evaluation baseline**, with **Tasks 1-4 fully
+implemented and measured** (all checkboxes closed in the [DS-B integration
+plan](phases/phase1-ds-integration-plan.md)). Its
+[review](phases/phase1-ds-review.md) corrections are resolved by an explicit
+contract. Full-chain decay, coherence, silence, channel and per-channel
+frequency-response measurements are all recorded in `testing.md`. **Sonic
+acceptance for the DS-B component is also now closed** (see above) — this is
+a measurement/listening/review conclusion, not new authorization: nothing
+about `N`, the delay set, the tap design, or any other ADR-002/ADR-006
+decision is reopened, and no product signal path, host integration, UI,
+modulation, Freeze, Bloom, or Texture work is authorized by any of this.
+
+**If you are picking this project back up:** there is no queued, pre-authorized
+next task. The DS-B plan and its Sonic acceptance component are both fully
+closed; the next step is a fresh scope decision the owner has to make (e.g.
+a LATER-table roadmap item, or something new). Do not infer authorization
+from the fact that measurement work is finished — read roadmap.md's LATER
+table and ask, per this project's own repeated pattern in testing.md/ADRs of
+never treating "measured" as "accepted for the next stage."
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
 **implemented** and independently covered by the fifth CTest suite. It does
