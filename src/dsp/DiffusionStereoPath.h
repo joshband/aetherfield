@@ -72,6 +72,19 @@ public:
     // this view only; Task 2 does not add wrapper audio processing.
     PreStepTapSums preStepTapSums() const noexcept;
 
+    // ---- Control-thread API (ADR-004) ----
+    // Thin forwards to the owned ParameterAutomation's identically-named
+    // setter -- see ParameterAutomation::setDecay()/setDamp()/setMix() for
+    // the full validation/derivation/transport contract (a normalized
+    // [0,1] target; a non-finite value is rejected and leaves the current
+    // target unchanged; an out-of-range finite value is clamped). Each
+    // returns false, unchanged, before preparation (no automation object
+    // exists yet to set). Not real-time safe, matching the underlying
+    // call; never called concurrently with itself.
+    bool setDecay(double normalized) noexcept;
+    bool setDamp(double normalized) noexcept;
+    bool setMix(double normalized) noexcept;
+
     // Runs one mono input sample through the input allpass cascade, normalized
     // FDN injection, pre-step even/odd taps, output allpass cascades and Mix.
     // It advances automation and the FDN exactly once. Safe before preparation:

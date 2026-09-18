@@ -8,16 +8,12 @@
 // that the product's final line count, sample-rate matrix, D_max, or tap/mix
 // design are settled.
 //
-// DiffusionStereoPath exposes no control-thread API (no setDecay/setDamp/
-// setMix): its internal ParameterAutomation is always left at prepare()'s
-// built-in defaults (Decay=0.5, Damp=0, Mix=1 -- see
-// src/dsp/ParameterAutomation.h's prepare() contract), settled immediately
-// (prepare() ends with reset(), which snaps every ramp to its target), so no
-// priming period is needed before the impulse. This tool therefore cannot
-// vary the realized decay/damping/mix -- only the sample rate and render
-// duration are meaningful CLI parameters. The fixture below (line count,
-// delay windows, ADR-006 delay-in-seconds targets, the golden-ratio allpass
-// coefficient) is the identical evaluation baseline validConfig() in
+// Decay/Damp/Mix are adjustable via setDecay()/setDamp()/setMix() (owner-
+// authorized directly in conversation 2026-09-18, not via a written ADR/
+// plan; see docs/testing.md and docs/agent-log.md), following render_reverb's
+// own CLI convention (normalized [0,1], ADR-004). The fixture below (line
+// count, delay windows, ADR-006 delay-in-seconds targets, the golden-ratio
+// allpass coefficient) is the identical evaluation baseline validConfig() in
 // tests/DiffusionStereoPathTests.cpp already exercises, not a tuned product
 // preset.
 
@@ -65,34 +61,41 @@ aetherfield::dsp::DiffusionStereoConfig evaluationFixtureConfig(double sampleRat
 }
 
 // Independently prepares a same-shape bare FeedbackDelayNetwork + its own
-// ParameterAutomation, purely to read the realized T60_0 at Decay=0.5 for
-// the printed summary -- the identical technique
-// testDs10ProofTemplateAndMeasuredSilence uses. This never touches the
-// actual render path; it is diagnostic only.
-bool realizedDefaultT60(double sampleRate, double& t60Zero) {
+// ParameterAutomation, purely to read the realized T60_0 at the given Decay
+// for the printed summary -- the identical technique
+// testDs10ProofTemplateAndMeasuredSilence uses, and the same closed form
+// render_reverb.cpp already applies to its own bare-network fixture. This
+// never touches the actual render path; it is diagnostic only.
+bool realizedT60(double sampleRate, double decayNormalized, double& t60Zero) {
     aetherfield::dsp::FeedbackDelayNetwork network;
     if (!network.prepare(sampleRate, 8, 0.027, 0.081, 4.0, 4.0)) return false;
     aetherfield::dsp::ParameterAutomation automation;
     if (!automation.prepare(network, sampleRate, 48.0)) return false;
-    t60Zero = std::sqrt(automation.t60Min() * automation.t60Max());
+    t60Zero = automation.t60Min() * std::pow(automation.t60Max() / automation.t60Min(), decayNormalized);
     return true;
 }
 
 } // namespace
 
 int main(int argc, char* argv[]) {
-    if (argc < 2 || argc > 4) {
-        std::cerr << "Usage: aetherfield_render_diffusion_stereo OUTPUT.wav [rate=48000] [durationSeconds=8.0]\n"
+    if (argc < 2 || argc > 7) {
+        std::cerr << "Usage: aetherfield_render_diffusion_stereo OUTPUT.wav [rate=48000] "
+                     "[durationSeconds=8.0] [decay=0.5] [damp=0.0] [mix=1.0]\n"
                      "  rate: sample rate in Hz (fixture is exercised at 48000/44100 by the test suite;\n"
                      "        other rates are accepted but not independently verified).\n"
                      "  durationSeconds: render length; the impulse response is NOT truncated to a\n"
                      "  measured silence point, so pick a value comfortably longer than the tail you\n"
-                     "  want to hear. Decay/Damp/Mix are NOT adjustable here -- see the file header.\n";
+                     "  want to hear.\n"
+                     "  decay/damp/mix: normalized [0,1] controls (ADR-004), forwarded to the\n"
+                     "  wrapper's owned ParameterAutomation; defaults match its own built-in defaults.\n";
         return 2;
     }
 
     const double sampleRate = (argc > 2) ? std::stod(argv[2]) : 48000.0;
     const double durationSeconds = (argc > 3) ? std::stod(argv[3]) : 8.0;
+    const double decayNormalized = (argc > 4) ? std::stod(argv[4]) : 0.5;
+    const double dampNormalized = (argc > 5) ? std::stod(argv[5]) : 0.0;
+    const double mixNormalized = (argc > 6) ? std::stod(argv[6]) : 1.0;
     if (!std::isfinite(sampleRate) || sampleRate <= 0.0) {
         std::cerr << "rate must be finite and > 0.\n";
         return 2;
@@ -107,6 +110,26 @@ int main(int argc, char* argv[]) {
         std::cerr << "path.prepare() failed.\n";
         return 1;
     }
+    if (!path.setDecay(decayNormalized) || !path.setDamp(dampNormalized) || !path.setMix(mixNormalized)) {
+        std::cerr << "path.set{Decay,Damp,Mix}() rejected an argument (must be finite).\n";
+        return 2;
+    }
+
+    // Let the 20ms coefficient ramp settle (ADR-004 (c)) before the impulse,
+    // so the impulse response reflects the fully-realized target
+    // configuration rather than a partially-ramped one -- matching
+    // render_reverb.cpp's own priming step. Unconditional: prepare()'s own
+    // built-in defaults are already settled (prepare() ends with reset(),
+    // which snaps every ramp to its target), so this is a no-op cost when
+    // decay/damp/mix match those defaults, and correctness-required
+    // otherwise.
+    constexpr std::size_t rampLengthSamples = 960; // round(0.020 * 48000), ADR-004 (c)
+    const std::size_t primingSamples = static_cast<std::size_t>(
+        std::lround(static_cast<double>(rampLengthSamples) * sampleRate / 48000.0));
+    std::vector<float> silence(primingSamples, 0.0F);
+    std::vector<float> primeLeft(primingSamples);
+    std::vector<float> primeRight(primingSamples);
+    path.process(silence.data(), primeLeft.data(), primeRight.data(), primingSamples);
 
     const std::size_t durationSamples = static_cast<std::size_t>(sampleRate * durationSeconds);
     std::vector<float> input(durationSamples, 0.0F);
@@ -181,13 +204,13 @@ int main(int argc, char* argv[]) {
     }
 
     double t60Zero = 0.0;
-    const bool haveT60 = realizedDefaultT60(sampleRate, t60Zero);
+    const bool haveT60 = realizedT60(sampleRate, decayNormalized, t60Zero);
 
     std::cerr << "Wrote " << argv[1] << ": " << durationSamples << " samples ("
               << durationSeconds << "s) at " << sampleRateU32 << " Hz stereo.\n"
               << "Fixture: N=8, input K_in=4 / output K_out=2 each channel, g_ap=0.6180339887 "
-              << "(ADR-006 (b)), wrapper defaults Decay=0.5/Damp=0/Mix=1 (not adjustable by this "
-              << "tool -- see file header)";
+              << "(ADR-006 (b)), Decay=" << decayNormalized << " normalized, Damp=" << dampNormalized
+              << " normalized (D_max_fixture=48dB, test-only), Mix=" << mixNormalized << " normalized";
     if (haveT60) {
         std::cerr << ", realized T60_0=" << t60Zero << "s";
     }

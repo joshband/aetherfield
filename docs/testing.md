@@ -953,14 +953,15 @@ through the complete measured DS-B wet path (`DiffusionStereoPath`: input
 diffusion → FDN → even/odd taps → output diffusion → Mix), using the
 identical evaluation-fixture config `validConfig()` in
 `tests/DiffusionStereoPathTests.cpp` already exercises — not a tuned
-product preset. `DiffusionStereoPath` exposes no control-thread API yet (no
-`setDecay`/`setDamp`/`setMix`), so unlike `render_reverb`'s Decay/Damp/Mix
-CLI overrides, this tool can only vary sample rate and render duration; the
-wrapper's built-in automation defaults (Decay=0.5, Damp=0, Mix=1, realized
-`T60₀≈1.0934s` at 48kHz) are fixed. Both channels are peak-normalized by a
-single shared gain (not independently per channel), so the render's actual
-stereo balance — including DS-9's recorded ~0.6dB L/R RMS imbalance and
-~4.5ms R-later-arrival — is preserved rather than masked.
+product preset. As first written, `DiffusionStereoPath` exposed no
+control-thread API (no `setDecay`/`setDamp`/`setMix`), so the tool could
+only vary sample rate and render duration at the wrapper's fixed built-in
+automation defaults; **see "Control-thread API" below — this is no longer
+the case**, and the tool now takes the same Decay/Damp/Mix CLI overrides
+`render_reverb` does. Both channels are peak-normalized by a single shared
+gain (not independently per channel), so the render's actual stereo
+balance — including DS-9's recorded ~0.6dB L/R RMS imbalance and ~4.5ms
+R-later-arrival — is preserved rather than masked.
 
 The owner listened to `artifacts/6-diffusion-stereo_wrapper-defaults.wav`
 (48kHz, 8s) and reported it sounded good. **This is a real, positive
@@ -973,6 +974,49 @@ round 1 above produced for S2/PT, not a musical corpus, and not Sol's
 onset density, width or unintended pitch movement were recorded for this
 path, and Sol's review is outstanding. Recorded here as real, honest
 partial evidence, not inflated into gate closure.
+
+### Control-thread API: `DiffusionStereoPath::setDecay()`/`setDamp()`/`setMix()` (2026-09-18)
+
+Following the owner's listen above, the owner directly authorized (in
+conversation, not via a written ADR or task plan — the DS-B integration
+plan's own Tasks 1–4 are complete and did not include this) exposing
+`DiffusionStereoPath`'s already-owned `ParameterAutomation` to callers, so
+isolation listening (as round 1 above did for S2/PT) becomes possible for
+the diffusion/stereo wet path too. Implemented test-first: four new tests
+in `tests/DiffusionStereoPathTests.cpp` (rejection before preparation,
+non-finite rejection after preparation, acceptance of valid normalized
+values, and an end-to-end check that `setMix(0.0)` settles to an exact
+dry-only bypass on both channels — reusing ADR-004's already-proven
+endpoint-exactness contract) were written and confirmed to fail to compile
+(`no member named 'setDecay'`, etc.) before the three-line forwarding
+implementation was added to `src/dsp/DiffusionStereoPath.{h,cpp}`. Each
+setter is a thin forward to the identically-named `ParameterAutomation`
+method, returning `false` unchanged before preparation; no new validation,
+ramp, or transport logic was written, since ADR-004's contract already
+governs the underlying call.
+
+`tools/render_diffusion_stereo/main.cpp` was updated to use the new API:
+it now accepts the same `decay`/`damp`/`mix` normalized CLI overrides
+`render_reverb` does, and primes a 960-sample (20ms, ADR-004 (c)) silent
+ramp-settle before the impulse, matching `render_reverb`'s own priming
+step. Manually exercised: default settings reproduce the prior
+`T60₀≈1.0934s` render; `decay=0.1` produces the expected much shorter
+`T60₀≈0.0179s`; `mix=0` produces an exactly-1.0 pre-normalization peak
+(the untouched dry impulse) with `RMS_L == RMS_R` exactly, confirming the
+dry-bypass path.
+
+```sh
+cmake -S . -B build/tdd-red -DCMAKE_BUILD_TYPE=Release
+cmake --build build/tdd-red --parallel
+ctest --test-dir build/tdd-red --output-on-failure
+git diff --check
+```
+All **6/6** CTest suites passed (`aetherfield_dsp_diffusion_stereo_tests`
+alone: ~3.2s). `git diff --check` exited zero. No musical corpus or
+per-control isolation listening pass was generated in this entry — this
+closes the *capability* gap the prior "first listen" entry's tool had, not
+the Sonic acceptance gate itself, which remains exactly as unsatisfied as
+recorded above.
 
 ## PLANNED validation gates after Phase 1
 

@@ -18,9 +18,16 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   channel balance/centroids, a propagated whole-chain numerical-safety
   cessation bound, determinism, cost) against the Task 1-3 baseline, per
   ADR-006's correction note.
+- **Control-thread API (2026-09-18, owner-authorized directly, not part of
+  Tasks 1-4):** `DiffusionStereoPath::setDecay()`/`setDamp()`/`setMix()`
+  forward to its already-owned `ParameterAutomation`, and
+  `tools/render_diffusion_stereo` uses them for isolation-listening renders
+  of the diffusion/stereo wet path. The owner's first listen at fixed
+  defaults reported it sounded good — a real but partial Sonic-acceptance
+  data point, not gate closure; see testing.md.
 
 The latest recorded baseline is a Release configure/build and CTest result from
-2026-09-17: **6/6 suites passed**, including DS-B Task 4's measurement suite.
+2026-09-18: **6/6 suites passed**, including the new control-thread API tests.
 Read [testing.md](testing.md) for commands, diagnostics, scope limits,
 renderer evidence, the standalone DS-A measurements, and DS-B Task 4's full
 measured record (including open findings review has not yet interpreted).

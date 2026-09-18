@@ -183,6 +183,18 @@ PreStepTapSums DiffusionStereoPath::preStepTapSums() const noexcept {
     return state_ ? state_->network.preStepTapSums() : PreStepTapSums {};
 }
 
+bool DiffusionStereoPath::setDecay(double normalized) noexcept {
+    return state_ && state_->automation.setDecay(normalized);
+}
+
+bool DiffusionStereoPath::setDamp(double normalized) noexcept {
+    return state_ && state_->automation.setDamp(normalized);
+}
+
+bool DiffusionStereoPath::setMix(double normalized) noexcept {
+    return state_ && state_->automation.setMix(normalized);
+}
+
 StereoSample DiffusionStereoPath::processSample(float mono) noexcept {
     if (!state_) return {};
 

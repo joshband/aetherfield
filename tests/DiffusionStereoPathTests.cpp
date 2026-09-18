@@ -3057,6 +3057,77 @@ int testDs9ChannelBalanceAndCentroids() {
 
 } // namespace
 
+// ---------------------------------------------------------------------------
+// Control-thread API: setDecay()/setDamp()/setMix() forward to the wrapper's
+// already-owned ParameterAutomation (ADR-004), exposed the same way
+// FeedbackDelayNetwork's own control-thread setters already are. This is a
+// thin forwarding addition -- ParameterAutomation's own validation/ramp/
+// endpoint-exactness contract (PT-1..PT-9) is unchanged and not re-tested
+// here; these tests only prove the forwarding itself, plus the
+// not-yet-prepared guard DiffusionStereoPath's other accessors already use.
+// Owner-authorized directly in conversation (2026-09-18), not via a written
+// ADR/plan -- see docs/testing.md and docs/agent-log.md.
+// ---------------------------------------------------------------------------
+
+int testControlSettersRejectedBeforePreparation() {
+    DiffusionStereoPath path;
+    if (path.setDecay(0.5) || path.setDamp(0.5) || path.setMix(0.5)) {
+        return fail("control setters must return false before preparation");
+    }
+    if (path.isPrepared()) return fail("unprepared path unexpectedly reports prepared");
+    return 0;
+}
+
+int testControlSettersRejectNonFiniteAfterPreparation() {
+    DiffusionStereoPath path;
+    if (!path.prepare(validConfig(48000.0))) return fail("control setter fixture preparation failed");
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    if (path.setDecay(nan) || path.setDamp(nan) || path.setMix(nan)) {
+        return fail("control setters must reject a non-finite normalized value");
+    }
+    return 0;
+}
+
+int testControlSettersAcceptValidNormalizedValues() {
+    DiffusionStereoPath path;
+    if (!path.prepare(validConfig(48000.0))) return fail("control setter fixture preparation failed");
+    if (!path.setDecay(0.5) || !path.setDamp(0.3) || !path.setMix(0.8)) {
+        return fail("control setters must accept a valid normalized [0,1] value");
+    }
+    return 0;
+}
+
+int testSetMixToZeroBypassesToDryExactly() {
+    DiffusionStereoPath path;
+    if (!path.prepare(validConfig(48000.0))) return fail("Mix bypass fixture preparation failed");
+    if (!path.setMix(0.0)) return fail("setMix(0.0) was rejected");
+
+    // Let the 20ms coefficient ramp settle (ADR-004 (c)) before checking the
+    // exact endpoint, with silent input so nothing audible leaks through
+    // during the transition itself.
+    constexpr std::size_t rampLengthSamples = 960; // round(0.020 * 48000)
+    std::vector<float> silence(rampLengthSamples, 0.0F);
+    std::vector<float> discardLeft(rampLengthSamples);
+    std::vector<float> discardRight(rampLengthSamples);
+    path.process(silence.data(), discardLeft.data(), discardRight.data(), rampLengthSamples);
+
+    constexpr std::size_t kFrames = 512;
+    std::vector<float> input(kFrames, 0.37F);
+    std::vector<float> left(kFrames);
+    std::vector<float> right(kFrames);
+    path.process(input.data(), left.data(), right.data(), kFrames);
+
+    for (std::size_t n = 0; n < kFrames; ++n) {
+        if (left[n] != input[n] || right[n] != input[n]) {
+            return fail("setMix(0.0) did not settle to an exact dry-only bypass on both channels");
+        }
+    }
+    if (path.nonFiniteCount() != 0) return fail("Mix bypass fixture unexpectedly faulted");
+    std::cout << "Control-thread API: setMix(0.0) settles to an exact dry-only bypass on both "
+                 "channels (" << kFrames << " samples checked)\n";
+    return 0;
+}
+
 int main() {
     if (testUnpreparedLifecycle() != 0) return 1;
     if (testPreparationAtBothFixtureRates() != 0) return 1;
@@ -3104,5 +3175,11 @@ int main() {
     if (testDs8MonoCompatibilityAcrossMixSweep() != 0) return 1;
     if (testDs9ChannelBalanceAndCentroids() != 0) return 1;
     std::cout << "DiffusionStereoPath Task 4b (DS-4,7,8,9) measurements passed\n";
+
+    if (testControlSettersRejectedBeforePreparation() != 0) return 1;
+    if (testControlSettersRejectNonFiniteAfterPreparation() != 0) return 1;
+    if (testControlSettersAcceptValidNormalizedValues() != 0) return 1;
+    if (testSetMixToZeroBypassesToDryExactly() != 0) return 1;
+    std::cout << "DiffusionStereoPath control-thread API (setDecay/setDamp/setMix) tests passed\n";
     return 0;
 }
