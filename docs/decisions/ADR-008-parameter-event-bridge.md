@@ -2,7 +2,7 @@
 id: "ADR-008"
 status: proposed
 implementation: "none; design-only, no bridge/wrapper/UI/dependency code"
-review: "pending-owner-review"
+review: "pending owner review"
 review_document: null
 depends_on: [ADR-001, ADR-004, ADR-007]
 ---
@@ -29,7 +29,8 @@ depends_on: [ADR-001, ADR-004, ADR-007]
   this project has already shown it does not need.
 - **Consequence:** render-thread work per callback is bounded to scanning
   the host-delivered event list once and performing at most three wait-free
-  atomic stores; the existing `checkForNewTargets()`/`advance()`
+  mailbox writes (each a relaxed value store plus a release generation
+  increment); the existing `checkForNewTargets()`/`advance()`
   block-boundary consumption in `ParameterAutomation` is unchanged. Host
   timing (`eventSampleTime`, `rampDurationSampleFrames`) is flattened to
   "next block boundary," per ADR-004(c)/(d), not honored sample-accurately.
@@ -99,7 +100,8 @@ Read directly from source, not assumed:
   counter; if unchanged since `consumedGeneration_`, it performs exactly
   one atomic load and returns; if changed, it starts a fresh ramp toward
   each of the `2·lineCount+2` published targets. `advance()` steps every
-  ramp by one sample (one add per coefficient, unconditional) and applies
+  active ramp by one sample toward its target (with a bounded per-coefficient
+  early-completion check, not a signal-value-dependent branch) and applies
   the result to the network. Both are `noexcept`, allocation-free, and
   their per-call work is bounded by `lineCount` (`FeedbackDelayNetwork::
   kMaxLineCount == 16`). **This ADR does not change either function or the
@@ -224,14 +226,24 @@ existing transport shape field-for-field.
 - **Cross-producer conflicts**: if Host and UI (say) both have a pending
   value for the same parameter when the Controller drains, both cells are
   independently valid; the Controller applies them in a **fixed scan
-  order** (proposed: StateRestore, then Host, then UI — restore should not
-  be clobbered by a stale in-flight UI touch, but live automation should
-  still be able to override a just-restored value if both are pending in
-  the same pass). Whichever role is scanned last in a given pass wins the
-  eventual `ParameterAutomation::publish()` call for that parameter in
-  that pass, because `publish()` itself unconditionally overwrites. This
+  order** (proposed: Host, then StateRestore, then UI). Because
+  `publish()` unconditionally overwrites, whichever role is scanned last
+  in a given pass wins — so a live UI touch always wins over a same-pass
+  Host or StateRestore value, on the reasoning that the most immediate
+  user intent should not be silently discarded. This protects a restore
+  from being overridden by a *stale* Host write already pending from an
+  earlier pass (Host is scanned before StateRestore), but it does **not**
+  protect a restore from a UI touch landing in the *same* pass — that
+  case is left to whichever value the drain observes last, an accepted
+  consequence of this order rather than a guarantee this ADR makes. This
   fixed order is a named product judgment, not a derived fact (Remaining
-  Decisions).
+  Decisions). Applying the scan order and then calling `publish()` once
+  per parameter per drain (resolving the tie-break first, publishing the
+  single winning value) is the intended implementation; naively calling
+  `publish()` once per pending role would run its `pow`/`log10`/`cos`/`sin`
+  derivation up to three times per parameter per drain for no benefit,
+  since PT-8 already shows that derivation, not allocation, is the
+  dominant cost.
 
 ### 3. Render-thread-side work bound
 

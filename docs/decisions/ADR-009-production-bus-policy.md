@@ -4,7 +4,7 @@ status: proposed
 implementation: "none; architectural decision only, no wrapper/UI/dependency code"
 review: "pending owner review"
 review_document: null
-depends_on: [ADR-001, ADR-003, ADR-006, ADR-007]
+depends_on: [ADR-001, ADR-003, ADR-004, ADR-006, ADR-007]
 ---
 
 # ADR-009 — Production audio bus layout, dry/bypass, and buffer-aliasing policy
@@ -103,12 +103,12 @@ evidence (not inferred):
   or bus-list abstraction; "mono-in, stereo-out" is the literal shape of the
   function signature, not a description imposed from outside.
 - **Zero-length blocks are already safe.** Both `DiffusionStereoPath::process`
-  and `FeedbackDelayNetwork::process` special-case `count == 0` as a no-op:
-  `if (count == 0 || !state_) return;`. `FeedbackDelayNetwork.h`'s own
-  contract comment states "count == 0 is always a safe no-op." Per
-  `docs/phases/phase1-ds-integration-plan.md` Task 3, this is a decided,
-  tested contract: "Zero-frame calls neither process audio nor consume a
-  pending reset."
+  (`if (count == 0 || !state_) return;`) and `FeedbackDelayNetwork::process`
+  (`if (count == 0) { return; }`) special-case `count == 0` as a no-op.
+  `FeedbackDelayNetwork.h`'s own contract comment states "count == 0 is
+  always a safe no-op." Per `docs/phases/phase1-ds-integration-plan.md`
+  Task 3, this is a decided, tested contract: "Zero-frame call neither
+  processes audio nor consumes a pending reset."
 - **Variable-length blocks are already exercised.** `docs/testing.md`'s DS-11
   records repeated renders bit-identical and a ragged `{7,29,3,211,5}`
   partition bit-identical to a whole-buffer render, extending existing
@@ -233,7 +233,7 @@ decisions."
      decisions."
 
 3. **Buffer-aliasing policy: in-place processing cannot be declared safe
-   under the current bus shape, and this is a grounded finding, not a
+   under a mono-in/stereo-out bus, and this is a grounded finding, not a
    guess.** `DiffusionStereoPath::process` takes a 1-channel input and a
    2-channel output as three independent pointers. Apple's conventional
    in-place optimization for an effect AU assumes the *same* buffer list
@@ -241,10 +241,11 @@ decisions."
    mono-in/stereo-out shape cannot satisfy that assumption because one input
    channel's storage cannot simultaneously be two output channels' storage.
    **`canProcessInPlace` must therefore report false (or the wrapper must
-   force distinct buffers) for as long as the production bus is
-   asymmetric in channel count**, independent of whatever is decided in
-   item 1. If a future stereo-in/stereo-out bus (alternative (B) or a true
-   stereo-diffusion successor) is adopted with matching channel counts,
+   force distinct buffers) for as long as the production bus stays
+   asymmetric in channel count — i.e., this constraint is a direct
+   consequence of item 1's alternative (A), not independent of it.** If
+   item 1 instead selects alternative (B), or a future true
+   stereo-diffusion successor is adopted, with matching channel counts,
    the current implementation's read-before-write, no-lookahead per-sample
    discipline (confirmed by reading `DiffusionStereoPath::processOne`) is
    *compatible* with per-channel in-place aliasing, provided any future
@@ -290,7 +291,7 @@ decisions."
    the still-unassigned state-schema prerequisite, none of which this ADR
    touches.
 
-## Remaining decisions
+## Remaining decisions and later evidence
 
 Using this project's established phrasing pattern (see ADR-007's "Remaining
 decisions and later evidence"): before any wrapper implementation plan that
