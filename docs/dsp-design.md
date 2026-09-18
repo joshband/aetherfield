@@ -42,8 +42,24 @@ substitution or autonomous reset. It does not implement a cascade, stereo,
 FDN integration, automation, or a product control. The focused and full CTest
 evidence is recorded in [testing.md](testing.md).
 
-## PLANNED: Phase 1 architecture beyond parameter transitions
+## IMPLEMENTED: Phase 1 DS-B — diffusion/stereo evaluation baseline
 
-The product's final `N`, the supported sample-rate matrix, and `D_max`'s actual perceptual/product value stay **DEFERRED** (ADR-005, ADR-004; `D_max_fixture = 48dB` above is test-only, not a product decision). The input/output diffusion topology, the injection vector, the output tap design and the stereo decorrelation strategy are now **decided but unimplemented** (ADR-006); a Diffusion or Width control, pre-delay, wet tone and modulation remain hypotheses, explicitly not authorized by any accepted ADR. Terra implements further reverb components only under separate authorization.
+`DiffusionStereoPath` implements ADR-006's fixed evaluation route: four input
+allpasses, normalized FDN injection, pre-advance even/odd taps, two distinct
+output-allpass cascades, stereo Mix, and wrapper-owned aggregate
+fault/recovery. Its owner-authorized `setDecay()`, `setDamp()`, and `setMix()`
+forward to its owned `ParameterAutomation`; `render_diffusion_stereo` and
+`render_listening_batch` exercise that route offline. DS-B Tasks 1–4 and
+DS-1…DS-13 are recorded in [testing.md](testing.md), including the propagated
+cessation bound and per-channel magnitude response. The DS-B Sonic acceptance
+component is closed after three owner listening rounds and Sol review; no
+ADR-006 revision is warranted.
 
-No input/output diffusion or stereo strategy exists — `FeedbackDelayNetwork`'s NS-test injection/tap convention is explicitly a test-only convention, not a product decision (phases/phase1-s2-plan.md); ADR-006 decides the design that replaces it and authorizes no implementation of it. No freeze state, Bloom, Texture, pitch or spectral processor exists. Therefore feedback stability under real product usage, tail quality, stereo decorrelation and mobile CPU suitability have not been measured. Neither `FeedbackDelayNetwork` nor `ParameterAutomation` makes any sonic claim; audition remains testing.md's Sonic acceptance gate's job.
+This is an implemented, measured **evaluation baseline**, not a completed
+product reverb. The product's final `N`, supported sample-rate matrix, and
+`D_max`'s actual perceptual/product value stay **DEFERRED** (ADR-005, ADR-004;
+`D_max_fixture = 48dB` above is test-only). A Diffusion or Width control,
+pre-delay, wet tone, modulation, Freeze, Bloom, Texture, pitch/spectral work,
+AUv3 integration, UI, and mobile CPU suitability remain unauthorized or
+unmeasured as applicable. No evidence here certifies iOS, an AUv3 host,
+realtime behavior, or a product signal path.

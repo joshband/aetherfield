@@ -25,7 +25,8 @@ test-local double analysis and FFT/Welch helpers.
 
 ## Status and authorization
 
-**Tasks 1-3 are implemented; Task 4 is measured, 2026-09-17.**
+**CLOSED, 2026-09-18: Tasks 1–4 are implemented and measured; DS-1…DS-13 and
+the DS-B Sonic acceptance component are closed.**
 Task 1's transactional preparation, Task 2a's read-only tap accessor, Task
 2b's one-sample audio routing, and Task 3's aggregate detector/block recovery
 are implemented and independently reviewed. Task 4 (split into sub-tasks 4a
@@ -36,9 +37,10 @@ coverage, and the propagated whole-chain DS-10 cessation-bound requirement
 below are now all closed (see that bullet for the derivation and its
 independent review). ADR-006 remains an accepted
 architecture and evaluation baseline: Task 4 measures the fixed, unmodulated
-path decided there; it adds no product controls or modulation, and its
-measurements do not establish sonic acceptance (see roadmap/Sonic acceptance
-gate). Task 3 added only the documented block boundary and fault/recovery
+path decided there; it adds no product controls or modulation. The later
+DS-13 measurement, three owner listening rounds, and Sol review close the
+DS-B Sonic acceptance component (see testing.md), without establishing product
+acceptance or authorizing successor work. Task 3 added only the documented block boundary and fault/recovery
 behavior and did not alter standalone FDN semantics; Task 4 does not alter it
 either.
 
@@ -60,7 +62,7 @@ either.
   CPU and perceptual results as measurements with stated fixtures, never as
   inherited allpass/tap algebra.
 
-## Files and proposed interfaces
+## Historical files and interfaces
 
 | File | Responsibility |
 |---|---|
@@ -362,7 +364,7 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
 4. Keep the existing mono renderer as a regression fixture. Any stereo renderer,
    host integration, UI or perceptual corpus needs its own authorization.
 
-## Commands for a future authorized increment
+## Historical commands for the then-future authorized increment
 
 ```sh
 cmake -S . -B build/ds-b -DCMAKE_BUILD_TYPE=Release
@@ -372,5 +374,6 @@ ctest --test-dir build/ds-b --output-on-failure
 git diff --check
 ```
 
-No command above has been run for DS-B because this document creates a plan,
-not an implementation or evidence claim.
+No command above had been run when this plan was first written. Later DS-B
+evidence is recorded in testing.md; this historical command block is retained
+to show the intended verification loop, not to describe current status.

@@ -368,7 +368,18 @@ summary showing only the Task 2/3 files (`FeedbackDelayNetwork.h/.cpp`,
 rendering or undisclosed production drift. Overall verdict: **PASS**, no
 deviation from this entry's claims found.
 
-## PARTIALLY IMPLEMENTED: Phase 1 DS-B Task 4 — DS-1..12 measured evidence (2026-09-17)
+## IMPLEMENTED: Phase 1 DS-B closure — Tasks 1–4, DS-1…DS-13, and Sonic acceptance (2026-09-18)
+
+DS-B Tasks 1–4 are complete. The task's DS-1…DS-12 evidence and its later
+propagated DS-10 cessation bound are recorded below; DS-13 adds a whole-path
+per-channel magnitude response. `DiffusionStereoPath` control forwarding and
+the two offline stereo render tools are implemented. Three owner listening
+rounds and Sol's review close the DS-B Sonic acceptance component with no
+architectural revision warranted. This is closure for the fixed evaluation
+baseline only: it does not authorize a product signal path, host/UI work,
+modulation, Freeze, Bloom, Texture, or a final product line count.
+
+## HISTORICAL: partially implemented Phase 1 DS-B Task 4 — DS-1..12 measured evidence (2026-09-17)
 
 **Historical scope:** measured evidence for ADR-006's DS-1..12 verification cases against
 the Task 1-3 wrapper baseline, per the 2026-09-17 correction note's corrected
@@ -863,7 +874,7 @@ Results: fresh configure/build succeeded with all warning flags on; `4/4` tests 
 
 This closes the "Parameter transitions" gate below for the PT-1…PT-9 cases. No modulation, diffusion, stereo, or sonic-quality claim follows from it.
 
-## IN PROGRESS: Sonic acceptance — first impulse render (2026-09-17)
+## HISTORICAL: Sonic acceptance — first impulse render (2026-09-17)
 
 Terra prepared one deterministic impulse-response render exercising the
 now-implemented `FeedbackDelayNetwork` + `ParameterAutomation` pipeline:
@@ -945,7 +956,7 @@ unsatisfied: no musical corpus exists, Sol has not reviewed consequences,
 and one positive (Decay) plus two inconclusive-by-test-design results
 (Mix, Damp) do not constitute a rendered product's sonic acceptance.
 
-## IN PROGRESS: Sonic acceptance — DS-B diffusion/stereo wet path first listen (2026-09-18)
+## HISTORICAL: Sonic acceptance — DS-B diffusion/stereo wet path first listen (2026-09-18)
 
 A new offline tool, `tools/render_diffusion_stereo/main.cpp`
 (`aetherfield_render_diffusion_stereo`), renders a full-scale mono impulse

@@ -1,6 +1,12 @@
 # ADR-006 implementation-readiness review
 
-**Status: review complete; corrections resolved-by-contract, 2026-09-17.**
+**Historical review status: complete; corrections resolved-by-contract,
+2026-09-17. Current completion note (2026-09-18):** DS-B Tasks 1–4 are now
+implemented and measured, including the propagated C3 cessation bound and
+DS-13. Three owner listening rounds and Sol review close the DS-B Sonic
+acceptance component; no ADR-006 revision is warranted. This closure does not
+authorize a product signal path, host wrapper, UI, modulation, Freeze, Bloom,
+Texture, or a final product line count.
 Scope: the uncommitted [ADR-006](../decisions/ADR-006-diffusion-stereo.md), checked against
 `FeedbackDelayNetwork`, `ParameterAutomation`, `DelayLine`, and the existing
 NS/PT plans. This review does not supersede the chosen topology or claim new
@@ -10,7 +16,9 @@ ADR-006's correction note and the bounded
 [DS-B integration plan](phase1-ds-integration-plan.md); implementation includes
 Task 1 transactional lifecycle/preparation, Task 2a's read-only pre-step tap
 view, Task 2b's one-sample route, and Task 3 aggregate fault/recovery path.
-Full-chain measurement evidence separately requires authorization.
+The remaining text preserves the 2026-09-17 readiness review and its then-open
+authorization/evidence statements as historical context; it is not the current
+status.
 
 **Task 2a handoff (2026-09-17):** the additive FDN accessor returns current
 even/odd `peek()` sums in increasing-delay line order and is forwarded through
@@ -117,7 +125,11 @@ The 126-sample output-chain length difference is not a bound on whole-path
 channel imbalance or centroid separation. Record those before adopting a
 perceptual tolerance. No stereo-quality acceptance follows from tap algebra.
 
-## Resolution status — contract complete, evidence still pending
+## HISTORICAL: 2026-09-17 resolution status — contract complete, evidence still pending
+
+The following table preserves the review's status at that date. Its
+"unmeasured" and "unimplemented" cells were closed by the later DS-B Task 4
+and closure record described above and in testing.md.
 
 | Finding | Sol resolution | Current status |
 |---|---|---|
