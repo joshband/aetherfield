@@ -1077,14 +1077,23 @@ comparison on the pad. The owner listened and reported, per file:
   is made here about whether the *amount* of width is correct — that is a
   subjective mix judgment outside this gate.
 
-**Not yet reported**: `round2-decay-short`/`round2-decay-baseline`,
-`round2-damp-off`/`round2-damp-full`, and the three corpus items
-individually. This round's notes are real, partial evidence — one
-concrete tool bug found and fixed, one genuine new candidate finding
-flagged for Sol's review, and two reassuring confirmations (dry bypass,
-audible stereo width) — but the Sonic acceptance gate remains
-**unsatisfied**: not every render has been auditioned yet, and Sol's
-review has not run.
+- **`round2-decay-short`/`round2-decay-baseline` and
+  `round2-damp-off`/`round2-damp-full`: all four "rendered as expected."**
+  Recorded as reported. This corroborates round 1's own decay-length
+  finding on the full stereo wet path (not just the bare S2/PT network),
+  and — unlike round 1's Damp=0.3, which was "only subtly distinguishable"
+  — the more extreme Damp=0.0-vs-1.0 comparison this round gave an
+  expected, presumably clearer result; the owner did not report it as
+  ambiguous the way round 1's Damp comparison was.
+
+**Not yet reported**: the three corpus items individually
+(`round2-corpus-pluck-chord`, `round2-corpus-sustained-pad`,
+`round2-corpus-transient-bursts`). This round's notes are real, partial
+evidence — one concrete tool bug found and fixed, one genuine new
+candidate finding flagged for Sol's review, and three reassuring
+confirmations (dry bypass, audible stereo width, decay/damp behaving as
+expected) — but the Sonic acceptance gate remains **unsatisfied**: not
+every render has been auditioned yet, and Sol's review has not run.
 
 ## PLANNED validation gates after Phase 1
 
