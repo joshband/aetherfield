@@ -143,7 +143,15 @@ bool realizedT60(double decayNormalized, double& t60Zero) {
 std::size_t tailSamplesFor(double decayNormalized) {
     double t60Zero = 1.0;
     realizedT60(decayNormalized, t60Zero);
-    const double seconds = std::min(std::max(4.0 * t60Zero, 3.0), 20.0);
+    // Capped at 90s, not a flat 20s: T60_0 spans roughly 0.018s (Decay=0.1)
+    // to 66.7s (Decay=0.9) at this fixture (measured directly, not assumed
+    // -- see docs/agent-log.md's round-2 listening entry), so a flat cap
+    // well below the top of that range silently truncates a slow decay
+    // mid-fade rather than letting it actually die away. 90s covers
+    // Decay=0.9 to roughly 1.3 T60 periods (~-81dB from peak) without
+    // making every other render unreasonably long, since 4*T60_0 is well
+    // under 90s for every Decay setting below roughly 0.93.
+    const double seconds = std::min(std::max(4.0 * t60Zero, 3.0), 90.0);
     return static_cast<std::size_t>(kSampleRate * seconds);
 }
 
