@@ -228,8 +228,9 @@ std::vector<float> sustainedPad(std::size_t tailSamples) {
 // A handful of short filtered-noise-like percussive bursts separated by
 // silence, to expose echo density/onset smearing on transient material
 // (DS-6). Deterministic: a fixed-seed xorshift PRNG, not std::random.
-std::vector<float> transientBurstSequence(std::size_t tailSamples) {
-    constexpr std::size_t burstCount = 4;
+// burstCount=1 (round 3's single-transient centre-image check) reuses the
+// identical burst shape as the round-2 4-burst sequence.
+std::vector<float> transientBurstSequence(std::size_t tailSamples, std::size_t burstCount = 4) {
     constexpr double burstSeconds = 0.008;
     constexpr double gapSeconds = 0.22;
     const std::size_t burstSamples = static_cast<std::size_t>(kSampleRate * burstSeconds);
@@ -289,7 +290,11 @@ bool renderInto(const std::vector<float>& source, double decayNormalized, double
 // Writes every render in the group with ONE SHARED peak-normalization gain
 // (computed across all of them together), so a comparison across files
 // preserves their real relative levels -- fixing round 1's per-file
-// normalization flaw for exactly the comparisons that need it.
+// normalization flaw for exactly the comparisons that need it. Also prints
+// each file's own pre-normalization peak/RMS (not just the group-shared
+// peak), per Sol's 2026-09-18 review: DS-5's "peak under ordinary programme
+// material" trigger condition needs exactly this number, and it was
+// previously computed but not captured into testing.md.
 bool writeSharedNormalizedGroup(const std::vector<RenderResult>& group, const std::string& outputDir) {
     float peak = 0.0F;
     for (const auto& r : group) {
@@ -299,6 +304,18 @@ bool writeSharedNormalizedGroup(const std::vector<RenderResult>& group, const st
     const float gain = (peak > 0.0F) ? (0.891F / peak) : 1.0F;
 
     for (const auto& r : group) {
+        float ownPeak = 0.0F;
+        double sumSquares = 0.0;
+        for (float s : r.left) {
+            ownPeak = std::max(ownPeak, std::fabs(s));
+            sumSquares += static_cast<double>(s) * static_cast<double>(s);
+        }
+        for (float s : r.right) {
+            ownPeak = std::max(ownPeak, std::fabs(s));
+            sumSquares += static_cast<double>(s) * static_cast<double>(s);
+        }
+        const double rms = std::sqrt(sumSquares / static_cast<double>(2 * r.left.size()));
+
         std::vector<float> left = r.left;
         std::vector<float> right = r.right;
         for (float& s : left) s *= gain;
@@ -309,8 +326,9 @@ bool writeSharedNormalizedGroup(const std::vector<RenderResult>& group, const st
             return false;
         }
         std::cerr << "Wrote " << path << " (" << r.left.size() << " samples, "
-                  << (static_cast<double>(r.left.size()) / kSampleRate) << "s), group-shared peak="
-                  << peak << ", group-shared gain=" << gain << "\n";
+                  << (static_cast<double>(r.left.size()) / kSampleRate) << "s), own pre-normalization peak="
+                  << ownPeak << ", own pre-normalization RMS=" << rms << ", group-shared peak=" << peak
+                  << ", group-shared gain=" << gain << "\n";
     }
     return true;
 }
@@ -443,10 +461,91 @@ int main(int argc, char* argv[]) {
                   << ", shared gain=" << gain << ")\n";
     }
 
-    std::cerr << "\nRound 2 listening batch complete. All files share a peak reference only within\n"
-                 "their own comparison group (decay / damp / mix / stereo-vs-mono), never across\n"
-                 "groups, and corpus items are independently normalized (they are not being compared\n"
-                 "to each other). This is an OBSERVATION set per ADR-006 and the roadmap's Sonic\n"
-                 "acceptance gate, not an acceptance claim.\n";
+    // --- Round 3, per Sol's 2026-09-18 review of the round-1/round-2
+    // evidence (docs/testing.md). Three items, none authorizing any DSP or
+    // ADR change: ---
+
+    // (1) Mix=0.5 stereo-"swap" falsification at three frequencies. If the
+    // uneven left/right character differs by frequency, that corroborates
+    // the modal-residue hypothesis (ADR-006 (e)'s disjoint tap support
+    // giving L/R different residues of the network's shared poles); if it
+    // is identical at every frequency, that points toward a defect
+    // instead. Frequencies match DS-13's measured H_L/H_R comparison
+    // points in tests/DiffusionStereoPathTests.cpp.
+    {
+        std::vector<RenderResult> group;
+        const std::size_t tail = tailSamplesFor(0.5);
+        const std::array<std::pair<const char*, double>, 3> settings {{
+            {"round3-mix-swap-220hz_decay0.5_damp0.0_mix0.5", 220.0},
+            {"round3-mix-swap-277hz_decay0.5_damp0.0_mix0.5", 277.0},
+            {"round3-mix-swap-330hz_decay0.5_damp0.0_mix0.5", 330.0},
+        }};
+        for (const auto& [label, freqHz] : settings) {
+            RenderResult result;
+            result.label = label;
+            if (!renderInto(sustainedTone(freqHz, 2.0, tail), 0.5, 0.0, 0.5, result)) {
+                std::cerr << "Mix=0.5 frequency-falsification render failed for " << label << "\n";
+                return 1;
+            }
+            group.push_back(std::move(result));
+        }
+        if (!writeSharedNormalizedGroup(group, outputDir)) return 1;
+    }
+
+    // (2) Metallic-confound isolation on the transient-burst corpus item:
+    // a dry (source-only) reference, a Damp sweep, and a product-plausible
+    // Mix, all under one shared normalization so they are directly
+    // comparable. If "metallic" tracks Damp and largely disappears by
+    // Damp=0.5, it is this evaluation setting, not the network topology;
+    // the dry reference isolates whatever the synthesized source itself
+    // contributes, independent of the network entirely.
+    {
+        std::vector<RenderResult> group;
+        const std::size_t tail = tailSamplesFor(0.5);
+        const std::vector<float> burst = transientBurstSequence(tail);
+        struct Confound { const char* label; double decay, damp, mix; };
+        const std::array<Confound, 5> settings {{
+            {"round3-transient-confound-dry_mix0.0", 0.5, 0.0, 0.0},
+            {"round3-transient-confound-damp0.0_mix1.0", 0.5, 0.0, 1.0},
+            {"round3-transient-confound-damp0.5_mix1.0", 0.5, 0.5, 1.0},
+            {"round3-transient-confound-damp1.0_mix1.0", 0.5, 1.0, 1.0},
+            {"round3-transient-confound-damp0.0_mix0.3", 0.5, 0.0, 0.3},
+        }};
+        for (const auto& s : settings) {
+            RenderResult result;
+            result.label = s.label;
+            if (!renderInto(burst, s.decay, s.damp, s.mix, result)) {
+                std::cerr << "Transient confound-isolation render failed for " << s.label << "\n";
+                return 1;
+            }
+            group.push_back(std::move(result));
+        }
+        if (!writeSharedNormalizedGroup(group, outputDir)) return 1;
+    }
+
+    // (3) Single-transient centre-image check for the already-measured DS-9
+    // asymmetry (L always arrives ~4.46ms before R at every rate/Decay, by
+    // construction of the even/odd interleave putting the network's
+    // shortest line in L; L also measures ~0.6dB louder). One hit, not
+    // four, at defaults, so the image at onset is what's being judged, not
+    // an averaged impression across repeated hits.
+    {
+        std::vector<RenderResult> group;
+        const std::size_t tail = tailSamplesFor(0.5);
+        RenderResult result;
+        result.label = "round3-single-transient-center-check_defaults";
+        if (!renderInto(transientBurstSequence(tail, 1), 0.5, 0.0, 1.0, result)) {
+            std::cerr << "Single-transient centre-image render failed\n";
+            return 1;
+        }
+        group.push_back(std::move(result));
+        if (!writeSharedNormalizedGroup(group, outputDir)) return 1;
+    }
+
+    std::cerr << "\nRound 2/3 listening batch complete. All files share a peak reference only within\n"
+                 "their own comparison group (decay / damp / mix / stereo-vs-mono / mix-swap-freq /\n"
+                 "transient-confound), never across groups, and standalone items (corpus, single-\n"
+                 "transient check) are independently normalized. This is an OBSERVATION set per\n"
+                 "ADR-006 and the roadmap's Sonic acceptance gate, not an acceptance claim.\n";
     return 0;
 }

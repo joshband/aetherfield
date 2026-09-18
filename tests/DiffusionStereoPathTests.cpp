@@ -3055,6 +3055,95 @@ int testDs9ChannelBalanceAndCentroids() {
     return 0;
 }
 
+// ---------------------------------------------------------------------------
+// DS-13 -- whole-path (pre-Mix) L/R magnitude response. Not one of ADR-006's
+// originally named DS-1..12 cases; added per Sol's 2026-09-18 review of the
+// DS-B round-1/round-2 listening evidence (docs/testing.md), as the
+// measurement that actually tests the "disjoint tap support gives L and R
+// different modal residues" hypothesis offered there for the Mix=0.5
+// stereo-swap and pluck-chord tail-thinning listening observations. DS-2
+// already measures individual allpass cascades' |A(e^jw)|=1 exactly; nothing
+// before this measured the two whole-path channels' relative response.
+// Recorded, like DS-6/DS-7, with no pass/fail gate -- Sol's review is
+// explicit that this is a measurement to confirm or kill a hypothesis, not
+// a new acceptance criterion.
+// ---------------------------------------------------------------------------
+
+int testDs13WholePathChannelMagnitudeResponse() {
+    // Frequencies match the round-3 Mix=0.5 listening falsification
+    // (tools/render_listening_batch/main.cpp) so the measurement and the
+    // listening test are directly comparable.
+    constexpr std::array<double, 3> kListeningFrequenciesHz {220.0, 277.0, 330.0};
+
+    for (const double rate : kBracketRates) {
+        OrderedReferencePath reference;
+        if (!reference.prepare(validConfig(rate))) return fail("DS-13 fixture preparation failed");
+
+        // Several T60_0 periods at the wrapper's default automation state
+        // (Decay=0.5, Damp=0, Mix=1 -- unchanged by this measurement, which
+        // reads wetLeft/wetRight directly). This is an ESTIMATE, truncated
+        // far short of DS-10's measured true finite-time silence (millions
+        // of samples): a Welch-style caveat, stated rather than hidden, per
+        // DS-7's own precedent for window-length-limited spectral estimates.
+        constexpr double kRenderSeconds = 8.0;
+        const std::size_t renderLength = static_cast<std::size_t>(rate * kRenderSeconds);
+        const std::size_t fftSize = nextPowerOfTwo(renderLength);
+
+        std::vector<float> wetLeft(renderLength);
+        std::vector<float> wetRight(renderLength);
+        for (std::size_t n = 0; n < renderLength; ++n) {
+            const auto sample = reference.processSampleDetailed(n == 0 ? 1.0F : 0.0F);
+            wetLeft[n] = sample.wetLeft;
+            wetRight[n] = sample.wetRight;
+        }
+        if (!hasNonzeroSample(wetLeft) || !hasNonzeroSample(wetRight)) {
+            return fail("DS-13 anti-vacuity: whole-path wet channel fixture never went nonzero");
+        }
+
+        std::vector<Complex> left(fftSize, Complex(0.0, 0.0));
+        std::vector<Complex> right(fftSize, Complex(0.0, 0.0));
+        for (std::size_t n = 0; n < renderLength; ++n) {
+            left[n] = Complex(static_cast<double>(wetLeft[n]), 0.0);
+            right[n] = Complex(static_cast<double>(wetRight[n]), 0.0);
+        }
+        radix2Fft(left);
+        radix2Fft(right);
+
+        double maxAbsDiffDb = 0.0;
+        double sumAbsDiffDb = 0.0;
+        std::size_t retainedBins = 0;
+        for (std::size_t bin = 1; bin < fftSize / 2; ++bin) { // exclude DC and Nyquist
+            const double magL = std::abs(left[bin]);
+            const double magR = std::abs(right[bin]);
+            if (magL <= 0.0 || magR <= 0.0) continue; // guard log(0) at an exact spectral null
+            const double diffDb = 20.0 * std::log10(magL / magR);
+            maxAbsDiffDb = std::max(maxAbsDiffDb, std::fabs(diffDb));
+            sumAbsDiffDb += std::fabs(diffDb);
+            ++retainedBins;
+        }
+        if (retainedBins == 0) return fail("DS-13 anti-vacuity: every bin hit an exact spectral null");
+        const double meanAbsDiffDb = sumAbsDiffDb / static_cast<double>(retainedBins);
+
+        auto diffDbAtFreq = [&](double freqHz) -> double {
+            const std::size_t bin = static_cast<std::size_t>(
+                std::lround(freqHz * static_cast<double>(fftSize) / rate));
+            return 20.0 * std::log10(std::abs(left[bin]) / std::abs(right[bin]));
+        };
+
+        std::cout << std::setprecision(10) << "DS-13 @ " << rate
+                  << "Hz: whole-path (pre-Mix) L/R magnitude response, " << renderLength << "-sample ("
+                  << kRenderSeconds << "s) impulse response [ESTIMATE, truncated well short of DS-10's "
+                  << "measured true finite-time silence], FFT size=" << fftSize << ": max|20*log10(|H_L|/"
+                  << "|H_R|)|=" << maxAbsDiffDb << "dB, mean=" << meanAbsDiffDb << "dB across " << retainedBins
+                  << " retained bins";
+        for (double freq : kListeningFrequenciesHz) {
+            std::cout << "; at " << freq << "Hz=" << diffDbAtFreq(freq) << "dB";
+        }
+        std::cout << " (recorded per Sol's 2026-09-18 review; no pass/fail gate, same as DS-6/DS-7)\n";
+    }
+    return 0;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -3174,7 +3263,8 @@ int main() {
     if (testDs7CoherenceSegmentLengthSensitivity() != 0) return 1;
     if (testDs8MonoCompatibilityAcrossMixSweep() != 0) return 1;
     if (testDs9ChannelBalanceAndCentroids() != 0) return 1;
-    std::cout << "DiffusionStereoPath Task 4b (DS-4,7,8,9) measurements passed\n";
+    if (testDs13WholePathChannelMagnitudeResponse() != 0) return 1;
+    std::cout << "DiffusionStereoPath Task 4b (DS-4,7,8,9) + round-3 DS-13 measurements passed\n";
 
     if (testControlSettersRejectedBeforePreparation() != 0) return 1;
     if (testControlSettersRejectNonFiniteAfterPreparation() != 0) return 1;
