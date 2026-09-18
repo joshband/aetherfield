@@ -379,9 +379,12 @@ architectural revision warranted. This is closure for the fixed evaluation
 baseline only: it does not authorize a product signal path, host/UI work,
 modulation, Freeze, Bloom, Texture, or a final product line count.
 
-## HISTORICAL: partially implemented Phase 1 DS-B Task 4 — DS-1..12 measured evidence (2026-09-17)
+## Phase 1 DS-B Task 4 — DS-1..12 measured evidence (2026-09-17 record; current, load-bearing evidence)
 
-**Historical scope:** measured evidence for ADR-006's DS-1..12 verification cases against
+**Historical framing only:** this record's own "partially implemented" language
+describes Task 4's status as of 2026-09-17, before Task 4 closed (see the
+IMPLEMENTED section above). The DS-1..12 measurements themselves are current
+and still load-bearing — not superseded. Scope: measured evidence for ADR-006's DS-1..12 verification cases against
 the Task 1-3 wrapper baseline, per the 2026-09-17 correction note's corrected
 contracts (C1-C5). No `src/` file changed; this task is test-only. Split into
 two sub-tasks that landed as four commits on `ds-b-task4`, each independently

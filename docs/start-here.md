@@ -63,13 +63,19 @@ about `N`, the delay set, the tap design, or any other ADR-002/ADR-006
 decision is reopened, and no product signal path, host integration, UI,
 modulation, Freeze, Bloom, or Texture work is authorized by any of this.
 
-**If you are picking this project back up:** there is no queued, pre-authorized
-next task. The DS-B plan and its Sonic acceptance component are both fully
-closed; the next step is a fresh scope decision the owner has to make (e.g.
-a LATER-table roadmap item, or something new). Do not infer authorization
-from the fact that measurement work is finished — read roadmap.md's LATER
-table and ask, per this project's own repeated pattern in testing.md/ADRs of
-never treating "measured" as "accepted for the next stage."
+**If you are picking this project back up:** the DS-B plan and its Sonic
+acceptance component are both fully closed, and there is no queued,
+pre-authorized *implementation* task. The active continuation is an
+**owner-gated, documentation-only comparison of native Apple APIs and JUCE**
+for a future AUv3 wrapper, recorded as proposed
+[ADR-007](decisions/ADR-007-auv3-integration-comparison.md) plus its
+[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md).
+ADR-007 remains **proposed**, pending owner acceptance; it authorizes no
+wrapper, UI, dependency, or other product implementation. Do not infer
+authorization from the fact that measurement or comparison work is
+finished — read roadmap.md's LATER table and ask, per this project's own
+repeated pattern in testing.md/ADRs of never treating "measured" or
+"compared" as "accepted for the next stage."
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
 **implemented** and independently covered by the fifth CTest suite. It does

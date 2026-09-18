@@ -40,9 +40,9 @@ architecture and evaluation baseline: Task 4 measures the fixed, unmodulated
 path decided there; it adds no product controls or modulation. The later
 DS-13 measurement, three owner listening rounds, and Sol review close the
 DS-B Sonic acceptance component (see testing.md), without establishing product
-acceptance or authorizing successor work. Task 3 added only the documented block boundary and fault/recovery
-behavior and did not alter standalone FDN semantics; Task 4 does not alter it
-either.
+acceptance or authorizing successor work. Task 3 added only the documented
+block boundary and fault/recovery behavior and did not alter standalone FDN
+semantics; Task 4 does not alter it either.
 
 ## Global constraints
 

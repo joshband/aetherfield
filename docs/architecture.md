@@ -41,8 +41,10 @@ composition; it is not an AUv3 or product-wrapper diagram.
   mono reverb renderer is an S2/PT observation fixture; the two DS-B render
   tools exercise the implemented evaluation path, not a product wrapper.
 - Future platform wrapper: will own Apple buffers, lifecycle, parameter events,
-  state and UI integration. Native Apple APIs versus JUCE remains deferred;
-  the portable core must not include Apple or framework types.
+  state and UI integration. Native Apple APIs versus JUCE is a proposed,
+  owner-gated decision ([ADR-007](decisions/ADR-007-auv3-integration-comparison.md),
+  documentation-only, not yet accepted); the portable core must not include
+  Apple or framework types either way.
 
 ## Build and ownership
 

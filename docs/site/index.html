@@ -412,7 +412,7 @@
 
     <div class="sidebar-foot">
       <div class="stat"><span>Phase</span><b>1 of 6</b></div>
-      <div class="stat"><span>ADRs recorded</span><b>6</b></div>
+      <div class="stat"><span>ADRs recorded</span><b>7</b></div>
       <div class="stat"><span>Gates closed</span><b>3 + DS-B / 5</b></div>
       <div class="stat"><span>Tests passing</span><b>6 / 6</b></div>
     </div>
@@ -483,9 +483,9 @@
             <div class="detail">topology → damping → parameters → fixture</div>
           </div>
           <div class="card stat-tile">
-            <div class="num">3/5</div>
+            <div class="num">3 + DS-B / 5</div>
             <div class="label">Verification gates closed</div>
-            <div class="detail">delay/lifecycle · fixed late network · parameter transitions</div>
+            <div class="detail">delay/lifecycle · fixed late network · parameter transitions · DS-B Sonic acceptance closed</div>
           </div>
           <div class="card stat-tile">
             <div class="num">6.6e-8</div>
@@ -606,7 +606,7 @@ flowchart LR
     <!-- ============ DECISIONS ============ -->
     <section class="page" data-page="decisions">
       <div class="eyebrow">Architecture · Decision Records</div>
-      <h1>Six decisions, with implementation tracked separately.</h1>
+      <h1>Seven decisions, with implementation tracked separately.</h1>
       <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
 
       <div class="adr">
@@ -674,6 +674,22 @@ flowchart LR
         <div class="adr-meta"><a href="../decisions/ADR-006-diffusion-stereo.md">Full ADR</a>
           <a href="../phases/phase1-ds-review.md">Readiness review</a></div>
       </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-007</span>
+          <h3>Native Apple APIs versus JUCE for iOS/iPadOS AUv3</h3>
+          <span class="pill pending">Proposed — owner acceptance pending</span>
+        </div>
+        <div class="decision">Proposes native Apple AUv3 APIs around the portable C++ core for the
+          current single-format iOS/iPadOS scope, over JUCE's wider but
+          unrequired platform/format support. Documentation-only comparison:
+          it authorizes no wrapper, UI, dependency, or host/device work, and
+          does not supersede ADR-001's deferred integration boundary while
+          proposed.</div>
+        <div class="adr-meta"><a href="../decisions/ADR-007-auv3-integration-comparison.md">Full ADR</a>
+          <a href="../superpowers/plans/2026-09-18-auv3-integration-evaluation.md">Decision-only evaluation plan</a></div>
+      </div>
       <p><a href="../decisions/index.md">All ADR summaries, metadata and full records</a></p>
 
       <div class="note">Three task plans followed the same rigor without needing a fresh ADR — all now in <code>docs/phases/</code> (moved there from <code>docs/</code> root to keep the durable documents from bloating): <code>phase1-s1-plan.md</code> (<code>DelayLine</code>), <code>phase1-s2-plan.md</code> (<code>FeedbackDelayNetwork</code>), and <code>phase1-pt-plan.md</code> (<code>ParameterAutomation</code>) — each a Terra-authored translation of already-decided math, each independently verified by Luna before implementation, each now marked implemented in place rather than deleted or rewritten after the fact.</div>
@@ -724,7 +740,7 @@ flowchart LR
             <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">CODE → BUILD → TEST → RENDER → INSPECT, proven on a trivial gain fixture.</p>
           </div>
           <div class="card">
-            <div class="pill good" style="margin-bottom:10px;">Next — owner decision</div>
+            <div class="pill pending" style="margin-bottom:10px;">Next — owner decision</div>
             <b>AUv3 integration comparison</b>
             <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Compare native Apple APIs and JUCE on documentation evidence only; no wrapper, UI, dependency, or host/device claim is authorized.</p>
           </div>
