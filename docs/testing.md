@@ -1307,6 +1307,64 @@ Per this project's division of labor, this review is Sol's recommendation
 only — Astra/the owner has not yet accepted it, and round 3 is not yet
 authorized.
 
+## Round 3 — measured (2026-09-18)
+
+The owner authorized round 3 as Sol scoped it above. Measurement and
+render generation are complete; the listening portion (below) is
+outstanding.
+
+**DS-13 (new case, not one of ADR-006's original DS-1..12): whole-path
+(pre-Mix) L/R magnitude response.** Added to
+`tests/DiffusionStereoPathTests.cpp`, using the already-existing, already
+bit-verified `OrderedReferencePath::processSampleDetailed()`'s
+`wetLeft`/`wetRight` fields (no new production accessor). An 8-second
+impulse response per rate (at the wrapper's default automation state),
+zero-padded and FFT'd; reports `max`/`mean |20·log₁₀(|H_L|/|H_R|)|` across
+all retained bins plus the value at 220/277/330Hz (matching the round-3
+listening falsification below). Explicitly labelled, in the test's own
+output, an **ESTIMATE** truncated far short of DS-10's measured true
+finite-time silence — the same window-length caveat DS-7's Welch estimate
+already carries, not a new one. No pass/fail gate, same as DS-6/DS-7.
+
+Measured: **48kHz** — max **58.47dB**, mean **6.181dB** across 262,143
+retained bins; at 220Hz **+7.679dB**, 277Hz **−2.825dB**, 330Hz
+**+4.402dB**. **44.1kHz** — max **59.57dB**, mean **6.145dB** across
+262,143 bins; at 220Hz **+7.381dB**, 277Hz **+0.885dB**, 330Hz
+**−6.039dB**. The mean figure (~6.15dB, consistent across both rates) is
+a real, substantial average difference across the whole spectrum, not an
+artifact of one or two near-null bins driving the much larger max figure
+up — this is the first quantified evidence toward Sol's modal-residue
+hypothesis for the round-2 stereo findings. The per-frequency values
+**flip sign between the two rates** (clearest at 330Hz: +4.4dB @48kHz vs.
+−6.0dB @44.1kHz) — expected, not an anomaly, since ADR-005 derives every
+delay length independently per rate, so a fixed frequency sits at a
+genuinely different point in each rate's own comb structure.
+
+**DS-5 evidence gap closed**: every round-2 listening render's own
+pre-normalization peak/RMS is now printed by
+`tools/render_listening_batch` (previously computed, not captured).
+Recorded here for the three corpus items — this project's first
+*ordinary programme material* peaks, the condition DS-5's trigger actually
+names, as opposed to the deliberately worst-case-aligned bracket fixture
+DS-5's existing 33.36/55.90 figure came from: pluck-chord peak
+**0.544617** (RMS 0.0575471), sustained-pad peak **0.870556** (RMS
+0.200217), transient-bursts peak **0.0654719** (RMS 0.00479341) — all far
+under the `√5^4=25` (`K_in=4`) bound; DS-5's trigger condition remains
+untripped under this evidence too.
+
+**Round-3 renders generated** via `tools/render_listening_batch` (same
+shared-group-normalization convention as round 2):
+- `round3-mix-swap-{220,277,330}hz_decay0.5_damp0.0_mix0.5.wav` — the
+  Mix=0.5 stereo-swap falsification at DS-13's three measured frequencies.
+- `round3-transient-confound-{dry_mix0.0,damp0.0_mix1.0,damp0.5_mix1.0,
+  damp1.0_mix1.0,damp0.0_mix0.3}.wav` — metallic-confound isolation on the
+  transient-burst item, one shared-normalized group of five.
+- `round3-single-transient-center-check_defaults.wav` — one isolated hit
+  (not four), for judging the DS-9 arrival/level asymmetry at onset.
+
+Listening notes for all of the above are the one remaining item before
+round 3, and the DS-B Sonic acceptance gate, can be considered closed.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
