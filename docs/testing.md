@@ -1018,6 +1018,74 @@ closes the *capability* gap the prior "first listen" entry's tool had, not
 the Sonic acceptance gate itself, which remains exactly as unsatisfied as
 recorded above.
 
+### Owner listening notes, round 2 — DS-B diffusion/stereo path (2026-09-18)
+
+`tools/render_listening_batch/main.cpp` (`aetherfield_render_listening_batch`)
+generated the round-2 batch described above: Decay isolation
+(short/baseline/long), Damp isolation (off/full), Mix isolation
+(dry/half/wet, sustained-tone source, shared batch normalization — the
+round-1 fix), a 3-item synthetic musical corpus (pluck chord, sustained
+pad, transient bursts) at defaults, and a stereo-vs-mono fold-down
+comparison on the pad. The owner listened and reported, per file:
+
+- **`round2-decay-long_decay0.9_*.wav` (as first generated) began to fade
+  but cut off abruptly at the 20s render length.** This was **a real bug
+  in the render tool, not reverb behavior**, and the owner's report is what
+  caught it: `Decay=0.9`'s realized `T60₀` is **66.7s** (measured directly
+  — see the fix commit), and the tool's duration cap was a flat 20s
+  regardless of the realized T60, so the render stopped at only ~0.3 T60
+  periods (~−18dB from peak), nowhere near an actual decay to silence.
+  Fixed by raising the cap to 90s (covers `Decay=0.9` to ~1.3 T60 periods,
+  ~−81dB) and the file was regenerated; every other group's shared
+  peak/gain was unchanged by the fix, confirming each decay's peak is set
+  early, not late.
+- **`round2-mix-dry_decay0.5_*.wav` sounded like "an extended tone with
+  minimal reverb," hard to judge whether that reflected Mix=0 or the tone
+  itself.** This is consistent with, and does not contradict, the already
+  code-proven exact bypass (`testSetMixToZeroBypassesToDryExactly`: output
+  is bit-identical to the dry input at Mix=0). The methodological lesson:
+  a single sustained pure tone is a poor signal for judging "is a subtle
+  effect present," because there is no transient/onset shape to listen
+  for its absence against — the corpus items (with real attack/decay
+  shape) are likely to make Mix's effect easier to judge than a flat tone.
+- **`round2-mix-half_decay0.5_*.wav`: "the stereo quality is a bit weird,
+  it sounds like it starts mono, then swaps from left to right speaker
+  unevenly."** This is a real, new listening finding, not explained by
+  anything already measured (DS-7/DS-8/DS-9 used noise or impulse
+  excitation, never a sustained pure tone). **Unverified hypothesis,
+  offered as a candidate explanation only:** ADR-006 (e)'s even/odd tap
+  split means the L and R channels tap *different* delay lines with
+  *different* lengths, so each channel has its own, different comb/modal
+  structure; a single sustained frequency (unlike broadband noise or an
+  impulse) probes one specific point in each channel's response, and if
+  that point sits asymmetrically relative to each channel's nulls/peaks,
+  uneven or beating left/right balance is a plausible structural
+  consequence of the tap design under tonal excitation specifically — not
+  necessarily a coding defect. **Not measured or confirmed — flagged here
+  for Sol's review and as a candidate follow-up measurement** (e.g. a
+  per-channel magnitude-response sweep through the full wet path,
+  analogous to DS-2 but for the L/R tap groups together rather than one
+  allpass section).
+- **`round2-mix-wet_decay0.5_*.wav` was "much more balanced"** than the
+  half-mix file — recorded as reported; not further explained here.
+- **`round2-stereo-vs-mono-monofold_defaults.wav` "sounds like a mono
+  chord"; `round2-stereo-vs-mono-stereo_defaults.wav` "sounds like a
+  stereo chord."** A real, positive finding: the two are audibly
+  different, confirming the output diffusion/decorrelation stage (ADR-006
+  (f)) produces a genuinely perceptible stereo width on real chordal
+  material, not an accidentally-collapsed or falsely-wide image. No claim
+  is made here about whether the *amount* of width is correct — that is a
+  subjective mix judgment outside this gate.
+
+**Not yet reported**: `round2-decay-short`/`round2-decay-baseline`,
+`round2-damp-off`/`round2-damp-full`, and the three corpus items
+individually. This round's notes are real, partial evidence — one
+concrete tool bug found and fixed, one genuine new candidate finding
+flagged for Sol's review, and two reassuring confirmations (dry bypass,
+audible stereo width) — but the Sonic acceptance gate remains
+**unsatisfied**: not every render has been auditioned yet, and Sol's
+review has not run.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
