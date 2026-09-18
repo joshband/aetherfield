@@ -35,11 +35,15 @@ Task 1 lifecycle/preparation, Task 2a's read-only FDN pre-step taps, Task 2b's
 one-sample route, Task 3 recovery, and Task 4's partial DS-1..12 evidence.
 Its [review](phases/phase1-ds-review.md) corrections are resolved by an
 explicit contract and the bounded [DS-B integration plan](phases/phase1-ds-integration-plan.md).
-Full-chain decay, coherence, silence and channel measurements are partially
-implemented and recorded in `testing.md`; bracket-wide independent-reference,
-per-Mix RMS/arrival/centroid, and propagated DS-10 cessation-bound coverage
-remain incomplete. **Measuring them is not sonic acceptance**, which remains a
-separate, unmet gate (roadmap).
+Full-chain decay, coherence, silence and channel measurements are recorded in
+`testing.md`. Bracket-wide independent-reference/energy/determinism/allocation
+coverage and per-Mix RMS/arrival/centroid coverage are now complete; the
+propagated DS-10 whole-chain cessation-bound remains the one open item (it
+needs the FDN's own injection/matrix/damping topology chained through the
+input cascade's bound, not a mechanical bracket extension — see the
+[integration plan](phases/phase1-ds-integration-plan.md)'s DS-10 bullet).
+**Measuring any of this is not sonic acceptance**, which remains a separate,
+unmet gate (roadmap).
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
 **implemented** and independently covered by the fifth CTest suite. It does

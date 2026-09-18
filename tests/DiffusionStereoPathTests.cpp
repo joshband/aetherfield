@@ -1713,6 +1713,231 @@ CascadeEnergyResult cascadeEnergyError(double rate, const std::vector<double>& t
     return result;
 }
 
+// ---------------------------------------------------------------------------
+// DS-1/2/3/5/6/11/12 (remaining bracket gap) -- closes the three items the
+// whole-branch review recorded as still open on this line item: an
+// independent double-precision recurrence reference for DS-2 (rather than
+// re-measuring the same rendered response with only the radix2Fft-based
+// magnitude check above), and energy conservation / determinism / allocation
+// extended across every runnable (K_in, K_out, rate) bracket cascade instead
+// of only the fixed K_in=4/K_out=2 wrapper configuration.
+// ---------------------------------------------------------------------------
+
+// A second, independently implemented Schroeder allpass difference equation
+// (y[n] = -g*x[n] + s[n-d]; s[n] = x[n] + g*y[n]) in double precision, with
+// its own circular buffer. Deliberately a fresh copy here rather than a
+// shared include: tests/SchroederAllpassTests.cpp's own single-section
+// DoubleReferenceAllpass keeps its own local copy for the same reason (a
+// header shared with the code under test, or with the FFT-based check above,
+// could hide a bug common to both sides of the comparison).
+struct DoubleReferenceAllpassSection {
+    DoubleReferenceAllpassSection(std::size_t delaySamples, double coefficient)
+        : delay(delaySamples, 0.0), g(coefficient) {}
+
+    double process(double input) noexcept {
+        const double delayed = delay[writePosition];
+        const double state = input + g * delayed;
+        const double output = delayed - g * state;
+        delay[writePosition] = std::abs(state) >= 1e-20 ? state : 0.0;
+        ++writePosition;
+        if (writePosition == delay.size()) writePosition = 0;
+        return output;
+    }
+
+    std::vector<double> delay;
+    std::size_t writePosition = 0;
+    double g;
+};
+
+struct DoubleReferenceCascade {
+    DoubleReferenceCascade(const std::vector<std::size_t>& delays, double coefficient) {
+        sections.reserve(delays.size());
+        for (const std::size_t delaySamples : delays) sections.emplace_back(delaySamples, coefficient);
+    }
+    double process(double input) noexcept {
+        double value = input;
+        for (auto& section : sections) value = section.process(value);
+        return value;
+    }
+    std::vector<DoubleReferenceAllpassSection> sections;
+};
+
+int testDs2IndependentDoubleRecurrenceAcrossBracket() {
+    double maximumError = 0.0;
+    std::size_t cascadesChecked = 0;
+
+    auto checkTargets = [&](double rate, const std::vector<double>& targets) -> bool {
+        auto delayProbe = buildCascade(rate, targets, kGoldenCoefficient);
+        if (delayProbe.empty()) return false;
+        const auto delays = cascadeDelays(delayProbe);
+        std::size_t delaySum = 0;
+        for (const std::size_t delaySamples : delays) delaySum += delaySamples;
+        const std::size_t windowLength = 4 * std::max<std::size_t>(delaySum, 1);
+
+        auto impulseCascade = buildCascade(rate, targets, kGoldenCoefficient);
+        DoubleReferenceCascade impulseReference(delays, kGoldenCoefficient);
+        for (std::size_t n = 0; n < windowLength; ++n) {
+            const float input = n == 0 ? 1.0F : 0.0F;
+            const auto actual = runCascadeSample(impulseCascade, input);
+            const double expected = impulseReference.process(static_cast<double>(input));
+            if (actual.nonFinite) return false;
+            maximumError = std::max(maximumError, std::abs(static_cast<double>(actual.value) - expected));
+        }
+
+        auto noiseCascade = buildCascade(rate, targets, kGoldenCoefficient);
+        DoubleReferenceCascade noiseReference(delays, kGoldenCoefficient);
+        const auto noiseScript = makeNoiseScript(windowLength, 0xC001D00DU);
+        for (const float input : noiseScript) {
+            const auto actual = runCascadeSample(noiseCascade, input);
+            const double expected = noiseReference.process(static_cast<double>(input));
+            if (actual.nonFinite) return false;
+            maximumError = std::max(maximumError, std::abs(static_cast<double>(actual.value) - expected));
+        }
+        ++cascadesChecked;
+        return true;
+    };
+
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
+            return checkTargets(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn))
+                ? 0 : fail("DS-2 independent double recurrence diverged on an input cascade");
+        },
+        [&](double rate, std::size_t kOut) -> int {
+            const auto window = buildOutputWindow(kOut);
+            return (checkTargets(rate, window.left) && checkTargets(rate, window.right))
+                ? 0 : fail("DS-2 independent double recurrence diverged on an output cascade");
+        });
+    if (bracketResult != 0) return bracketResult;
+
+    std::cout << std::setprecision(10) << "DS-2 independent double recurrence: " << cascadesChecked
+              << " cascades checked (impulse + deterministic noise against a second, independently "
+                 "implemented difference-equation reference -- not the radix2Fft magnitude check above), "
+                 "max abs error=" << maximumError << '\n';
+    // DS-A's own single-section version of this check uses 2e-5; this
+    // extends to cascades of up to 5 sections, so a slightly wider (but
+    // still tight) tolerance is used. The measured worst case across the
+    // full bracket is ~2e-7, two orders of magnitude inside this bound.
+    return maximumError <= 1e-5 ? 0 : fail("DS-2 independent double recurrence error exceeded tolerance");
+}
+
+int testDs1Through12BracketEnergyConservation() {
+    double worstImpulse = 0.0;
+    double worstNoise = 0.0;
+    std::size_t cascadesChecked = 0;
+    const std::vector<float> impulseScript {1.0F};
+    const auto noiseScript = makeNoiseScript(4096);
+
+    auto checkTargets = [&](double rate, const std::vector<double>& targets) -> bool {
+        const CascadeEnergyResult impulseResult = cascadeEnergyError(rate, targets, impulseScript);
+        const CascadeEnergyResult noiseResult = cascadeEnergyError(rate, targets, noiseScript);
+        if (!impulseResult.valid || !noiseResult.valid) return false;
+        worstImpulse = std::max(worstImpulse, impulseResult.relativeError);
+        worstNoise = std::max(worstNoise, noiseResult.relativeError);
+        ++cascadesChecked;
+        return true;
+    };
+
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
+            return checkTargets(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn))
+                ? 0 : fail("bracket energy conservation failed on an input cascade");
+        },
+        [&](double rate, std::size_t kOut) -> int {
+            const auto window = buildOutputWindow(kOut);
+            return (checkTargets(rate, window.left) && checkTargets(rate, window.right))
+                ? 0 : fail("bracket energy conservation failed on an output cascade");
+        });
+    if (bracketResult != 0) return bracketResult;
+
+    std::cout << std::setprecision(10) << "DS-1..12 bracket energy conservation: " << cascadesChecked
+              << " cascades checked, worst impulse relative error=" << worstImpulse
+              << ", worst 4096-sample noise relative error=" << worstNoise << " (stated tolerance "
+              << kEnergyToleranceRelative << "; extends testDs4CascadeEnergyConservation's fixed "
+                 "K_in=4/K_out=2 check across the full bracket)\n";
+    return (worstImpulse <= kEnergyToleranceRelative && worstNoise <= kEnergyToleranceRelative)
+        ? 0 : fail("bracket energy relative error exceeded the stated 1e-5 tolerance");
+}
+
+int testDs11DeterminismAcrossBracket() {
+    std::size_t cascadesChecked = 0;
+
+    auto checkTargets = [&](double rate, const std::vector<double>& targets) -> bool {
+        const auto script = makeNoiseScript(2048, 0xBADC0FFEU);
+        auto renderOnce = [&]() -> std::vector<double> {
+            auto cascade = buildCascade(rate, targets, kGoldenCoefficient);
+            std::vector<double> output;
+            if (cascade.empty()) return output;
+            output.reserve(script.size());
+            for (const float input : script) {
+                const auto sample = runCascadeSample(cascade, input);
+                if (sample.nonFinite) return {};
+                output.push_back(static_cast<double>(sample.value));
+            }
+            return output;
+        };
+        const auto first = renderOnce();
+        if (first.empty() || !hasNonzeroSample(first)) return false;
+        if (renderOnce() != first) return false;
+        ++cascadesChecked;
+        return true;
+    };
+
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
+            return checkTargets(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn))
+                ? 0 : fail("DS-11 bracket determinism failed on an input cascade");
+        },
+        [&](double rate, std::size_t kOut) -> int {
+            const auto window = buildOutputWindow(kOut);
+            return (checkTargets(rate, window.left) && checkTargets(rate, window.right))
+                ? 0 : fail("DS-11 bracket determinism failed on an output cascade");
+        });
+    if (bracketResult != 0) return bracketResult;
+
+    std::cout << "DS-11 bracket determinism: " << cascadesChecked
+              << " cascades checked, repeated identical 2048-sample noise scripts float-bit identical\n";
+    return 0;
+}
+
+int testDs12AllocationAcrossBracket() {
+    std::size_t cascadesChecked = 0;
+
+    auto checkTargets = [&](double rate, const std::vector<double>& targets) -> bool {
+        auto cascade = buildCascade(rate, targets, kGoldenCoefficient);
+        if (cascade.empty()) return false;
+        for (std::size_t n = 0; n < 128; ++n) {
+            if (runCascadeSample(cascade, n == 0 ? 1.0F : 0.0F).nonFinite) return false;
+        }
+        const std::size_t before = gAllocationCount.load(std::memory_order_relaxed);
+        for (std::size_t n = 0; n < 4096; ++n) {
+            if (runCascadeSample(cascade, 0.0F).nonFinite) return false;
+        }
+        if (gAllocationCount.load(std::memory_order_relaxed) != before) return false;
+        ++cascadesChecked;
+        return true;
+    };
+
+    const int bracketResult = forEachBracketCascade(
+        kBracketRates, kBracketKIn, kBracketKOut,
+        [&](double rate, std::size_t kIn) -> int {
+            return checkTargets(rate, geometricTargets(kInputWindowMinSeconds, kInputWindowMaxSeconds, kIn))
+                ? 0 : fail("DS-12 bracket allocation check failed on an input cascade");
+        },
+        [&](double rate, std::size_t kOut) -> int {
+            const auto window = buildOutputWindow(kOut);
+            return (checkTargets(rate, window.left) && checkTargets(rate, window.right))
+                ? 0 : fail("DS-12 bracket allocation check failed on an output cascade");
+        });
+    if (bracketResult != 0) return bracketResult;
+
+    std::cout << "DS-12 bracket allocation: " << cascadesChecked
+              << " cascades checked, zero allocation delta over 4096 steady-state samples each\n";
+    return 0;
+}
+
 int testDs4CascadeEnergyConservation() {
     const std::array<const char*, 3> labels {"input K_in=4", "output-L K_out=2", "output-R K_out=2"};
     double worstImpulse = 0.0;
@@ -2310,56 +2535,91 @@ int testDs8MonoCompatibilityAcrossMixSweep() {
 // forbids a pre-review channel-balance/perceptual tolerance.
 // ---------------------------------------------------------------------------
 
+// The declared Mix sweep RMS/arrival/full-path-centroid are measured at,
+// shared with DS-8's own sweep of the same fixture family so both report on
+// the same five points. The isolated output-diffuser centroid below is NOT
+// part of this sweep: it is measured on a fixture that never touches Mix at
+// all (no FDN, no input chain, no dry/wet gain), so it is Mix-invariant by
+// construction and is measured once per rate, not once per (rate, Mix).
+constexpr std::array<double, 5> kDs9MixSweep {0.0, 0.25, 0.5, 0.75, 1.0};
+
 int testDs9ChannelBalanceAndCentroids() {
     for (const double rate : kBracketRates) {
         const DiffusionStereoConfig config = validConfig(rate);
 
-        // (1) Channel balance on a continuous broadband-noise fixture.
-        OrderedReferencePath noisePath;
-        if (!noisePath.prepare(config)) return fail("DS-9 noise fixture preparation failed");
-        const double decay = normalizedDecayForT60(noisePath.automation, kComparabilityT60Seconds);
-        const double t60Zero = realizedT60Zero(noisePath.automation, decay);
-        if (!applyReferenceControls(noisePath, decay, 0.0, 1.0)) {
-            return fail("DS-9 noise fixture control application failed");
-        }
-        const auto warmup = static_cast<std::size_t>(kComparabilityT60Seconds * rate);
-        const std::vector<float> noiseScript = makeNoiseScript(warmup + kAnalysisRecordSamples);
-        const FullPathRender noiseRender = renderFullPath(noisePath, noiseScript, warmup);
-        if (!hasNonzeroSample(noiseRender.left) || !hasNonzeroSample(noiseRender.right)) {
-            return fail("DS-9 anti-vacuity: the channel-balance fixture rendered a silent channel");
-        }
-        const double noiseRmsLeft = rmsOf(noiseRender.left);
-        const double noiseRmsRight = rmsOf(noiseRender.right);
-        const double noiseImbalanceDb = 20.0 * std::log10(noiseRmsLeft / noiseRmsRight);
+        // (1)+(2) Channel RMS, first nonzero arrival and full-path energy
+        // centroid, at every declared Mix fixture. Decay is fixed at the
+        // shared comparability T60_0 (Damp bypassed) across the sweep, so
+        // only Mix varies between rows.
+        for (const double mix : kDs9MixSweep) {
+            OrderedReferencePath noisePath;
+            if (!noisePath.prepare(config)) return fail("DS-9 noise fixture preparation failed");
+            const double decay = normalizedDecayForT60(noisePath.automation, kComparabilityT60Seconds);
+            const double t60Zero = realizedT60Zero(noisePath.automation, decay);
+            if (!applyReferenceControls(noisePath, decay, 0.0, mix)) {
+                return fail("DS-9 noise fixture control application failed");
+            }
+            const auto warmup = static_cast<std::size_t>(kComparabilityT60Seconds * rate);
+            const std::vector<float> noiseScript = makeNoiseScript(warmup + kAnalysisRecordSamples);
+            const FullPathRender noiseRender = renderFullPath(noisePath, noiseScript, warmup);
+            if (!hasNonzeroSample(noiseRender.left) || !hasNonzeroSample(noiseRender.right)) {
+                return fail("DS-9 anti-vacuity: the channel-balance fixture rendered a silent channel");
+            }
+            const double noiseRmsLeft = rmsOf(noiseRender.left);
+            const double noiseRmsRight = rmsOf(noiseRender.right);
+            const double noiseImbalanceDb = 20.0 * std::log10(noiseRmsLeft / noiseRmsRight);
 
-        // (2) Arrivals and full-path energy centroids on an impulse fixture.
-        // The centroid of a decaying response depends on the window, so the
-        // window is declared: 3*T60_0 of render, centroid taken over the whole
-        // of it, indices relative to the impulse at sample 0.
-        OrderedReferencePath impulsePath;
-        if (!impulsePath.prepare(config)) return fail("DS-9 impulse fixture preparation failed");
-        if (!applyReferenceControls(impulsePath, decay, 0.0, 1.0)) {
-            return fail("DS-9 impulse fixture control application failed");
+            // Arrivals and full-path energy centroids on an impulse fixture.
+            // The centroid of a decaying response depends on the window, so
+            // the window is declared: 3*T60_0 of render, centroid taken over
+            // the whole of it, indices relative to the impulse at sample 0.
+            OrderedReferencePath impulsePath;
+            if (!impulsePath.prepare(config)) return fail("DS-9 impulse fixture preparation failed");
+            if (!applyReferenceControls(impulsePath, decay, 0.0, mix)) {
+                return fail("DS-9 impulse fixture control application failed");
+            }
+            const auto impulseLength = static_cast<std::size_t>(rate * kComparabilityT60Seconds * 3.0);
+            std::vector<float> impulseScript(impulseLength, 0.0F);
+            impulseScript[0] = 1.0F;
+            const FullPathRender impulseRender = renderFullPath(impulsePath, impulseScript, 0);
+            if (!hasNonzeroSample(impulseRender.left) || !hasNonzeroSample(impulseRender.right)) {
+                return fail("DS-9 anti-vacuity: the impulse fixture rendered a silent channel");
+            }
+            const std::size_t arrivalLeft = firstNonzeroIndex(impulseRender.left);
+            const std::size_t arrivalRight = firstNonzeroIndex(impulseRender.right);
+            const double centroidLeft = energyCentroidSamples(impulseRender.left);
+            const double centroidRight = energyCentroidSamples(impulseRender.right);
+            const double impulseRmsLeft = rmsOf(impulseRender.left);
+            const double impulseRmsRight = rmsOf(impulseRender.right);
+            const double impulseImbalanceDb = 20.0 * std::log10(impulseRmsLeft / impulseRmsRight);
+
+            std::cout << std::setprecision(10) << "DS-9 @ " << rate << "Hz, Mix=" << mix << " (T60_0=" << t60Zero
+                      << "s, Damp bypassed):\n"
+                      << "  channel balance, " << kAnalysisRecordSamples
+                      << "-sample noise record after a one-T60_0 warm-up: RMS_L=" << noiseRmsLeft
+                      << ", RMS_R=" << noiseRmsRight << ", 20log10(L/R)=" << noiseImbalanceDb
+                      << "dB (recorded only; no channel-balance tolerance)\n"
+                      << "  channel balance, " << impulseLength << "-sample impulse response: RMS_L="
+                      << impulseRmsLeft << ", RMS_R=" << impulseRmsRight
+                      << ", 20log10(L/R)=" << impulseImbalanceDb << "dB\n"
+                      << "  first nonzero arrival: L=" << arrivalLeft << " samples ("
+                      << std::setprecision(6) << 1000.0 * static_cast<double>(arrivalLeft) / rate << "ms), R="
+                      << arrivalRight << " samples (" << 1000.0 * static_cast<double>(arrivalRight) / rate
+                      << "ms)\n"
+                      << std::setprecision(10) << "  full-path energy centroid over the declared "
+                      << impulseLength << "-sample window: L=" << centroidLeft << " samples ("
+                      << std::setprecision(6) << 1000.0 * centroidLeft / rate << "ms), R=" << std::setprecision(10)
+                      << centroidRight << " samples (" << std::setprecision(6) << 1000.0 * centroidRight / rate
+                      << "ms), R-L=" << std::setprecision(10) << centroidRight - centroidLeft << " samples ("
+                      << std::setprecision(6) << 1000.0 * (centroidRight - centroidLeft) / rate << "ms)\n";
         }
-        const auto impulseLength = static_cast<std::size_t>(rate * kComparabilityT60Seconds * 3.0);
-        std::vector<float> impulseScript(impulseLength, 0.0F);
-        impulseScript[0] = 1.0F;
-        const FullPathRender impulseRender = renderFullPath(impulsePath, impulseScript, 0);
-        if (!hasNonzeroSample(impulseRender.left) || !hasNonzeroSample(impulseRender.right)) {
-            return fail("DS-9 anti-vacuity: the impulse fixture rendered a silent channel");
-        }
-        const std::size_t arrivalLeft = firstNonzeroIndex(impulseRender.left);
-        const std::size_t arrivalRight = firstNonzeroIndex(impulseRender.right);
-        const double centroidLeft = energyCentroidSamples(impulseRender.left);
-        const double centroidRight = energyCentroidSamples(impulseRender.right);
-        const double impulseRmsLeft = rmsOf(impulseRender.left);
-        const double impulseRmsRight = rmsOf(impulseRender.right);
-        const double impulseImbalanceDb = 20.0 * std::log10(impulseRmsLeft / impulseRmsRight);
 
         // (3) The ISOLATED output diffuser chains, fed a matched unit impulse
-        // with no FDN and no input chain in front of them. This is exactly the
-        // quantity ADR-006 (f) computed algebraically, so it is also a direct
-        // cross-check of that arithmetic against a measurement.
+        // with no FDN and no input chain in front of them (Mix-invariant by
+        // construction -- see the sweep comment above -- so measured once per
+        // rate, not once per Mix). This is exactly the quantity ADR-006 (f)
+        // computed algebraically, so it is also a direct cross-check of that
+        // arithmetic against a measurement.
         auto leftChain = buildCascade(rate, toTargets(config.leftOutputDelaySeconds), kGoldenCoefficient);
         auto rightChain = buildCascade(rate, toTargets(config.rightOutputDelaySeconds), kGoldenCoefficient);
         if (leftChain.empty() || rightChain.empty()) return fail("DS-9 isolated output chain preparation failed");
@@ -2387,29 +2647,8 @@ int testDs9ChannelBalanceAndCentroids() {
         const auto expectedDifference =
             static_cast<double>(rightDelaySum) - static_cast<double>(leftDelaySum);
 
-        std::cout << std::setprecision(10) << "DS-9 @ " << rate << "Hz (T60_0=" << t60Zero
-                  << "s, Damp bypassed, Mix=1.0 full wet):\n"
-                  << "  channel balance, " << kAnalysisRecordSamples
-                  << "-sample noise record after a one-T60_0 warm-up: RMS_L=" << noiseRmsLeft
-                  << ", RMS_R=" << noiseRmsRight << ", 20log10(L/R)=" << noiseImbalanceDb
-                  << "dB (recorded only; no channel-balance tolerance)\n"
-                  << "  channel balance, " << impulseLength << "-sample impulse response: RMS_L="
-                  << impulseRmsLeft << ", RMS_R=" << impulseRmsRight
-                  << ", 20log10(L/R)=" << impulseImbalanceDb << "dB\n"
-                  << "  first nonzero arrival: L=" << arrivalLeft << " samples ("
-                  << std::setprecision(6) << 1000.0 * static_cast<double>(arrivalLeft) / rate << "ms), R="
-                  << arrivalRight << " samples (" << 1000.0 * static_cast<double>(arrivalRight) / rate
-                  << "ms); shortest even-indexed line m_0=" << impulsePath.network.delaySamples(0)
-                  << " samples, shortest odd-indexed line m_1=" << impulsePath.network.delaySamples(1)
-                  << " samples -- the even/odd tap of ADR-006 (e), not the output diffusers, is what "
-                     "separates the two first arrivals\n"
-                  << std::setprecision(10) << "  full-path energy centroid over the declared "
-                  << impulseLength << "-sample window: L=" << centroidLeft << " samples ("
-                  << std::setprecision(6) << 1000.0 * centroidLeft / rate << "ms), R=" << std::setprecision(10)
-                  << centroidRight << " samples (" << std::setprecision(6) << 1000.0 * centroidRight / rate
-                  << "ms), R-L=" << std::setprecision(10) << centroidRight - centroidLeft << " samples ("
-                  << std::setprecision(6) << 1000.0 * (centroidRight - centroidLeft) / rate << "ms)\n"
-                  << std::setprecision(10) << "  isolated output-diffuser centroid (unit impulse, no FDN, "
+        std::cout << std::setprecision(10) << "DS-9 @ " << rate
+                  << "Hz, isolated output-diffuser chains (unit impulse, no FDN, "
                   << isolatedLength << "-sample drain): L=" << isolatedCentroidLeft << " samples, R="
                   << isolatedCentroidRight << " samples, R-L=" << isolatedDifference
                   << " samples (" << std::setprecision(6) << 1000.0 * isolatedDifference / rate
@@ -2483,6 +2722,10 @@ int main() {
     if (testDs12BracketConfigurationsAreRunnable() != 0) return 1;
     if (testDs12BracketCascadesDoNotAllocateDuringProcessing() != 0) return 1;
     if (testDs12CostWithAndWithoutDiffusion() != 0) return 1;
+    if (testDs2IndependentDoubleRecurrenceAcrossBracket() != 0) return 1;
+    if (testDs1Through12BracketEnergyConservation() != 0) return 1;
+    if (testDs11DeterminismAcrossBracket() != 0) return 1;
+    if (testDs12AllocationAcrossBracket() != 0) return 1;
     std::cout << "DiffusionStereoPath Task 4a (DS-1,2,3,5,6,10,11,12 + anti-vacuity) measurements passed\n";
 
     if (testWelchCoherenceEstimatorSelfCheck() != 0) return 1;

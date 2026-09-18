@@ -669,6 +669,80 @@ criteria: independent double recurrence and complete bracket coverage;
 per-Mix DS-8/9 RMS/arrival/centroid coverage; and a propagated C3
 cessation-state proof for output stages. No sonic acceptance follows.
 
+### Task 4 bracket-completion pass — current status and reproducible evidence (2026-09-17)
+
+This closes the "I4 / coverage" gap recorded in the correction-round-1 entry
+above, for everything except the propagated DS-10 whole-chain cessation
+bound (kept open; see below). Four new checks were added to
+`tests/DiffusionStereoPathTests.cpp`, called from the same "Task 4a" batch in
+`main()`, no `src/` change:
+
+```sh
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+git diff --check
+```
+Build succeeded with zero warnings under `-Wall -Wextra -Wpedantic -Werror`.
+All **6/6** CTest suites passed, **4.05 s** total
+(`aetherfield_dsp_diffusion_stereo_tests` alone: **2.24 s**). `git diff
+--check` exited zero.
+
+- **DS-2, independent double recurrence** (`testDs2IndependentDoubleRecurrenceAcrossBracket`):
+  a second, independently implemented double-precision Schroeder-allpass
+  difference equation (its own circular buffer, not sharing code with
+  `src/dsp/SchroederAllpass.cpp`, `tests/SchroederAllpassTests.cpp`'s own
+  copy, or the radix2Fft-based magnitude check above) is run in parallel
+  with the real cascade, sample-for-sample, across all 16 bracket cascades
+  (impulse and deterministic noise each), at both rates. **Max absolute
+  error 1.964458132e-07** against a stated `1e-5` tolerance (DS-A's own
+  single-section version uses `2e-5`; this covers cascades up to 5
+  sections).
+- **DS-1..12, bracket energy conservation** (`testDs1Through12BracketEnergyConservation`):
+  extends DS-4's `cascadeEnergyError` helper (previously exercised only at
+  the fixed `K_in=4/K_out=2` wrapper configuration) across all 16 bracket
+  cascades, impulse and 4096-sample noise. **Worst impulse relative error
+  1.624351376e-08, worst noise relative error 7.09443201e-09**, both inside
+  the stated `1e-5` tolerance.
+- **DS-11, bracket determinism** (`testDs11DeterminismAcrossBracket`): each
+  of the 16 bracket cascades is rendered twice from a fresh instance against
+  an identical 2048-sample deterministic-noise script; every pair is
+  float-bit identical.
+- **DS-12, bracket allocation** (`testDs12AllocationAcrossBracket`): each of
+  the 16 bracket cascades is warmed up for 128 samples, then run for 4096
+  further steady-state samples; the global allocation counter's delta is 0
+  for every cascade.
+- **DS-9, Mix-swept RMS/arrival/full-path centroid**
+  (`testDs9ChannelBalanceAndCentroids`, rewritten): channel RMS, first
+  nonzero arrival and full-path energy centroid are now measured at all five
+  DS-8 Mix points (`{0, 0.25, 0.5, 0.75, 1}`), at both rates — previously
+  only at Mix=1. Example (48kHz, Mix=0.5): noise RMS_L/RMS_R
+  0.3541338045/0.3490152926 (0.1264585715 dB); impulse full-path centroid
+  L=1652.000541 / R=1540.028172 samples. The isolated output-diffuser
+  centroid (unit impulse, no FDN, no input chain, no dry/wet gain) is
+  Mix-invariant by construction and stays measured once per rate, not once
+  per Mix — its L/R/difference values (498.000007/624.0000088/126.0000018
+  samples at 48kHz; 454.0000064/576.0000081/122.0000017 samples at 44.1kHz)
+  are unchanged from the historical record and still reproduce ADR-006 (f)'s
+  126/122-sample figure within the existing 0.5-sample tolerance.
+
+**DS-10 whole-chain cessation bound: still open, deliberately not attempted
+in this pass.** The output-section `S_j` rows in
+`testDs10ProofTemplateAndMeasuredSilence` still use a *measured* tap peak
+rather than an *analytically propagated* one. Closing this correctly
+requires chaining the input cascade's own analytic peak-gain bound through
+the FDN's actual injection topology — the Hadamard matrix `A`, each line's
+folded gain `gᵢ/sqrt(N)`, and its damping-filter state, all from ADR-002/003
+— via a driven (not free) linear-contraction argument, then translating the
+resulting state-norm bound back to an individual tap-sum bound. That is a
+genuine numerical-safety derivation against ADR-002/003's exact state
+definitions, at the same rigor those ADRs themselves required, not a
+mechanical extension of the bracket-cascade pattern used above. It was
+deliberately left for its own dedicated, separately reviewed pass rather
+than attempted here: an incorrect "proof" would be strictly worse than the
+current honestly-labeled gap.
+
 ## IMPLEMENTED: Phase 1 parameter transitions (2026-09-17)
 
 Terra implemented `ParameterAutomation` (`src/dsp/ParameterAutomation.h`/`.cpp`) per docs/phases/phase1-pt-plan.md's interface, plus three small additive methods on `FeedbackDelayNetwork` (`processSample()`, `setLineGain()`, `setDampingCoefficientC()` — S2's own 11 tests and `process(count)` contract are unchanged), `tests/ParameterTransitionTests.cpp` covering one named case per PT-1 through PT-9, and wired a new `aetherfield_dsp_param_tests` CTest target mirroring the existing pattern.

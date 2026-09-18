@@ -29,9 +29,12 @@ test-local double analysis and FFT/Welch helpers.
 Task 1's transactional preparation, Task 2a's read-only tap accessor, Task
 2b's one-sample audio routing, and Task 3's aggregate detector/block recovery
 are implemented and independently reviewed. Task 4 (split into sub-tasks 4a
-and 4b) records DS-1..12 evidence but does not close the unchecked bracket
-independent-recurrence/cross-product coverage, per-Mix RMS/arrival/centroid,
-or propagated cessation-bound requirements below. ADR-006 remains an accepted
+and 4b, plus a bracket-completion pass) records DS-1..12 evidence. The
+bracket-wide independent-recurrence, energy, determinism and allocation
+coverage and the per-Mix RMS/arrival/centroid coverage are now closed; the
+propagated whole-chain DS-10 cessation-bound requirement below remains open
+(see that bullet for why it was deliberately not attempted in the same
+pass). ADR-006 remains an accepted
 architecture and evaluation baseline: Task 4 measures the fixed, unmodulated
 path decided there; it adds no product controls or modulation, and its
 measurements do not establish sonic acceptance (see roadmap/Sonic acceptance
@@ -270,16 +273,21 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
 - [x] Start with failing anti-vacuity checks: fixtures must contain nonzero wet
   samples before a decay/correlation/centroid result is accepted; test helpers
   must reject a single-segment coherence estimate.
-- [ ] DS-1/2/3/5/6/11/12: extend DS-A's independent recurrence, FFT, energy,
+- [x] DS-1/2/3/5/6/11/12: extend DS-A's independent recurrence, FFT, energy,
   adversarial peak, deterministic partition and allocation tests across every
   selected input/output cascade, both rates and every runnable
   `(K_in,K_out)` bracket. Check all time-derived lengths, increasing guards and
   direct gcds against FDN lengths. Record amplitude-aware density separately
   from lattice counts and report cost rather than using it as a budget.
-  **Partial:** FFT, magnitude, peak, direct-gcd, runnable bracket and an
-  amplitude-threshold density are present; the current reference is not an
-  independent double recurrence, and energy/determinism/allocation are not
-  covered across every bracket/rate configuration.
+  FFT, magnitude, peak, direct-gcd, runnable bracket and an amplitude-threshold
+  density are present; a second, independently implemented double-precision
+  recurrence reference (`testDs2IndependentDoubleRecurrenceAcrossBracket`,
+  not sharing code with `SchroederAllpass` or the radix2Fft-based magnitude
+  check, max observed error ~2e-7 against a 1e-5 tolerance) and
+  energy/determinism/allocation across every bracket/rate configuration
+  (`testDs1Through12BracketEnergyConservation`,
+  `testDs11DeterminismAcrossBracket`, `testDs12AllocationAcrossBracket`) are
+  now also present.
 - [x] DS-4: preserve bare-FDN NS-6 untouched. Fit and record full-path decay
   for a declared impulse/noise fixture at minimum Decay and high Damp, including
   fit window and method. Assert neither equality nor inequality with NS-6;
@@ -289,13 +297,17 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
   FFT length and silent-bin floor. Report MSC only at retained bins and report
   normalized cross-correlation at lag zero plus a declared symmetric short-lag
   range. Do not use impulse single-periodogram coherence or a zero-MSC gate.
-- [ ] DS-8/9: for each Mix fixture, record `E[L^2]`, `E[R^2]`, `E[L*R]`,
+- [x] DS-8/9: for each Mix fixture, record `E[L^2]`, `E[R^2]`, `E[L*R]`,
   `E[(L+R)^2]`, channel RMS, first nonzero arrival, full-path energy centroid,
   and isolated output-diffuser centroid. Label `+3.01 dB` as conditional on
   all-lag uncorrelatedness; do not set a channel-balance/perceptual tolerance
-  before reviewing results. **Partial:** powers/covariance are recorded across
-  the Mix sweep, but RMS, first arrival and both centroids are currently
-  measured only at Mix=1.
+  before reviewing results. Powers/covariance (DS-8) and RMS/first
+  arrival/full-path centroid (DS-9) are now recorded at every point of the
+  same five-point Mix sweep, at both fixture rates. The isolated
+  output-diffuser centroid is measured once per rate, not once per Mix, since
+  its fixture never touches Mix (no FDN, no input chain, no dry/wet gain) and
+  is Mix-invariant by construction; this is stated explicitly at the
+  measurement site rather than left implicit.
 - [ ] DS-10: demonstrate cutoff only at diffusion recursive-memory writes,
   wrapper fault aggregation, repeated full reset equivalence and
   silence-in/silence-out. For every section record stored float `q_j`, an
@@ -305,7 +317,18 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
   compare it to the historical additive timeout. **Partial:** stored float
   `q_j`, input-chain analytic bounds, output measured-window illustrations,
   drains and an observed trailing exact-silence interval are recorded; no
-  propagated whole-chain cessation-state proof exists.
+  propagated whole-chain cessation-state proof exists. This is the one
+  remaining open item on this line: a correct propagated bound needs the
+  FDN's actual injection topology (the Hadamard matrix `A`, each line's
+  folded gain `gᵢ/sqrt(N)` and its damping-filter state, per ADR-003) chained
+  with the input cascade's own analytic peak-gain bound via a driven
+  (not free) contraction argument — replacing the current output-section rows'
+  `measuredTapPeak` with an analytically propagated one. That is a genuine
+  numerical-safety derivation against ADR-002/003's exact state definitions,
+  not a mechanical bracket extension, and was deliberately not attempted
+  alongside the bracket-completion pass above: an incorrect "proof" here
+  would be worse than the current honestly-labeled gap. It should be scoped
+  as its own dedicated pass, reviewed at the same rigor as ADR-003 itself.
 - [x] Run the focused target, all CTest suites, allocation instrumentation and
   `git diff --check`. Update `docs/testing.md` with commands, exit status,
   numeric results, fixtures, analysis settings and remaining gaps. The pass
