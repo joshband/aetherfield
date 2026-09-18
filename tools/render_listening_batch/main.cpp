@@ -499,10 +499,21 @@ int main(int argc, char* argv[]) {
     // Damp=0.5, it is this evaluation setting, not the network topology;
     // the dry reference isolates whatever the synthesized source itself
     // contributes, independent of the network entirely.
+    //
+    // Uses a SINGLE burst (burstCount=1), not the round-2 corpus item's
+    // four-hit sequence: the 220ms inter-hit gap there is far shorter than
+    // this fixture's ~1.09s T60_0, so successive tails pile up rather than
+    // decaying to a clean, quiet window between hits -- exactly the
+    // condition needed to actually hear Damp's spectral coloring. This was
+    // caught by the owner reporting that damp=0.0/0.5/1.0 (the same 0.0-vs-
+    // 1.0 extremes round 2's damp-off/damp-full comparison already showed
+    // were clearly distinguishable, on an impulse source) "all sound the
+    // same" on the four-hit sequence -- a test-design flaw, not a DSP
+    // defect, per that already-established contradicting result.
     {
         std::vector<RenderResult> group;
         const std::size_t tail = tailSamplesFor(0.5);
-        const std::vector<float> burst = transientBurstSequence(tail);
+        const std::vector<float> burst = transientBurstSequence(tail, 1);
         struct Confound { const char* label; double decay, damp, mix; };
         const std::array<Confound, 5> settings {{
             {"round3-transient-confound-dry_mix0.0", 0.5, 0.0, 0.0},
