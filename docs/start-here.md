@@ -13,10 +13,11 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   diffusion, FDN pre-step taps, output diffusion and Mix.
 - **DS-B Task 3:** wrapper-owned aggregate fault detection and next-block
   whole-path recovery.
-- **DS-B Task 4:** partial measured DS-1..12 evidence (energy/pole/magnitude bounds,
+- **DS-B Task 4:** measured DS-1..12 evidence (energy/pole/magnitude bounds,
   echo density, full-path decay, interchannel coherence, mono compatibility,
-  channel balance/centroids, numerical-safety proof template, determinism,
-  cost) against the Task 1-3 baseline, per ADR-006's correction note.
+  channel balance/centroids, a propagated whole-chain numerical-safety
+  cessation bound, determinism, cost) against the Task 1-3 baseline, per
+  ADR-006's correction note.
 
 The latest recorded baseline is a Release configure/build and CTest result from
 2026-09-17: **6/6 suites passed**, including DS-B Task 4's measurement suite.
@@ -37,11 +38,12 @@ Its [review](phases/phase1-ds-review.md) corrections are resolved by an
 explicit contract and the bounded [DS-B integration plan](phases/phase1-ds-integration-plan.md).
 Full-chain decay, coherence, silence and channel measurements are recorded in
 `testing.md`. Bracket-wide independent-reference/energy/determinism/allocation
-coverage and per-Mix RMS/arrival/centroid coverage are now complete; the
-propagated DS-10 whole-chain cessation-bound remains the one open item (it
-needs the FDN's own injection/matrix/damping topology chained through the
-input cascade's bound, not a mechanical bracket extension — see the
-[integration plan](phases/phase1-ds-integration-plan.md)'s DS-10 bullet).
+coverage, per-Mix RMS/arrival/centroid coverage, and the propagated DS-10
+whole-chain cessation-bound are now all complete: the FDN's own
+injection/matrix/damping topology is chained analytically through the input
+cascade's own bound (see the [integration plan](phases/phase1-ds-integration-plan.md)'s
+DS-10 bullet), independently reviewed, with one caught implementation bug
+fixed and a dedicated nonzero-damping coverage test added.
 **Measuring any of this is not sonic acceptance**, which remains a separate,
 unmet gate (roadmap).
 

@@ -743,6 +743,101 @@ deliberately left for its own dedicated, separately reviewed pass rather
 than attempted here: an incorrect "proof" would be strictly worse than the
 current honestly-labeled gap.
 
+### Task 4 DS-10 propagated whole-chain cessation bound — closed (2026-09-17)
+
+This closes the one remaining gap the bracket-completion pass entry above
+left open. `tests/DiffusionStereoPathTests.cpp` gained two new free
+functions, `fdnLoopGainLogBound` and `fdnPoleRadiusBound`, plus a
+`stageDrainCircuits`/`dampingStateDrainSamples` refactor of the previously
+triplicated per-section decay-search pattern, and
+`testDs10ProofTemplateAndMeasuredSilence`'s body was rewritten to replace the
+measured `measuredTapPeak` with an analytically propagated `analyticTapPeak`.
+
+```sh
+cmake -S . -B build/ds10 -DCMAKE_BUILD_TYPE=Release
+cmake --build build/ds10 --parallel
+ctest --test-dir build/ds10 --output-on-failure
+git diff --check
+```
+All **6/6** CTest suites passed (`aetherfield_dsp_diffusion_stereo_tests`
+alone: ~3.2 s). `git diff --check` exited zero.
+
+**Derivation.** Writing the FDN's z-domain loop map as `M(z) = A *
+diag(gRawᵢ) * diag(Hᵢ(z)) * diag(z⁻ᵐᵢ)`, submultiplicativity plus the exact
+identity `‖A*diag(gRawᵢ)‖₂ = rho = maxᵢ gRawᵢ` (A orthogonal, ADR-002 point
+2) give `‖M(z)‖₂ <= rho * maxᵢ[(1-aᵢ)/(1-aᵢ/r) * r⁻ᵐⁱ] =: B(r)` at the real
+point `z=r`, which is exactly where `|Hᵢ(z)|` is maximized for fixed `|z|=r`
+(the same monotonicity lemma ADR-003's Rationale already uses on the unit
+circle, extended off it). `B(1)=rho<1`, `B` is continuous and strictly
+decreasing on `(a_max,1]`, and `B(r)->infinity` as `r->a_max+`, so a unique
+`r*` solves `B(r*)=1` (found by bisection in log space, since `m_max` can
+exceed a thousand samples and `B(r)` overflows `double` in linear space well
+before `r` reaches `a_max`); `r*` is a safe bound on the FDN's pole radius.
+Picking `R` just outside `r*` with `mu:=B(R)<1`, a Neumann-series/
+Cauchy-estimate argument gives `‖h[n]‖₂ <= [sqrt(N)/(1-mu)]*Rⁿ` for the
+vector impulse response from the FDN's scalar injection to its per-line
+write values — a bound that stays in ℓ2 throughout, so it needs no
+ℓ1-of-impulse-response argument (which ADR-003's Rationale notes is
+otherwise required for a general driven peak claim, and is not available in
+closed form). Convolution against the input cascade's own bounded, and
+eventually exactly-zero, driving signal gives a bound uniform in time and
+exact once the input cascade's own absolute cessation time is reached;
+component-domination (`|qᵢ[n]| <= ‖q[n]‖₂`) extracts a per-line peak with no
+further loss. The FDN's own write-value and damping-state drains are then
+chained additively with the input cascade's (already-existing) analytic
+drain and each output cascade's own two-stage drain into one true absolute
+`wholeChainDrain` — summed, not maxed, because each stage's own zero-input
+clock starts only once the stage before it has itself fully drained.
+
+**Independent review.** A dedicated review agent re-derived the algebra by
+hand end to end (the monotonicity-off-the-unit-circle claim, the exact
+operator-norm identities, the Neumann-series/Cauchy-estimate step, the
+sum-not-max chaining logic, and the `qMax`/`analyticTapPeak` arithmetic
+including the `sqrt(lineCount/2)` tap-scale cancellation) and confirmed all
+of it. It also caught one real implementation bug: the damping-state drain
+search's initial rest value (`w=0`, before a line's buffer had produced any
+output) trivially satisfied its own "below cutoff" check on the very first
+iteration, so every line silently reported a damping-state drain of exactly
+0 regardless of its actual damping coefficient. Fixed with an
+"only accept settling after having genuinely exceeded cutoff at least once"
+guard (`everExceededCutoff` in `dampingStateDrainSamples`), justified by
+proving the bound sequence is unimodal (a convex combination of a
+non-increasing driver with its own history rises at most once while
+catching up, then falls monotonically forever after). The review also
+flagged that the primary fixture (`validConfig`, `t60ZeroSeconds ==
+t60PiSeconds == 4.0`) forces `aᵢ == 0` on every line (ADR-003 (a): `beta =
+(gammaPi/gamma0)^m = 1` whenever `T60_pi == T60_zero`), so the
+damping-dependent parts of the derivation were never numerically exercised
+with real damping. A new `testDs10PropagatedFdnBoundWithNonzeroDamping`
+closes that: it prepares an independent FDN with `T60_pi` far below
+`T60_zero` (driving several lines' `aᵢ` up to ADR-003's `a_max=0.999`
+clamp) and asserts the bisection still converges inside `(a_max,1)`, `mu`
+stays in `(0,1)`, and the damping-state drain search still terminates with
+a genuine, non-vacuous, per-line result — including that a strongly-damped
+line's drain must exceed its own bare delay length, or the damping
+recursion would not be doing anything.
+
+**Recorded numbers** (48 kHz / 44.1 kHz): FDN pole-radius bound
+`r*=0.9999880013` / `0.9999869176`; chosen decay rate `R=0.9999881213` /
+`0.9999870485`; `mu=0.9995334725` / `0.999532932`; `Q_max=4511201485` /
+`4132745722`; input-cascade absolute drain `87841` / `80207` samples;
+FDN write-value drain `5839906` / `5349058` samples; FDN damping-state
+drain `5839906` / `5349058` samples (matching the write-value drain exactly
+here because `aᵢ=0` makes the damping filter a pass-through); chained
+output-cascade drain `92494` / `85025` samples; **propagated whole-chain
+cessation bound `5932400` / `5434083` samples**. The separately measured
+actual full-path exact silence (unchanged from the earlier record: sample
+`321914` / `297234` onward) sits roughly 18x inside this analytic bound,
+consistent with a deliberately conservative (never violated, not
+necessarily tight) worst-case proof rather than a fitted estimate — the
+same relationship a numerical simulation of this fixture in Python (double
+precision, checked against the identical formulas before this was encoded
+in C++) showed across 2,000,000 samples with zero violations. Because the
+FDN's own drain now dominates `maxDrain`, the measured-silence render grew
+from the historical 1.4M-sample minimum to `renderLength = wholeChainDrain
++ 20000` (≈5.95M / 5.45M samples); this is still fast (a few seconds) since
+per-sample cost is O(N).
+
 ## IMPLEMENTED: Phase 1 parameter transitions (2026-09-17)
 
 Terra implemented `ParameterAutomation` (`src/dsp/ParameterAutomation.h`/`.cpp`) per docs/phases/phase1-pt-plan.md's interface, plus three small additive methods on `FeedbackDelayNetwork` (`processSample()`, `setLineGain()`, `setDampingCoefficientC()` — S2's own 11 tests and `process(count)` contract are unchanged), `tests/ParameterTransitionTests.cpp` covering one named case per PT-1 through PT-9, and wired a new `aetherfield_dsp_param_tests` CTest target mirroring the existing pattern.

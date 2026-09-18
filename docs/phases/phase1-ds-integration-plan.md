@@ -25,16 +25,16 @@ test-local double analysis and FFT/Welch helpers.
 
 ## Status and authorization
 
-**Tasks 1-3 are implemented; Task 4 is partially measured, 2026-09-17.**
+**Tasks 1-3 are implemented; Task 4 is measured, 2026-09-17.**
 Task 1's transactional preparation, Task 2a's read-only tap accessor, Task
 2b's one-sample audio routing, and Task 3's aggregate detector/block recovery
 are implemented and independently reviewed. Task 4 (split into sub-tasks 4a
-and 4b, plus a bracket-completion pass) records DS-1..12 evidence. The
-bracket-wide independent-recurrence, energy, determinism and allocation
-coverage and the per-Mix RMS/arrival/centroid coverage are now closed; the
-propagated whole-chain DS-10 cessation-bound requirement below remains open
-(see that bullet for why it was deliberately not attempted in the same
-pass). ADR-006 remains an accepted
+and 4b, plus a bracket-completion pass and a dedicated DS-10 propagated-bound
+pass) records DS-1..12 evidence. The bracket-wide independent-recurrence,
+energy, determinism and allocation coverage, the per-Mix RMS/arrival/centroid
+coverage, and the propagated whole-chain DS-10 cessation-bound requirement
+below are now all closed (see that bullet for the derivation and its
+independent review). ADR-006 remains an accepted
 architecture and evaluation baseline: Task 4 measures the fixed, unmodulated
 path decided there; it adds no product controls or modulation, and its
 measurements do not establish sonic acceptance (see roadmap/Sonic acceptance
@@ -308,27 +308,43 @@ and Welch helpers; modify `docs/testing.md` after actual runs.
   its fixture never touches Mix (no FDN, no input chain, no dry/wet gain) and
   is Mix-invariant by construction; this is stated explicitly at the
   measurement site rather than left implicit.
-- [ ] DS-10: demonstrate cutoff only at diffusion recursive-memory writes,
+- [x] DS-10: demonstrate cutoff only at diffusion recursive-memory writes,
   wrapper fault aggregation, repeated full reset equivalence and
   silence-in/silence-out. For every section record stored float `q_j`, an
   explicit cessation-state bound `S_j`, and integer drain
   `D_j=(k_j+1)d_j` with `k_j=min{k>=1:q_j^k*S_j<1e-20F}`. Treat this as a
   proof template; separately measure actual full-path silence and do not
-  compare it to the historical additive timeout. **Partial:** stored float
-  `q_j`, input-chain analytic bounds, output measured-window illustrations,
-  drains and an observed trailing exact-silence interval are recorded; no
-  propagated whole-chain cessation-state proof exists. This is the one
-  remaining open item on this line: a correct propagated bound needs the
-  FDN's actual injection topology (the Hadamard matrix `A`, each line's
-  folded gain `gᵢ/sqrt(N)` and its damping-filter state, per ADR-003) chained
-  with the input cascade's own analytic peak-gain bound via a driven
-  (not free) contraction argument — replacing the current output-section rows'
-  `measuredTapPeak` with an analytically propagated one. That is a genuine
-  numerical-safety derivation against ADR-002/003's exact state definitions,
-  not a mechanical bracket extension, and was deliberately not attempted
-  alongside the bracket-completion pass above: an incorrect "proof" here
-  would be worse than the current honestly-labeled gap. It should be scoped
-  as its own dedicated pass, reviewed at the same rigor as ADR-003 itself.
+  compare it to the historical additive timeout. **Closed, 2026-09-17:** a
+  propagated whole-chain cessation-state bound now chains the FDN's actual
+  injection topology (the Hadamard matrix `A`, each line's raw gain `gᵢ`
+  recovered from the stored folded gain `gᵢ/sqrt(N)`, and its damping-filter
+  state, per ADR-002/003) with the input cascade's own analytic peak-gain
+  bound via a driven (not free) contraction argument, in
+  `tests/DiffusionStereoPathTests.cpp`'s `fdnLoopGainLogBound`/
+  `fdnPoleRadiusBound`/`dampingStateDrainSamples` helpers and
+  `testDs10ProofTemplateAndMeasuredSilence`. The derivation: submultiplicative
+  operator-norm bounds on the FDN's z-domain loop map `M(z)` give a safe
+  bound `r*` on its pole radius (found by bisection); a Neumann-series/
+  Cauchy-estimate argument on a circle just outside `r*` gives an ℓ2 (not
+  ℓ∞) bound on the vector impulse response, uniform in time and exact once
+  the input cascade's own chained (summed, not maxed) drain time is reached;
+  component-domination (`|qᵢ[n]| <= ‖q[n]‖₂`) extracts a per-line peak with
+  no further loss, sidestepping the ℓ1-of-impulse-response bound ADR-003
+  notes is otherwise required for a general driven peak claim. This
+  analytically propagated peak replaces the previous `measuredTapPeak` for
+  the output-section rows, and the FDN's own write-value and damping-state
+  drains are chained additively with the input and output cascades' own
+  drains into one true absolute `wholeChainDrain`. Independently reviewed
+  (re-derived the algebra by hand, confirmed all four mathematical claims,
+  and caught one real implementation bug — the damping-state drain loop's
+  initial rest state trivially satisfied its own cutoff check before the
+  line was ever excited, silently reporting a drain of 0 for every line;
+  fixed with an "only accept settling after having genuinely exceeded
+  cutoff" guard, justified by proving the bound sequence is unimodal). A
+  dedicated `testDs10PropagatedFdnBoundWithNonzeroDamping` closes the
+  reviewer's coverage caveat that the primary fixture's `t60ZeroSeconds ==
+  t60PiSeconds` forces `a_i == 0` on every line, which never exercised the
+  damping-dependent parts of the derivation.
 - [x] Run the focused target, all CTest suites, allocation instrumentation and
   `git diff --check`. Update `docs/testing.md` with commands, exit status,
   numeric results, fixtures, analysis settings and remaining gaps. The pass

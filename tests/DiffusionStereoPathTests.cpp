@@ -17,6 +17,7 @@
 #include <limits>
 #include <new>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -955,6 +956,158 @@ int testDs6EchoDensityRecorded() {
 }
 
 // ---------------------------------------------------------------------------
+// DS-10 propagated whole-chain cessation bound: see
+// docs/phases/phase1-ds-integration-plan.md's DS-10 bullet. This chains the
+// FDN's own injection topology -- the Hadamard matrix A, each line's folded
+// gain g_i/sqrt(N) and its damping-filter state (ADR-002, ADR-003) -- with
+// the input diffusion cascade's own analytic peak-gain bound via a driven
+// (not free) contraction argument, replacing the previous measuredTapPeak
+// with an analytically propagated one.
+//
+// Derivation. The FDN's per-sample recursion (FeedbackDelayNetwork::
+// processSample) is, per line i: v_i[n] = this line's pre-step delayed
+// output; w_i[n] = (1-a_i)v_i[n] + a_i w_i[n-1] (the damping filter);
+// z[n] = A * diag(gRaw_i) * w[n] (the Hadamard matrix and each line's raw
+// gain, A orthogonal per ADR-002); q_i[n] = z_i[n] + u[n] (uniform scalar
+// injection) -- q_i[n] is the value written into line i, one of ADR-003's
+// two recursive memories per line. Writing Q(z) = [I - M(z)]^{-1} * 1 * U(z)
+// with M(z) = A * diag(gRaw_i) * diag(H_i(z)) * diag(z^{-m_i}):
+//
+//   ||M(z)||_2 <= rho * max_i[ (1-a_i)/(1-a_i/r) * r^{-m_i} ] =: B(r)
+//   for any |z| = r > a_max = max_i a_i,
+//
+// using ||A * diag(gRaw_i)||_2 = rho = max_i gRaw_i exactly (A orthogonal,
+// ADR-002 point 2) and the exact operator norm of a diagonal matrix, with
+// |H_i(z)| maximized at the real point z = r for fixed |z| = r (the
+// monotonicity lemma in ADR-003's Rationale). B(1) = rho < 1 (ADR-002 point
+// 2); B is continuous and strictly decreasing in r on (a_max, 1]; and
+// B(r) -> infinity as r -> a_max+. So there is a unique r* in (a_max, 1)
+// with B(r*) = 1 (found below by bisection, in log space because m_max can
+// exceed a thousand samples and B(r) overflows double arithmetic well
+// before r reaches a_max in linear space), and for every r > r*,
+// ||M(z)||_2 < 1 on |z| = r, so [I-M(z)]^{-1} has no pole with |z| >= r
+// (Neumann-series invertibility) -- r* is a valid, if not necessarily
+// tight, bound on the FDN's pole radius.
+//
+// Picking R in (r*, 1) with mu := B(R) < 1, the identical Neumann-series/
+// Parseval argument evaluated on the circle |z| = R (equivalently, on the
+// unit circle for the R-rescaled sequence h[n]*R^{-n}) gives, for the
+// vector impulse response h[n] from u to q[n]: ||h[n]||_2 <= [sqrt(N)/
+// (1-mu)] * R^n for every n >= 0. For a driving signal |u[k]| <= U for all
+// k, convolution and the triangle inequality give a bound uniform in time,
+// ||q[n]||_2 <= U*sqrt(N)/[(1-mu)(1-R)] =: Q_max for every n; and once u is
+// *exactly* zero for k >= T_in (established below by chaining the input
+// cascade's own D_j drain additively across its four stages, since each
+// stage's own input is exactly zero only once the stage before it has
+// fully drained), ||q[n]||_2 <= Q_max * R^(n-T_in+1) for n >= T_in. Since a
+// vector's ell-2 norm dominates any one component, |q_i[n]| obeys the same
+// bound for every line i. This numerical derivation was verified before
+// being encoded here by simulating the actual fixture (input cascade + FDN,
+// double precision) and confirming zero violations of this bound across
+// millions of samples (docs/agent-log.md records the check).
+//
+// The damping state w_i[n] is bounded by the same driving sequence via its
+// own convex-combination recursion, |w_i[n]| <= (1-a_i)|v_i[n]| +
+// a_i|w_i[n-1]| with v_i[n] = q_i[n-m_i]; this is propagated below by
+// direct numerical iteration of the *bound* itself (not the signal),
+// because R and a_i need not share a common decay rate, so no closed form
+// is assumed.
+namespace {
+
+// ln(rho) + max_i[ ln((1-a_i)/(1-a_i/r)) - m_i*ln(r) ]: the log of the
+// submultiplicative loop-gain bound B(r) = rho*||diag(H_i(z))diag(z^-m_i)||_2
+// described above, evaluated at the real point z=r. A value <= 0 means
+// ||M(z)||_2 <= 1 at |z|=r, i.e. no FDN pole can have magnitude >= r.
+double fdnLoopGainLogBound(double r, double rho, const std::vector<double>& m,
+                            const std::vector<double>& a) {
+    const double logr = std::log(r);
+    double best = -std::numeric_limits<double>::infinity();
+    for (std::size_t i = 0; i < m.size(); ++i) {
+        const double logh = (a[i] > 0.0) ? std::log((1.0 - a[i]) / (1.0 - a[i] / r)) : 0.0;
+        best = std::max(best, logh - m[i] * logr);
+    }
+    return std::log(rho) + best;
+}
+
+// Bisects for r* in (a_max, 1), the unique point where the bound above
+// equals 1: a safe upper bound on the FDN's true pole radius, since the
+// bound is continuous and strictly decreasing in r on that interval.
+double fdnPoleRadiusBound(double rho, const std::vector<double>& m, const std::vector<double>& a) {
+    double aMax = 0.0;
+    for (double ai : a) aMax = std::max(aMax, ai);
+    double lo = std::max(aMax, 1e-9);
+    double hi = 1.0 - 1e-13;
+    for (int iter = 0; iter < 100; ++iter) {
+        const double mid = 0.5 * (lo + hi);
+        if (fdnLoopGainLogBound(mid, rho, m, a) > 0.0) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    return hi;
+}
+
+// Number of circulations k>=1 at which g^k * stateBound first drops below
+// cutoff -- the shared decay shape behind every SchroederAllpass-cascade
+// recursive-memory bound in this file (the input cascade, the printed
+// per-section rows, and each output cascade), factored out so the three
+// call sites cannot drift apart.
+std::size_t stageDrainCircuits(double stateBound, double g, double cutoff) {
+    std::size_t k = 1;
+    while (std::pow(g, static_cast<double>(k)) * stateBound >= cutoff) ++k;
+    return k;
+}
+
+// Direct numerical propagation of the *bound* on an FDN line's damping
+// state |w_i[n]| (not the actual signal) through its own convex-combination
+// recursion |w_i[n]| <= (1-a_i)|v_i[n]| + a_i|w_i[n-1]|, given the FDN's own
+// analytically propagated bound on |v_i[n]| = |q_i[n-m_i]|: qMax (constant)
+// while n-m_i < inputCascadeAbsoluteDrain, then qMax*fdnDecayRate^k after.
+// Returns the sample index at which the bound is guaranteed permanently
+// below cutoff, having first genuinely exceeded it -- the
+// everExceededCutoff guard matters because the line's initial rest value
+// (0, for the n<m_i samples before this line has produced any output)
+// would otherwise trivially and incorrectly satisfy "w < cutoff" before the
+// state was ever excited at all. A convex combination of a non-increasing
+// driver (constant then decaying) with its own history is unimodal -- rises
+// at most once while catching up, then falls monotonically forever once the
+// driver has dropped below it -- so "the first genuine fall below cutoff"
+// is the unique, well-defined drain point. Returns std::nullopt only if the
+// safety cap is exhausted without converging (a defensive bound; the search
+// is expected to converge because qMax is always far above cutoff, so the
+// state is always genuinely excited).
+std::optional<std::size_t> dampingStateDrainSamples(std::size_t mi, double ai, double qMax, double fdnDecayRate,
+                                                     std::size_t inputCascadeAbsoluteDrain, double cutoff,
+                                                     std::size_t cap) {
+    double w = 0.0;
+    double vDecay = qMax;
+    bool decaying = false;
+    bool everExceededCutoff = false;
+    for (std::size_t n = 0; n < cap; ++n) {
+        double v = 0.0;
+        if (n >= mi) {
+            const std::size_t nv = n - mi;
+            if (nv < inputCascadeAbsoluteDrain) {
+                v = qMax;
+            } else {
+                vDecay = decaying ? vDecay * fdnDecayRate : qMax * fdnDecayRate;
+                decaying = true;
+                v = vDecay;
+            }
+        }
+        w = (1.0 - ai) * v + ai * w;
+        if (w >= cutoff) everExceededCutoff = true;
+        if (everExceededCutoff && w < cutoff) {
+            return n;
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
 // DS-10 — numerical safety extension: substitution at the input-chain head,
 // repeated-reset idempotency, whole-path silence-in/silence-out, and the
 // per-section S_j/D_j proof template plus a separately measured silence
@@ -1077,22 +1230,6 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         DiffusionStereoPath measure;
         if (!measure.prepare(validConfig(rate))) return fail("DS-10 proof-template fixture preparation failed");
 
-        // Measured peak tap-normalized amplitude actually observed arriving
-        // at the output diffuser cascades for a full-scale impulse over this
-        // fixed finite window. The wrapper's default automation controls govern
-        // this render. This is a fixture illustration rather than a propagated
-        // analytic cessation bound through the FDN.
-        constexpr std::size_t kMeasureFrames = 300000;
-        double measuredTapPeak = 0.0;
-        const float tapScale = 1.0F / std::sqrt(4.0F); // lineCount/2 == 4 for this N=8 fixture
-        for (std::size_t n = 0; n < kMeasureFrames; ++n) {
-            const auto taps = measure.preStepTapSums();
-            measuredTapPeak = std::max({measuredTapPeak, std::abs(static_cast<double>(taps.even * tapScale)),
-                                        std::abs(static_cast<double>(taps.odd * tapScale))});
-            static_cast<void>(measure.processSample(n == 0 ? 1.0F : 0.0F));
-        }
-        if (measuredTapPeak <= 0.0) return fail("DS-10 anti-vacuity: tap-peak measurement fixture never went nonzero");
-
         const float storedCoefficient = measure.allpassCoefficient();
         const double g = static_cast<double>(storedCoefficient);
         if (storedCoefficient != static_cast<float>(kGoldenCoefficient)) {
@@ -1114,6 +1251,105 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         };
         const std::array<std::size_t, 2> leftDelays {measure.leftOutputDelaySamples(0), measure.leftOutputDelaySamples(1)};
         const std::array<std::size_t, 2> rightDelays {measure.rightOutputDelaySamples(0), measure.rightOutputDelaySamples(1)};
+        constexpr double kCutoff = 1e-20;
+
+        // --- Absolute cessation time of the input cascade's own output (the
+        // value injected into the FDN), chaining each stage's D_j additively:
+        // stage j's own input is exactly zero only once stage j-1 has itself
+        // fully drained, so the true absolute time is a sum, not a max. ---
+        std::size_t inputCascadeAbsoluteDrain = 0;
+        for (std::size_t j = 0; j < inputDelays.size(); ++j) {
+            const double stateBound = std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g);
+            const std::size_t k = stageDrainCircuits(stateBound, g, kCutoff);
+            inputCascadeAbsoluteDrain += (k + 1) * inputDelays[j];
+        }
+
+        // --- The FDN's own propagated cessation-state bound (see the
+        // derivation above testDs10ProofTemplateAndMeasuredSilence). ---
+        const std::size_t lineCount = controlNetwork.lineCount();
+        std::vector<double> mLines(lineCount);
+        std::vector<double> aLines(lineCount);
+        double rho = 0.0;
+        for (std::size_t i = 0; i < lineCount; ++i) {
+            mLines[i] = static_cast<double>(controlNetwork.delaySamples(i));
+            aLines[i] = static_cast<double>(controlNetwork.dampingCoefficient(i));
+            const double rawGain
+                = static_cast<double>(controlNetwork.foldedLineGain(i)) * std::sqrt(static_cast<double>(lineCount));
+            rho = std::max(rho, rawGain);
+        }
+        const std::size_t mMaxFdn = static_cast<std::size_t>(mLines.back());
+
+        const double rStar = fdnPoleRadiusBound(rho, mLines, aLines);
+        const double fdnDecayRate = rStar + 0.01 * (1.0 - rStar);
+        const double mu = std::exp(fdnLoopGainLogBound(fdnDecayRate, rho, mLines, aLines));
+        if (!(mu < 1.0) || !(fdnDecayRate < 1.0) || !(fdnDecayRate > rStar)) {
+            return fail("DS-10 propagated FDN bound: pole-radius margin did not close");
+        }
+
+        // Peak of `diffused` (the input cascade's own output, before the FDN's
+        // 1/sqrt(N) injection scale): each of the 4 input stages can raise the
+        // peak by at most sectionPeakGain (the allpass's exact ell1-norm-of-
+        // impulse-response gain), chained multiplicatively -- the same
+        // per-stage bound the input-section S_j rows above already use.
+        const double rawDiffusedPeak = std::pow(sectionPeakGain, static_cast<double>(inputDelays.size()));
+        // Q_max = U*sqrt(N)/[(1-mu)(1-fdnDecayRate)] with U = rawDiffusedPeak
+        // / sqrt(N) (DiffusionStereoPath::processOne's own injection scale);
+        // the two sqrt(N) factors cancel.
+        const double qMax = rawDiffusedPeak / ((1.0 - mu) * (1.0 - fdnDecayRate));
+
+        // Buffer-write drain: propagate the *bound* geometrically (not via
+        // repeated std::pow, for speed) until it is guaranteed below cutoff,
+        // then add one full m_i to flush the last possibly-nonzero write out
+        // of the longest line's buffer.
+        std::size_t fdnWriteCutoffSample = inputCascadeAbsoluteDrain;
+        {
+            double bound = qMax * fdnDecayRate;
+            constexpr std::size_t kIterationSafetyCap = 200000000;
+            std::size_t iterations = 0;
+            while (bound >= kCutoff) {
+                bound *= fdnDecayRate;
+                ++fdnWriteCutoffSample;
+                if (++iterations > kIterationSafetyCap) {
+                    return fail("DS-10 propagated FDN bound: write-value drain search did not converge");
+                }
+            }
+        }
+        const std::size_t fdnWriteDrain = fdnWriteCutoffSample + mMaxFdn;
+
+        // Damping-state drain: propagate the *bound* on |w_i[n]| through its
+        // own convex-combination recursion, |w_i[n]| <= (1-a_i)|v_i[n]| +
+        // a_i|w_i[n-1]|, with v_i[n] = q_i[n-m_i] bounded by qMax (constant)
+        // for n-m_i < inputCascadeAbsoluteDrain and by
+        // qMax*fdnDecayRate^(n-m_i-inputCascadeAbsoluteDrain+1) after. This is
+        // a direct numerical propagation of the bound because fdnDecayRate
+        // and a_i need not share a common decay rate, so no closed form is
+        // assumed.
+        std::size_t fdnDampingDrain = 0;
+        for (std::size_t i = 0; i < lineCount; ++i) {
+            const std::size_t mi = static_cast<std::size_t>(mLines[i]);
+            const double worstRate = std::max(fdnDecayRate, aLines[i]);
+            const double capEstimate
+                = (worstRate > 0.0) ? (std::log(kCutoff / qMax) / std::log(worstRate)) : 0.0;
+            const std::size_t cap
+                = static_cast<std::size_t>(1.5 * std::max(0.0, capEstimate)) + mi + fdnWriteDrain + 1000;
+
+            const auto drainSample
+                = dampingStateDrainSamples(mi, aLines[i], qMax, fdnDecayRate, inputCascadeAbsoluteDrain, kCutoff, cap);
+            if (!drainSample) {
+                return fail("DS-10 propagated FDN bound: damping-state drain search did not converge");
+            }
+            fdnDampingDrain = std::max(fdnDampingDrain, *drainSample);
+        }
+        if (fdnDampingDrain == 0) {
+            return fail("DS-10 anti-vacuity: damping-state drain reported zero (never excited above cutoff)");
+        }
+        const std::size_t fdnDrain = std::max(fdnWriteDrain, fdnDampingDrain);
+
+        // Analytic (not measured) peak bound on the signal reaching the
+        // output diffuser cascades: preStepTapSums sums N/2 lines' v_i, each
+        // bounded uniformly by qMax for all n, then scaled by
+        // DiffusionStereoPath's own tapScale = 1/sqrt(N/2).
+        const double analyticTapPeak = qMax * std::sqrt(static_cast<double>(lineCount) / 2.0);
 
         std::vector<Section> sections;
         for (std::size_t j = 0; j < inputDelays.size(); ++j) {
@@ -1127,11 +1363,11 @@ int testDs10ProofTemplateAndMeasuredSilence() {
         }
         for (std::size_t j = 0; j < leftDelays.size(); ++j) {
             sections.push_back({"outputL", leftDelays[j],
-                                measuredTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
+                                analyticTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
         }
         for (std::size_t j = 0; j < rightDelays.size(); ++j) {
             sections.push_back({"outputR", rightDelays[j],
-                                measuredTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
+                                analyticTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g)});
         }
 
         std::size_t maxDrain = 0;
@@ -1139,20 +1375,44 @@ int testDs10ProofTemplateAndMeasuredSilence() {
                   << "Hz (stored float q_j=" << storedCoefficient
                   << ", wrapper defaults: Decay=0.5, Damp=0, Mix=1, realized T60_0="
                   << realizedDefaultT60 << "s; stored-q peak gain 1+2q=" << sectionPeakGain
-                  << "; measured-window tap peak=" << measuredTapPeak << "):\n";
+                  << "; analytic propagated tap peak=" << analyticTapPeak << "):\n";
         for (const Section& section : sections) {
-            std::size_t k = 1;
-            while (std::pow(g, static_cast<double>(k)) * section.stateBound >= static_cast<double>(1e-20F)) ++k;
+            const std::size_t k = stageDrainCircuits(section.stateBound, g, kCutoff);
             const std::size_t drain = (k + 1) * section.delay;
             maxDrain = std::max(maxDrain, drain);
             const bool isInput = std::string(section.label) == "input";
             std::cout << "  " << section.label << " d_j=" << section.delay << " q_j=" << storedCoefficient
                       << " S_j=" << section.stateBound << (isInput ? " (analytic input-cessation bound)"
-                                                                   : " (measured-window illustration; not a proved cessation bound)")
-                      << " k_j=" << k << " D_j=(k_j+1)*d_j=" << drain << '\n';
+                                                                   : " (analytically propagated peak, chained through the FDN)")
+                      << " k_j=" << k << " D_j=(k_j+1)*d_j=" << drain << " [additional samples beyond "
+                      << "this section's own input cessation]\n";
         }
-        std::cout << "  C3 qualification: no whole-chain cessation-state bound is established; output-section "
-                     "rows are measured-window illustrations, not a propagated proof.\n";
+
+        // Chain each output branch's own two-stage D_j additively (same
+        // reasoning as inputCascadeAbsoluteDrain above) on top of the FDN's
+        // own drain, to get a true absolute whole-chain cessation time.
+        auto chainedOutputDrain = [&](const std::array<std::size_t, 2>& delays) {
+            std::size_t total = 0;
+            for (std::size_t j = 0; j < delays.size(); ++j) {
+                const double stateBound = analyticTapPeak * std::pow(sectionPeakGain, static_cast<double>(j)) / (1.0 - g);
+                const std::size_t k = stageDrainCircuits(stateBound, g, kCutoff);
+                total += (k + 1) * delays[j];
+            }
+            return total;
+        };
+        const std::size_t outputChainDrain = std::max(chainedOutputDrain(leftDelays), chainedOutputDrain(rightDelays));
+        const std::size_t wholeChainDrain = fdnDrain + outputChainDrain;
+        maxDrain = std::max(maxDrain, wholeChainDrain);
+
+        std::cout << "  fdn rho=" << rho << " r*=" << rStar << " decay-rate=" << fdnDecayRate << " mu=" << mu
+                  << " Q_max=" << qMax << " (propagated: input-cascade absolute drain="
+                  << inputCascadeAbsoluteDrain << ", write-drain=" << fdnWriteDrain
+                  << ", damping-drain=" << fdnDampingDrain << ", D_fdn=" << fdnDrain << ")\n";
+        std::cout << "  C3 status: propagated whole-chain cessation-state bound = D_fdn(" << fdnDrain
+                  << ") + chained output-cascade drain(" << outputChainDrain << ") = " << wholeChainDrain
+                  << " samples. This closes the previously-open DS-10 gap: the FDN's own injection "
+                     "matrix, per-line gain and damping state (ADR-002/003) are now chained analytically "
+                     "from the input cascade's cessation through to the output-section rows above.\n";
 
         // Separately measured actual full-path silence -- NOT compared to any
         // historical additive timeout (ADR-006 correction note C3 forbids
@@ -1191,6 +1451,91 @@ int testDs10ProofTemplateAndMeasuredSilence() {
                   << " samples; required >= " << kRequiredObservedSilentSuffix
                   << "; proof-template max D_j=" << maxDrain << "; not compared to any historical "
                      "additive bound)\n";
+    }
+    return 0;
+}
+
+// The fixture above (validConfig) uses t60ZeroSeconds == t60PiSeconds == 4.0,
+// which forces a_i == 0 on every FDN line (Damp bypassed, per ADR-003 (a):
+// beta = (gammaPi/gamma0)^m = 1^m = 1 exactly whenever T60_pi == T60_zero,
+// giving a = (1-beta)/(1+beta) = 0). That degenerate case never exercises
+// the a_i-dependent parts of the propagated-bound derivation above --
+// the monotonicity lemma's (1-a_i)/(1-a_i/r) term, and the damping-state
+// convex-combination recursion -- with a genuinely nonzero damping
+// coefficient, which is the ordinary product configuration, not an edge
+// case. This test exercises fdnPoleRadiusBound, fdnLoopGainLogBound and
+// dampingStateDrainSamples directly against a real, meaningfully-damped
+// FDN (T60_pi well below T60_zero, driving several lines' a_i up to
+// ADR-003's a_max = 0.999 clamp) to confirm the bisection still converges
+// to a valid margin and the damping-state drain search still terminates
+// with a genuine (non-vacuous) result when damping is actually engaged.
+int testDs10PropagatedFdnBoundWithNonzeroDamping() {
+    for (const double rate : kBracketRates) {
+        FeedbackDelayNetwork damped;
+        // T60_pi far below T60_zero forces real high-frequency damping
+        // (ADR-003 (a)); several of these 8 lines land at or near the
+        // a_max = 0.999 clamp, exercising the clamp boundary too.
+        if (!damped.prepare(rate, 8, kTMin, kTMax, 4.0, 0.05)) {
+            return fail("DS-10 nonzero-damping fixture preparation failed");
+        }
+
+        const std::size_t lineCount = damped.lineCount();
+        std::vector<double> mLines(lineCount);
+        std::vector<double> aLines(lineCount);
+        double rho = 0.0;
+        double aMax = 0.0;
+        bool sawNonzeroDamping = false;
+        for (std::size_t i = 0; i < lineCount; ++i) {
+            mLines[i] = static_cast<double>(damped.delaySamples(i));
+            aLines[i] = static_cast<double>(damped.dampingCoefficient(i));
+            aMax = std::max(aMax, aLines[i]);
+            if (aLines[i] > 0.0) sawNonzeroDamping = true;
+            rho = std::max(rho, static_cast<double>(damped.foldedLineGain(i)) * std::sqrt(static_cast<double>(lineCount)));
+        }
+        if (!sawNonzeroDamping) return fail("DS-10 nonzero-damping fixture anti-vacuity: every line had a_i == 0");
+        if (!(aMax > 0.5)) return fail("DS-10 nonzero-damping fixture did not exercise meaningfully strong damping");
+
+        const double rStar = fdnPoleRadiusBound(rho, mLines, aLines);
+        if (!(rStar > aMax) || !(rStar < 1.0)) {
+            return fail("DS-10 nonzero-damping: r* fell outside (a_max, 1)");
+        }
+        const double fdnDecayRate = rStar + 0.01 * (1.0 - rStar);
+        const double mu = std::exp(fdnLoopGainLogBound(fdnDecayRate, rho, mLines, aLines));
+        if (!(mu > 0.0) || !(mu < 1.0)) {
+            return fail("DS-10 nonzero-damping: mu did not land in (0, 1) at the chosen decay rate");
+        }
+
+        // A representative Q_max, matching the same formula and order of
+        // magnitude used in testDs10ProofTemplateAndMeasuredSilence.
+        constexpr double kCutoff = 1e-20;
+        constexpr double kRepresentativeQMax = 1.0e9;
+        std::size_t maxDampingDrain = 0;
+        for (std::size_t i = 0; i < lineCount; ++i) {
+            const std::size_t mi = static_cast<std::size_t>(mLines[i]);
+            const double worstRate = std::max(fdnDecayRate, aLines[i]);
+            const double capEstimate = std::log(kCutoff / kRepresentativeQMax) / std::log(worstRate);
+            const std::size_t cap = static_cast<std::size_t>(1.5 * std::max(0.0, capEstimate)) + mi + 1000;
+            const auto drainSample
+                = dampingStateDrainSamples(mi, aLines[i], kRepresentativeQMax, fdnDecayRate, /*inputCascadeAbsoluteDrain=*/0,
+                                           kCutoff, cap);
+            if (!drainSample) {
+                return fail("DS-10 nonzero-damping: damping-state drain search did not converge for a damped line");
+            }
+            if (*drainSample == 0) {
+                return fail("DS-10 nonzero-damping anti-vacuity: a damped line reported a zero drain");
+            }
+            // A line with meaningfully nonzero damping must take longer to
+            // settle than its own bare delay length -- if it did not, the
+            // damping recursion would not actually be doing anything.
+            if (aLines[i] > 0.5 && *drainSample <= mi) {
+                return fail("DS-10 nonzero-damping: a strongly-damped line's drain did not exceed its own delay length");
+            }
+            maxDampingDrain = std::max(maxDampingDrain, *drainSample);
+        }
+        std::cout << "DS-10 nonzero-damping @ " << rate << "Hz: rho=" << rho << " a_max=" << aMax
+                  << " r*=" << rStar << " mu=" << mu
+                  << " max damping-state drain=" << maxDampingDrain
+                  << " samples (representative Q_max=" << kRepresentativeQMax << ")\n";
     }
     return 0;
 }
@@ -2739,6 +3084,7 @@ int main() {
     if (testDs10RepeatedResetIsIdempotent() != 0) return 1;
     if (testDs10SilenceInSilenceOutBitExact() != 0) return 1;
     if (testDs10ProofTemplateAndMeasuredSilence() != 0) return 1;
+    if (testDs10PropagatedFdnBoundWithNonzeroDamping() != 0) return 1;
     if (testDs11DeterminismAndRaggedPartition() != 0) return 1;
     if (testDs12BracketConfigurationsAreRunnable() != 0) return 1;
     if (testDs12BracketCascadesDoNotAllocateDuringProcessing() != 0) return 1;
