@@ -478,9 +478,9 @@
         <div class="sub">what's actually built, not what's planned</div>
         <div class="grid cols-3">
           <div class="card stat-tile">
-            <div class="num">6</div>
+            <div class="num">7</div>
             <div class="label">Accepted ADRs</div>
-            <div class="detail">topology → damping → parameters → fixture</div>
+            <div class="detail">topology → damping → parameters → fixture → AUv3 framework</div>
           </div>
           <div class="card stat-tile">
             <div class="num">3 + DS-B / 5</div>
@@ -679,14 +679,17 @@ flowchart LR
         <div class="adr-head">
           <span class="id">ADR-007</span>
           <h3>Native Apple APIs versus JUCE for iOS/iPadOS AUv3</h3>
-          <span class="pill pending">Proposed — owner acceptance pending</span>
+          <span class="pill good">Accepted (2026-09-18)</span>
         </div>
-        <div class="decision">Proposes native Apple AUv3 APIs around the portable C++ core for the
-          current single-format iOS/iPadOS scope, over JUCE's wider but
-          unrequired platform/format support. Documentation-only comparison:
-          it authorizes no wrapper, UI, dependency, or host/device work, and
-          does not supersede ADR-001's deferred integration boundary while
-          proposed.</div>
+        <div class="decision">Native Apple AUv3 APIs are the accepted architectural
+          direction around the portable C++ core for the current single-format
+          iOS/iPadOS scope, over JUCE's wider but unrequired platform/format
+          support. This selects a framework direction only: it authorizes no
+          wrapper, UI, dependency, or host/device work, and does not supersede
+          ADR-001's deferred integration boundary. A separately authorized
+          bounded implementation plan, plus the still-open parameter-event
+          bridge and production bus/state design, remain prerequisites to any
+          wrapper code.</div>
         <div class="adr-meta"><a href="../decisions/ADR-007-auv3-integration-comparison.md">Full ADR</a>
           <a href="../superpowers/plans/2026-09-18-auv3-integration-evaluation.md">Decision-only evaluation plan</a></div>
       </div>
@@ -741,8 +744,8 @@ flowchart LR
           </div>
           <div class="card">
             <div class="pill pending" style="margin-bottom:10px;">Next — owner decision</div>
-            <b>AUv3 integration comparison</b>
-            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Compare native Apple APIs and JUCE on documentation evidence only; no wrapper, UI, dependency, or host/device claim is authorized.</p>
+            <b>Which post-acceptance design prerequisite to authorize</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">ADR-007 (native Apple APIs) is accepted. The parameter-event bridge, production bus/state design, and the wrapper implementation plan itself are each still separately gated; no wrapper, UI, dependency, or host/device claim is authorized yet.</p>
           </div>
           <div class="card">
             <div class="pill neutral" style="margin-bottom:10px;">Later</div>

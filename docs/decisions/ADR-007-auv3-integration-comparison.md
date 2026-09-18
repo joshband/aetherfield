@@ -1,8 +1,9 @@
 ---
 id: "ADR-007"
-status: proposed
-implementation: "none; documentation-only-comparison"
-review: "owner-acceptance-pending"
+status: accepted
+accepted: "2026-09-18"
+implementation: "none; architectural direction only, no wrapper/UI/dependency code"
+review: "owner-accepted-2026-09-18"
 review_document: "../superpowers/plans/2026-09-18-auv3-integration-evaluation.md"
 depends_on: [ADR-001, ADR-004, ADR-006]
 ---
@@ -11,12 +12,12 @@ depends_on: [ADR-001, ADR-004, ADR-006]
 
 ## Review summary
 
-- **Proposal:** use native Apple AUv3 APIs around the portable C++ DSP core for the current single-format iOS/iPadOS scope.
+- **Decision:** use native Apple AUv3 APIs around the portable C++ DSP core for the current single-format iOS/iPadOS scope.
 - **Why:** direct ownership of the Apple boundary fits the present target; JUCE's wider platform/format support does not yet answer an approved requirement.
 - **Consequence:** the team would own lifecycle, parameter bridging, state and packaging glue. This is an engineering judgment, not a measured cost or performance advantage.
-- **Uncertainty:** owner acceptance, the event bridge, production buses, state policy, Apple build/signing and device/host evidence remain open. UI technology remains deferred.
+- **Uncertainty:** the event bridge, production buses, state policy, Apple build/signing and device/host evidence remain open. UI technology remains deferred.
 
-**Status: Proposed — owner acceptance required.** This record authorizes no implementation. It does not supersede [ADR-001](ADR-001-portable-core.md)'s deferred integration boundary while proposed. Even acceptance requires a separately authorized bounded implementation plan.
+**Status: Accepted (2026-09-18) — architectural direction only.** The owner accepted the native-API recommendation as written, with no revision. This record authorizes no wrapper, UI, dependency, or other implementation. It does not supersede [ADR-001](ADR-001-portable-core.md)'s deferred integration boundary. A separately authorized bounded implementation plan is still required before any code, and the parameter-event bridge and production bus/state design (below) remain open prerequisites to that plan.
 
 ## Context and scope
 
@@ -105,9 +106,9 @@ ADR-004 revision and a new bounded-work argument, not an incidental wrapper
 implementation. Fixed-partition core determinism is not proof of deterministic
 host-event scheduling.
 
-## Proposed decision and tradeoffs
+## Decision and tradeoffs
 
-Recommend native Apple AUv3 APIs for this scope, keeping all platform glue
+Native Apple AUv3 APIs are the accepted direction for this scope, keeping all platform glue
 outside the portable core. A single Apple format makes direct lifecycle and
 event ownership a reasonable starting point. This deliberately accepts the
 cost of writing and maintaining that glue. It is not evidence of lower CPU,
@@ -119,7 +120,7 @@ The current product scope does not yet justify adopting its framework and
 licensing surface. Reconsider if approved platforms/formats expand or bounded
 integration evidence shows its maintenance benefit outweighs those costs.
 
-Owner acceptance selects only an architectural direction. It does not select
+This acceptance selects only an architectural direction. It does not select
 a UI toolkit, approve a production DSP configuration, resolve the event bridge,
 choose buses/presets, or authorize code. The
 [decision-only evaluation plan](../superpowers/plans/2026-09-18-auv3-integration-evaluation.md)

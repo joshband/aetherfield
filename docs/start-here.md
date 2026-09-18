@@ -65,17 +65,21 @@ modulation, Freeze, Bloom, or Texture work is authorized by any of this.
 
 **If you are picking this project back up:** the DS-B plan and its Sonic
 acceptance component are both fully closed, and there is no queued,
-pre-authorized *implementation* task. The active continuation is an
-**owner-gated, documentation-only comparison of native Apple APIs and JUCE**
-for a future AUv3 wrapper, recorded as proposed
-[ADR-007](decisions/ADR-007-auv3-integration-comparison.md) plus its
-[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md).
-ADR-007 remains **proposed**, pending owner acceptance; it authorizes no
-wrapper, UI, dependency, or other product implementation. Do not infer
-authorization from the fact that measurement or comparison work is
-finished — read roadmap.md's LATER table and ask, per this project's own
-repeated pattern in testing.md/ADRs of never treating "measured" or
-"compared" as "accepted for the next stage."
+pre-authorized *implementation* task.
+[ADR-007](decisions/ADR-007-auv3-integration-comparison.md) — native Apple
+APIs versus JUCE for a future AUv3 wrapper — is **accepted (2026-09-18)**.
+That acceptance selects an architectural direction only: it authorizes no
+wrapper, UI, dependency, or other product implementation. The active
+continuation is an **owner-gated decision on which post-acceptance design
+prerequisite to authorize next** (see the
+[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)'s
+"Post-acceptance planning prerequisites" — the parameter-event bridge,
+production bus/state contracts, lifecycle/device matrix, and the eventual
+wrapper implementation plan itself are each still separately gated). Do not
+infer authorization from the fact that measurement, comparison, or framework
+acceptance is finished — read roadmap.md's current continuation and ask, per
+this project's own repeated pattern in testing.md/ADRs of never treating
+"measured," "compared," or "accepted" as "authorized to implement."
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
 **implemented** and independently covered by the fifth CTest suite. It does

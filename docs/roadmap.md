@@ -13,20 +13,22 @@ review close the DS-B Sonic acceptance component with no ADR-006 revision
 warranted. This closes evidence gathering for the fixed evaluation baseline,
 not product authorization.
 
-The active continuation is an **owner-gated, documentation-only comparison of
-native Apple APIs and JUCE for a future AUv3 wrapper**. It authorizes no
-wrapper, UI, Xcode project, dependency, host/device validation, modulation,
-or other product implementation. The historical milestone sections below
-retain their original scope; they are not a substitute for this current status.
+[ADR-007](decisions/ADR-007-auv3-integration-comparison.md) is **accepted
+(2026-09-18)**: native Apple AUv3 APIs are the architectural direction for a
+future wrapper, while the portable C++ core stays free of Apple/JUCE types.
+Acceptance authorizes no wrapper, UI, Xcode project, dependency, host/device
+validation, modulation, or other product implementation — it selects a
+framework direction only. The historical milestone sections below retain
+their original scope; they are not a substitute for this current status.
 
-[ADR-007](decisions/ADR-007-auv3-integration-comparison.md) proposes native
-Apple APIs while preserving the portable C++ core. It remains **proposed**,
-pending owner acceptance. The
-[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)
-records research, review and owner-decision checks. A bounded nonblocking
-parameter-event bridge, production bus/state contracts and separate owner
-authorization are prerequisites to any later wrapper implementation plan.
-UI technology remains deferred; CLAP remains not planned.
+The active continuation is now an **owner-gated decision on which
+post-acceptance design prerequisite to authorize next** — see the
+[decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)'s
+"Post-acceptance planning prerequisites". None of those design items
+(the parameter-event bridge, production bus/state contracts, lifecycle/
+device matrix, or the eventual wrapper implementation plan itself) is
+authorized by ADR-007's acceptance alone; each still needs its own bounded
+scope decision. UI technology remains deferred; CLAP remains not planned.
 
 ## NOW
 
@@ -56,7 +58,7 @@ Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the 
 |---|---|---|---|---|---|---|
 | Decide and implement future product work in bounded increments | First audible ambient field | Owner scope decision | L | Evaluation evidence mistaken for product readiness | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence; DS-B is closed as an evaluation baseline, while product behavior remains unauthorized |
 | Expand corpus and analysis when real decay exists | Detect ringing, stereo and decay regressions | Core DSP | M | Metrics mistaken for listening | Terra; Luna | Repeatable impulse/noise/musical fixtures and justified baselines; never refresh merely to pass |
-| Implement iOS/iPadOS AUv3 wrapper and eventual UI only after the current framework decision | Playable host integration with appropriate maintenance cost | Owner acceptance of [ADR-007](decisions/ADR-007-auv3-integration-comparison.md), reviewed event bridge and product bus/state contracts, separately authorized plan | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Proposed comparison is documentation only; later implementation needs actual device/host evidence and measured CPU. UI technology remains undecided |
+| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md) accepted; still needs a reviewed event bridge, product bus/state contracts, and a separately authorized wrapper plan | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | ADR-007's acceptance is a framework decision only, not implementation authorization; later work needs actual device/host evidence and measured CPU. UI technology remains undecided |
 | Mobile performance and render-thread instrumentation | Reliable audio on supported devices | Nontrivial DSP and Apple integration | M | Host smoke tests overstate realtime safety | Terra; Luna; Sol review | Measured deadlines, allocation checks and documented supported configurations |
 | Broaden build verification to another host/toolchain and add CI if useful | Detect portability regressions | Stable portable loop | S | Platform assumptions | Luna | Actual clean builds and tests; platform independence alone is not verified portability |
 | Resolve project license, identifiers and name clearance before distribution | Clear distribution terms and identity | Distribution intent | M | Unresolved ownership/naming | Owner; Terra assists | Explicit owner decisions; no license or clearance assumed |

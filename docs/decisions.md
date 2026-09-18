@@ -29,4 +29,4 @@ Canonical record: [ADR-006](decisions/ADR-006-diffusion-stereo.md)
 ## ADR-007 — Native Apple APIs versus JUCE for iOS/iPadOS AUv3
 
 Canonical record: [ADR-007](decisions/ADR-007-auv3-integration-comparison.md).
-Proposed; owner acceptance pending. Documentation-only comparison; no implementation authorized.
+Accepted (2026-09-18): native Apple APIs are the framework direction. No wrapper, UI or dependency implementation authorized.

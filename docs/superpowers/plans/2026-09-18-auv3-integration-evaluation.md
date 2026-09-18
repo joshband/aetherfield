@@ -38,14 +38,14 @@ No framework was downloaded or built. Research completion is not owner acceptanc
 
 ## 2. Owner decision checkpoint
 
-- [ ] Owner accepts, rejects or requests revision of the native-API recommendation; record the explicit outcome and date in ADR-007.
-- [ ] If accepted, update ADR-007 status and the roadmap consistently while retaining the separate implementation-authorization gate.
-- [ ] If JUCE is chosen instead, document the reason, reverify and pin a release, and obtain the owner's licence choice before any dependency introduction.
-- [ ] Confirm that the decision still covers only iOS/iPadOS AUv3 and leaves UI technology undecided.
+- [x] Owner accepts, rejects or requests revision of the native-API recommendation; record the explicit outcome and date in ADR-007. **Outcome: accepted as written, 2026-09-18, no revision requested.**
+- [x] If accepted, update ADR-007 status and the roadmap consistently while retaining the separate implementation-authorization gate.
+- [ ] If JUCE is chosen instead, document the reason, reverify and pin a release, and obtain the owner's licence choice before any dependency introduction. (N/A — native APIs accepted.)
+- [x] Confirm that the decision still covers only iOS/iPadOS AUv3 and leaves UI technology undecided.
 
-Until this checkpoint is complete, ADR-007 remains `status: proposed`.
-No elapsed time, successful host test run or agent review substitutes for the
-owner's acceptance.
+This checkpoint is complete. ADR-007's `status:` is now `accepted`. Acceptance
+selects an architectural direction only — it is not implementation
+authorization, and does not itself complete any item in Section 3 below.
 
 ## 3. Post-acceptance planning prerequisites
 
