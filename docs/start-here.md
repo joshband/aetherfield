@@ -72,7 +72,12 @@ That acceptance selects an architectural direction only: it authorizes no
 wrapper, UI, dependency, or other product implementation.
 [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (parameter-event
 bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md)
-(production bus: stereo-in/stereo-out with sum-to-mono reduction),
+(production bus: stereo-in/stereo-out with sum-to-mono reduction, now
+decided as an explicit interim step; bypass CPU-vs-tail-continuity
+decided as a hybrid, not-yet-designed approach; multi-channel/surround
+decided as not a target; `canProcessInPlace = true` recommended pending
+implementation confirmation — all 2026-09-19; kill-tail-on-bypass
+explicitly deferred until UI is scoped),
 [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
 {48kHz, 44.1kHz}; minimum deployment target: current major version minus
 one, iOS/iPadOS 26+ — corrected 2026-09-19 from the 25+ originally
@@ -90,8 +95,11 @@ test/CI code. ADR-010's floor is a **rolling policy, not a fixed number**
 — re-verify it against Apple's then-current data before writing the
 wrapper implementation plan. ADR-011 names two unimplemented
 `ParameterAutomation` obligations (a read-back accessor and a combined
-`setAll` publish entry point). ADR-012's device/chip-tier scope itself
-remains owner-open. The eventual wrapper implementation plan remains
+`setAll` publish entry point). ADR-012's device/chip-tier scope is
+decided (2026-09-19) as per-family corners — iPhone SE 2nd gen/A13 +
+newest iPhone; iPad 8th gen/A12 + newest iPad Pro — though the "newest
+available" half of each pair must be re-verified at implementation-plan
+time. The eventual wrapper implementation plan remains
 unstarted and is downstream of all five ADRs. Do not infer authorization
 from the fact that measurement, comparison, or framework acceptance is
 finished — read roadmap.md's current continuation and ask, per this

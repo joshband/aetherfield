@@ -48,7 +48,10 @@ composition; it is not an AUv3 or product-wrapper diagram.
   code is authorized by this decision.
   [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (the parameter-event
   bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md)
-  (production bus: stereo-in/stereo-out, sum-to-mono),
+  (production bus: stereo-in/stereo-out, sum-to-mono, decided 2026-09-19 as
+  interim; bypass CPU-vs-tail decided as an undesigned hybrid;
+  `canProcessInPlace = true` recommended; multi-channel not a target;
+  kill-tail-on-bypass explicitly deferred),
   [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
   {48kHz, 44.1kHz}; minimum deployment target: current major version minus
   one, iOS/iPadOS 26+ (corrected 2026-09-19 from 25+; see ADR-010's
@@ -56,9 +59,10 @@ composition; it is not an AUv3 or product-wrapper diagram.
   (state payload, versioning, and atomic 3-parameter restore, reopening
   ADR-008's alternative (C) for the StateRestore role only), and
   [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md)
-  (HT-1…HT-12 acceptance-test methodology and device/OS scope policy) are
-  all accepted (2026-09-18) but authorize no wrapper/UI/dependency/test/CI
-  code either.
+  (HT-1…HT-12 acceptance-test methodology and device/OS scope policy,
+  including a device/chip-tier scope decided 2026-09-19 as per-family
+  corners) are all accepted (2026-09-18) but authorize no
+  wrapper/UI/dependency/test/CI code either.
 
 ## Build and ownership
 

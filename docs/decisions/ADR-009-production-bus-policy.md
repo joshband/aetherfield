@@ -46,6 +46,18 @@ other implementation. A separately authorized bounded implementation plan
 is still required before any code is written against it, exactly as
 ADR-007's acceptance did not authorize a wrapper plan on its own.
 
+**Status update (2026-09-19).** Three more of this ADR's originally-listed
+uncertainties are now decided, and one technical recommendation is
+recorded: sum-to-mono is an explicit interim step, not permanent (§1);
+the bypass CPU-vs-tail-continuity tradeoff is decided as a hybrid
+approach (§2); multi-channel/surround output is decided as not a target
+("Remaining decisions"); and `canProcessInPlace = true` is recorded as a
+source-grounded recommendation pending implementation-time confirmation
+(§3). The host-exposed "kill tail instantly on bypass" affordance remains
+explicitly deferred until UI is scoped — the owner declined to decide it
+now rather than leaving it accidentally open. See §1/§2/§3 and "Remaining
+decisions and later evidence" below for the dated detail.
+
 ## Context and scope
 
 [ADR-007](ADR-007-auv3-integration-comparison.md), accepted 2026-09-18, named
@@ -201,13 +213,15 @@ tradeoffs" §1 and "Remaining decisions and later evidence").
    unmodified mono diffusion chain.** The owner selected (B) over (A) to
    match conventional AUv3 host insert-slot expectations, accepting the
    sum-to-mono reduction's engineering cost and its loss of input stereo
-   *image* (not just level) as the tradeoff. Whether sum-to-mono is a
-   permanent product behavior or an interim step pending a true
-   stereo-diffusion successor to ADR-006 (g)'s deferred "second input
-   diffusion chain" remains open (see "Remaining decisions and later
-   evidence"). Alternative (C), no-input generator, is rejected on the
-   grounded engineering basis that it contradicts ADR-004's accepted
-   dry-input Mix contract without a new parameter ADR.
+   *image* (not just level) as the tradeoff. **Decided (2026-09-19):
+   sum-to-mono is an explicit interim step, not a permanent product
+   behavior** — a true stereo-diffusion successor to ADR-006 (g)'s
+   deferred "second input diffusion chain" is a real intended follow-on,
+   not merely a hypothetical (see "Remaining decisions and later
+   evidence" for what scoping that successor would require). Alternative
+   (C), no-input generator, is rejected on the grounded engineering basis
+   that it contradicts ADR-004's accepted dry-input Mix contract without a
+   new parameter ADR.
 
 2. **Dry/bypass policy, at decision level:**
    - On engaging `AUAudioUnit.shouldBypassEffect`, the wrapper's output must
@@ -218,11 +232,20 @@ tradeoffs" §1 and "Remaining decisions and later evidence").
      but AU-level bypass and `Mix = 0` are **not decided here to be the same
      mechanism**: `Mix = 0` still runs the full diffusion/FDN chain to
      produce a wet signal it then discards, while AU bypass may or may not
-     need to keep running that chain. Whether bypass continues computing the
-     wet path in the background (to preserve a re-enterable tail, at full
-     CPU cost) or pauses/freezes it (saving CPU, at the cost of losing tail
-     continuity) is a genuine engineering/product tradeoff this ADR does not
-     resolve — see "Remaining decisions."
+     need to keep running that chain. **Decided (2026-09-19): a hybrid
+     approach.** The wrapper keeps computing the wet path after bypass
+     engages, but only while state is provably non-silent — tracking
+     elapsed samples since the last non-silent input against the
+     closed-form `T_silence` bound (ADR-003 (b)(6)/(h)) for the currently
+     configured Decay/Damp — and stops rendering once that bound is
+     passed. This preserves tail continuity for a bypass toggle inside the
+     tail window while avoiding indefinite CPU cost for toggles well after
+     the tail has actually reached silence. **This is new logic beyond
+     anything already implemented or decided elsewhere** — no existing
+     code tracks elapsed-since-input against `T_silence` — so the bounded
+     implementation plan must design and test it as a first-class feature,
+     not assume it falls out of the existing `reset()`/fault-recovery
+     contract.
    - **Wet-tail-on-bypass is bounded, not undefined or infinite.** ADR-003's
      proof that every recursive memory reaches exactly zero within a
      computable `T_silence` (a function of the configured decay/damping
@@ -243,10 +266,12 @@ tradeoffs" §1 and "Remaining decisions and later evidence").
      implementation, out of scope) — it states that un-bypass must not be a
      hard discontinuity given that ADR-004's ramp discipline already exists
      for exactly this class of problem.
-   - Whether a host-exposed "kill the wet tail instantly on bypass" option
-     should exist at all (as distinct from the default tail-preserving
-     behavior above) is a genuine product decision — see "Remaining
-     decisions."
+   - **Explicitly deferred (2026-09-19), not decided:** whether a
+     host-exposed "kill the wet tail instantly on bypass" option should
+     exist, as distinct from the hybrid default above. The owner declined
+     to decide this now rather than leaving it accidentally open; it
+     remains a genuine product decision to be made once UI is scoped —
+     see "Remaining decisions."
 
 3. **Buffer-aliasing policy: `DiffusionStereoPath::process` itself still
    cannot be called in-place, and the AU-facing bus's own in-place safety
@@ -277,6 +302,17 @@ tradeoffs" §1 and "Remaining decisions and later evidence").
    already supports it. The bounded implementation plan that eventually
    builds item 1's decision must resolve `canProcessInPlace`'s actual
    value; this ADR only establishes what is and is not already known.
+
+   **Recommended (2026-09-19), pending implementation-time confirmation:
+   `canProcessInPlace = true`**, contingent on the wrapper performing its
+   sum-to-mono reduction per-sample — reading both input channels and
+   writing both output channels at the same index before advancing to the
+   next — rather than through a separately-populated scratch buffer. This
+   is grounded in `DiffusionStereoPath::processOne`'s confirmed
+   read-before-write, no-lookahead per-sample discipline (established
+   above); it does not itself satisfy the bounded implementation plan's
+   required confirmation, which must still verify this holds for whatever
+   it actually builds.
 
 4. **This ADR does not promote DS-B's tap/diffusion parameters into a
    product configuration.** ADR-006's own boundary language is preserved
@@ -324,33 +360,34 @@ depends on this ADR, the owner must resolve —
   (B), stereo-in/stereo-out with a sum-to-mono input reduction.** (The
   no-input generator alternative (C) was never open — it was rejected on
   the grounded engineering basis stated in §1 and §Alternatives.)
-- **Whether sum-to-mono input reduction is an acceptable *permanent*
-  product behavior, or only an interim step** pending a true
+- **Decided (2026-09-19): sum-to-mono input reduction is an explicit
+  interim step**, not a permanent product behavior — see §1. A true
   stereo-diffusion successor (ADR-006 (g)'s deferred "second input
-  diffusion chain with its own delay set") — a sonic/scope decision, still
-  open, not resolved by accepting (B) itself.
-- **`canProcessInPlace`'s actual value for the now-decided stereo-in/
-  stereo-out bus**, given that `DiffusionStereoPath::process` itself must
-  always be called with distinct buffers regardless (§3) — whether the
-  wrapper's sum-to-mono reduction and core call can be sequenced so the
-  AU's *own* public bus can safely report in-place support is a new,
-  unresolved implementation-level question this ADR's acceptance opened
-  but does not answer (§3).
-- **Bypass CPU-vs-tail-continuity tradeoff**: whether `shouldBypassEffect`
-  pauses/freezes the DSP core (saving render cost, at the cost of losing
-  tail continuity across a bypass toggle) or keeps it running silently in
-  the background (preserving a re-enterable tail, at full CPU cost while
-  bypassed). §2 states the bounded-tail-time and bit-exact-passthrough
-  requirements either approach must satisfy; it does not choose between
-  them.
-- **Whether a host-exposed "kill the wet tail instantly on bypass"
-  affordance should exist** as a distinct, user-selectable behavior from the
-  tail-preserving default in §2 — an explicit product/UX decision, not an
-  engineering necessity.
-- **Whether multi-channel/surround output is ever a target.** Nothing in
-  this ADR, ADR-006, or ADR-007 considers more than two output channels;
-  if surround or multichannel output becomes a target, both this ADR's bus
-  table and ADR-006's tap design would need to be reopened.
+  diffusion chain with its own delay set") is a real intended follow-on;
+  scoping and authorizing that successor remains separate, later work.
+- **Recommended (2026-09-19), pending implementation-time confirmation:
+  `canProcessInPlace = true`** — see §3 for the source grounding and the
+  required per-sample-interleaved implementation constraint. The bounded
+  implementation plan must still confirm this holds for whatever it
+  actually builds, since `DiffusionStereoPath::process` itself must always
+  be called with distinct buffers regardless.
+- **Decided (2026-09-19): a hybrid approach to the bypass
+  CPU-vs-tail-continuity tradeoff** — see §2. Keep computing the wet path
+  only while state is provably non-silent (elapsed-since-input tracked
+  against the closed-form `T_silence` bound), stopping once past it. This
+  is new logic the bounded implementation plan must design and test as a
+  first-class feature; §2 states the bounded-tail-time and
+  bit-exact-passthrough requirements it must still satisfy.
+- **Explicitly deferred (2026-09-19), not decided:** whether a host-exposed
+  "kill the wet tail instantly on bypass" affordance should exist, as a
+  distinct, user-selectable behavior from the hybrid default in §2. The
+  owner deferred this until UI is scoped rather than deciding it now — an
+  explicit product/UX decision, not an engineering necessity.
+- **Decided (2026-09-19): multi-channel/surround output is not a target.**
+  Nothing in this ADR, ADR-006, or ADR-007 considers more than two output
+  channels, and nothing is gained by deciding this preemptively. If
+  multichannel/surround output is raised later, both this ADR's bus table
+  and ADR-006's tap design would need to be reopened from scratch.
 - **Whether the DS-B route's specific tap/diffusion parameters (or any
   successor stereo-diffusion design) are acceptable as heard once wrapped**,
   independent of this ADR — DS-9's measured asymmetry and DS-7's conditional
@@ -361,9 +398,13 @@ depends on this ADR, the owner must resolve —
   any production dry/wet-mix or mono-fold-down claim is made at the second
   fixture rate; this ADR does not close it.
 
-Only the bus channel-count layout itself is resolved by this ADR's
-acceptance. Every other bulleted item above remains open; acceptance does
-not stand in for the owner's sign-off on any of them.
+As of 2026-09-19, the bus channel-count layout, the sum-to-mono interim
+label, the hybrid bypass CPU-vs-tail approach, the `canProcessInPlace`
+recommendation, and the multi-channel/surround non-target decision are
+resolved (see the dated notes above). The kill-tail-on-bypass affordance
+remains explicitly deferred until UI is scoped, and the DS-9/DS-7 sonic
+acceptance items and the 44.1kHz DS-8 evidence gap remain open; none of
+this ADR's acceptance stands in for the owner's sign-off on those three.
 
 ## Revisit when
 

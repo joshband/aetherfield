@@ -39,7 +39,7 @@ Accepted (2026-09-18). Design only; no bridge/wrapper/UI/dependency implementati
 ## ADR-009 — Production audio bus layout, dry/bypass, and buffer-aliasing policy
 
 Canonical record: [ADR-009](decisions/ADR-009-production-bus-policy.md).
-Accepted (2026-09-18): stereo-in/stereo-out bus with sum-to-mono reduction. No wrapper/UI/dependency implementation authorized.
+Accepted (2026-09-18): stereo-in/stereo-out bus with sum-to-mono reduction. Also decided, 2026-09-19: sum-to-mono is an explicit interim step; bypass CPU-vs-tail-continuity is a hybrid approach (not yet designed); multi-channel/surround is not a target; `canProcessInPlace = true` is a recommendation pending implementation-time confirmation. Kill-tail-on-bypass remains explicitly deferred until UI is scoped. No wrapper/UI/dependency implementation authorized.
 
 ## ADR-010 — Supported device/OS/rate/block-size matrix and AUv3 lifecycle/failure scope
 
@@ -54,4 +54,4 @@ Accepted (2026-09-18): payload shape (three normalized doubles, `schemaVersion`,
 ## ADR-012 — Host/device acceptance-test catalog: methodology for HT-1…HT-12, device/OS scope policy, and tooling scope
 
 Canonical record: [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md).
-Accepted (2026-09-18): methodology for ADR-010's twelve named HT categories, plus device/OS scope policy (D) — corners, with the weakest tier added for the two timing categories. Device/chip-tier scope itself remains owner-open. No test/host/device/CI implementation authorized.
+Accepted (2026-09-18): methodology for ADR-010's twelve named HT categories, plus device/OS scope policy (D) — corners, with the weakest tier added for the two timing categories. Device/chip-tier scope decided 2026-09-19: per-family corners (iPhone SE 2nd gen/A13 + newest iPhone; iPad 8th gen/A12 + newest iPad Pro), re-verify "newest available" at implementation-plan time. No test/host/device/CI implementation authorized.

@@ -794,6 +794,31 @@ reserves to the owner and which remains open. (D) is a *shape* — "corners,
 plus a low-end device for the timing categories" — that becomes a concrete
 run matrix only once the owner names which tiers are in scope at all.
 
+**Device/chip-tier scope: decided (2026-09-19) as per-family corners.**
+Following (D)'s shape above, the owner named concrete tiers: **iPhone —
+iPhone SE (2nd gen) / iPhone 11 family (Apple A13 Bionic, the oldest
+iPhone iOS 26/27 both still support) as the oldest corner, plus the
+newest available iPhone as the newest corner; iPad — iPad (8th gen,
+Apple A12 Bionic, the oldest iPadOS 26 still supports — one chip
+generation weaker than the iPhone floor) as the oldest corner, plus the
+newest available iPad Pro (M-series) as the newest corner.** This yields
+four physical device targets rather than (A)/(D)'s bare minimum of two,
+because the iPhone and iPad OS floors diverge by one chip generation
+(A13 vs. A12) and the two product lines have materially different
+thermal/memory envelopes — sweeping only one family's corner would leave
+the other family's low end entirely unmeasured, which is exactly the
+"generic compatibility claim" this project's discipline exists to avoid.
+HT-11 and HT-12 additionally run on whichever of these four is the
+weakest tier (the iPad 8th gen/A12), per (D)'s already-decided rule.
+**Verified 2026-09-19** against Apple's own device-compatibility data
+(iOS 26/27 both floor at iPhone 11/SE 2nd gen, A13; iPadOS 26 floors at
+iPad 8th gen, A12; newest verified chips as of this date are iPhone A19
+and iPad Pro M5). Device/chip releases are time-sensitive, so **whoever
+writes the wrapper implementation plan must re-verify "newest available"
+against Apple's then-current lineup** before locking in specific
+hardware — the same rolling-re-verification discipline ADR-010 already
+applies to the OS floor.
+
 ## Tooling policy — `auval`
 
 **Proposed: `auval` is in scope as a cheap, first-line structural check, run
@@ -865,10 +890,13 @@ is still required, and HT-1…HT-12 remain unrun.
 
 ## Remaining decisions and later evidence
 
-- **The device/chip-tier scope** — ADR-010's "the owner sets a device/chip-tier
-  scope" is unchanged by this record. Which tiers are in scope remains an
-  owner decision; which of alternatives (A)–(D) governs coverage is now
-  decided as (D).
+- **Decided (2026-09-19): the device/chip-tier scope is per-family
+  corners** — iPhone SE 2nd gen/A13 + newest iPhone; iPad 8th gen/A12 +
+  newest iPad Pro (M-series); see "Device/OS scope policy" above for the
+  concrete names and rationale. The "newest available" half of each pair
+  must be re-verified against Apple's then-current lineup at
+  implementation-plan time, the same discipline ADR-010 applies to its
+  OS floor.
 - **The concrete OS floor at execution time** — ADR-010's "current major
   version minus one" is a rolling policy, and its concrete iOS/iPadOS 26+
   value (corrected 2026-09-19 from 25+; see ADR-010's "Correction note")

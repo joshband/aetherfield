@@ -33,10 +33,17 @@ are **accepted**:
   up front.
 - [ADR-009](decisions/ADR-009-production-bus-policy.md) — **accepted
   (2026-09-18)**: the production bus is stereo-in/stereo-out with a
-  sum-to-mono reduction ahead of the existing mono diffusion chain.
-  Several other items (bypass CPU-vs-tail tradeoff, kill-tail-on-bypass
-  affordance, multi-channel target, `canProcessInPlace`'s actual value
-  for the new bus) remain open in ADR-009's "Remaining decisions."
+  sum-to-mono reduction ahead of the existing mono diffusion chain. Four
+  more items resolved **2026-09-19**: sum-to-mono is decided as an
+  explicit interim step, not permanent; the bypass CPU-vs-tail-continuity
+  tradeoff is decided as a hybrid approach (keep the wet path running only
+  until the closed-form `T_silence` bound passes, new logic still to be
+  designed); multi-channel/surround output is decided as not a target;
+  and `canProcessInPlace = true` is recorded as a source-grounded
+  recommendation pending implementation-time confirmation. The
+  host-exposed "kill tail instantly on bypass" affordance remains
+  **explicitly deferred** until UI is scoped — see ADR-009's "Remaining
+  decisions."
 - [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) — **accepted
   (2026-09-18)**: fixes the sample-rate set to {48kHz, 44.1kHz} and sets
   the minimum deployment target as a rolling "current major version
@@ -67,8 +74,12 @@ Two further prerequisites are also now **accepted**:
   evidence shapes, what stays owner/execution-time-open — and decides a
   device/OS coverage policy, (D): corners only for most categories, plus
   the weakest in-scope chip tier specifically for the two timing
-  categories (HT-11, HT-12). Which physical device tiers are actually in
-  scope remains a separate, still-open owner decision.
+  categories (HT-11, HT-12). **Device/chip-tier scope decided 2026-09-19**
+  as per-family corners: iPhone SE 2nd gen/A13 + newest iPhone; iPad 8th
+  gen/A12 + newest iPad Pro (M-series) — four physical targets, with
+  HT-11/HT-12 additionally run on the weakest of the four (iPad 8th
+  gen/A12). The "newest available" half of each pair must be re-verified
+  against Apple's then-current lineup at implementation-plan time.
 
 Acceptance of ADR-008/009/010/011/012 authorizes no wrapper, UI,
 dependency, test, host, device, CI, or other implementation — a separately
@@ -105,7 +116,7 @@ Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the 
 |---|---|---|---|---|---|---|
 | Decide and implement future product work in bounded increments | First audible ambient field | Owner scope decision | L | Evaluation evidence mistaken for product readiness | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence; DS-B is closed as an evaluation baseline, while product behavior remains unauthorized |
 | Expand corpus and analysis when real decay exists | Detect ringing, stereo and decay regressions | Core DSP | M | Metrics mistaken for listening | Terra; Luna | Repeatable impulse/noise/musical fixtures and justified baselines; never refresh merely to pass |
-| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md)/[ADR-008](decisions/ADR-008-parameter-event-bridge.md)/[ADR-009](decisions/ADR-009-production-bus-policy.md)/[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md)/[ADR-011](decisions/ADR-011-state-schema.md)/[ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md) all accepted; a separately authorized wrapper plan still needed | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Acceptance of all six is a set of framework/architecture decisions only, not implementation authorization; later work needs actual device/host evidence and measured CPU. Device/chip-tier scope, the `ParameterAutomation` read-back/`setAll` obligations, and UI technology remain undecided or unimplemented |
+| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md)/[ADR-008](decisions/ADR-008-parameter-event-bridge.md)/[ADR-009](decisions/ADR-009-production-bus-policy.md)/[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md)/[ADR-011](decisions/ADR-011-state-schema.md)/[ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md) all accepted; a separately authorized wrapper plan still needed | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Acceptance of all six is a set of framework/architecture decisions only, not implementation authorization; later work needs actual device/host evidence and measured CPU. Device/chip-tier scope is decided (2026-09-19, ADR-012); the `ParameterAutomation` read-back/`setAll` obligations, the bypass hybrid mechanism's actual design, the kill-tail-on-bypass affordance, and UI technology remain undecided or unimplemented |
 | Mobile performance and render-thread instrumentation | Reliable audio on supported devices | Nontrivial DSP and Apple integration | M | Host smoke tests overstate realtime safety | Terra; Luna; Sol review | Measured deadlines, allocation checks and documented supported configurations |
 | Broaden build verification to another host/toolchain and add CI if useful | Detect portability regressions | Stable portable loop | S | Platform assumptions | Luna | Actual clean builds and tests; platform independence alone is not verified portability |
 | Resolve project license, identifiers and name clearance before distribution | Clear distribution terms and identity | Distribution intent | M | Unresolved ownership/naming | Owner; Terra assists | Explicit owner decisions; no license or clearance assumed |
