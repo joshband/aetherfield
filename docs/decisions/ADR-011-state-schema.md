@@ -606,6 +606,90 @@ reserved. Concretely:
 - **No revision of ADR-008's transport, ADR-004 (c)/(d), or ADR-009's bus
   policy.**
 
+## Design note — read-back accessor and `setAll` design finalized (2026-09-19)
+
+Resolves the three implementation-level design questions §1/§4 named as
+open, at the design-specification level: no code, no new authorization —
+both named obligations remain "required by this decision, not authorized
+by it," exactly as originally stated.
+
+**1. The read-back accessor lives on `ParameterAutomation`, not the
+wrapper.** Keeping the engine the single source of truth avoids a second,
+independently-maintained copy of the same three values that could drift
+from what the engine actually has published (for example, if a future
+producer other than the wrapper's own cached "last sent" value were ever
+added, or if a rejected non-finite `setAll`/setter call left the engine's
+stored value unchanged while a wrapper-side cache had already assumed the
+new one). This resolves the question §1 and "Remaining decisions" left
+open in favor of the core-accessor alternative, on that single-source-
+of-truth ground.
+
+Shape:
+```
+struct NormalizedControls { double decay; double damp; double mix; };
+NormalizedControls getAll() const noexcept;
+```
+This mirrors the existing `MixGains` nested-struct convention and
+`setAll`'s combined shape, sits alongside the existing four diagnostic
+accessors, and is a plain read of the already-stored `lastDecay_`/
+`lastDamp_`/`lastMix_` — introducing no new derivation and no new
+threading contract, exactly as §1 already required.
+
+**Thread-safety, stated explicitly because this is a new kind of
+member.** `lastDecay_`/`lastDamp_`/`lastMix_` are plain (non-atomic)
+doubles, written only by the control-thread setters/`setAll` under
+ADR-004 (d)'s existing single-writer assumption (every Host/UI/
+StateRestore write is serialized through the one Bridge Controller).
+`getAll()` must therefore only ever be called from that same
+control-thread context — never concurrently with a setter/`setAll` call,
+and never from the render thread. This is not a new constraint; it is
+the class's existing single-writer discipline, stated here because
+`getAll()` is this class's first public *reader* of that state, and the
+existing doc comments describe only writers.
+
+**2. `setAll`'s own validation contract: whole-triple reject on any
+non-finite field.** `setAll`'s only intended caller is the Bridge
+Controller applying an already-validated, already-clamped restore tuple
+(§3: validation happens in the restore path, before `setAll`, "so
+`setAll` receives three already-valid, already-clamped values and its
+own internal finiteness check... is a defense-in-depth backstop, not the
+primary validation path"). A non-finite value reaching `setAll` therefore
+means that upstream contract was violated, not an expected input. Given
+that, whole-triple rejection is recommended over per-field
+fallback-to-default: `setAll`'s entire purpose is atomicity — the three
+targets must land together or not at all — and silently substituting a
+default for just one bad field would publish a triple that mixes a
+fresh restored value with an unrelated stale default, which is a worse
+outcome than either fully applying the call or fully refusing it.
+Recommendation: reject the whole call (no publish, no `last*_` update,
+one `nonFiniteRejectionCount_` increment) if any of the three inputs is
+non-finite; clamp each finite-but-out-of-range field independently to
+`[0,1]`, matching the individual setters' existing behavior.
+
+**3. Pre-render snap sequencing: the same wrapper code that calls
+`prepare()` drives it.** `checkForNewTargets()`/`reset()` are documented
+render-thread API, but `prepare()` itself already calls both, off the
+render thread, immediately after its own initial `publish()` — safe
+specifically *because* this happens before any render callback has been
+invoked, so there is no concurrent render-thread activity to race
+against. A pre-render restore is the identical situation: it happens
+during `allocateRenderResourcesAndReturnError:`, strictly before the
+host's first `internalRenderBlock` call. Recommendation: the same
+wrapper code that calls `prepare()` also calls the restore path's
+`setAll()` immediately afterward (if a restore is pending), then calls
+`checkForNewTargets()` and `reset()` itself — mirroring `prepare()`'s own
+three-call sequence for the same off-render-thread-safety reason. No new
+synchronization primitive is needed; the constraint is purely sequencing
+(this must happen before the host's first render call, never after),
+which the AUv3 lifecycle already guarantees by construction. This
+resolves the "no explicit snap needed" alternative named in "Remaining
+decisions" in favor of the explicit-snap approach, since that alternative
+rested on an unverified perceptual claim ("inaudible under typical host
+pre-roll") when a mechanically simple, already-precedented explicit snap
+is available at no extra cost — and this project's discipline does not
+rely on an unverified perceptual claim when a verified mechanical one is
+available.
+
 ## Remaining decisions and later evidence
 
 The following are judgment calls this ADR makes for concreteness, not
@@ -619,12 +703,11 @@ evidence":
   requirement, making ADR-008's alternative (C) live for the StateRestore
   role, exactly as ADR-008 §6 and its "Revisit when" anticipated. This
   creates the `ParameterAutomation::setAll` obligation named in §4 —
-  **named, not implemented, by this record.** Left open beneath this
-  decision: whether `setAll`'s validation should reject the whole triple
-  on any single non-finite/out-of-range field or apply per-field
-  clamping/fallback identically to the individual setters (this record's
-  §(ii) policy assumes the latter but does not spell out `setAll`'s exact
-  contract, which is an implementation-plan-level detail).
+  **named, not implemented, by this record.** `setAll`'s own validation
+  contract is now recommended (2026-09-19, see "Design note" above):
+  whole-triple reject on any non-finite field, with per-field clamping of
+  finite-but-out-of-range fields, matching the individual setters —
+  pending implementation-time confirmation.
 - **Decided: the fixture-stamp mismatch policy is "accept the normalized
   values, surface the mismatch"** (§3 carve-out B, owner-accepted
   2026-09-18). This means a user's saved preset can sound materially
@@ -646,21 +729,18 @@ evidence":
   means while leaving the stamp identical. Adding `m_min`/`m_max` (or a
   hash of the full `mᵢ`) would close that hole, at the cost of a field
   ADR-005 does not name.
-- **Whether the read-back accessor belongs on `ParameterAutomation` at
-  all** (§1), or whether the wrapper should instead cache the last value
-  it sent and serialize that. The former keeps the engine the single
-  source of truth and survives any future producer writing to the engine;
-  the latter avoids touching `src/dsp/` at all, which ADR-001's portable-
-  core boundary makes attractive. This ADR recommends the accessor but
-  does not treat the question as closed.
-- **Which component drives the publish → `checkForNewTargets()` →
-  `reset()` snap sequence for a pre-render restore** (§4 item 4), given
-  that the latter two are documented render-thread API and the Bridge
-  Controller is by definition not the render thread. An equally valid
-  resolution is that no explicit snap is needed because the first render
-  callback's own `checkForNewTargets()` plus a 20ms ramp from the defaults
-  is inaudible under a host's typical pre-roll — a perceptual claim this
-  ADR cannot verify and does not assert.
+- **Recommended (2026-09-19), pending implementation-time confirmation:
+  the read-back accessor belongs on `ParameterAutomation`** (§1; see
+  "Design note" above for the `getAll()` shape and thread-safety
+  constraint), on single-source-of-truth grounds, over the wrapper-caches-
+  the-last-sent-value alternative that would avoid touching `src/dsp/`.
+- **Recommended (2026-09-19), pending implementation-time confirmation:
+  the same wrapper code that calls `prepare()` also drives the pre-render
+  publish → `checkForNewTargets()` → `reset()` snap sequence** (§4 item 4;
+  see "Design note" above), reusing `prepare()`'s own established
+  off-render-thread-safe pattern rather than relying on the unverified
+  "inaudible under typical host pre-roll" alternative this ADR could not
+  assert.
 - **Hard-reject vs. per-field fallback** (alternative (ii)) is a product
   judgment about which failure is less surprising to a user, not a
   derived result. The recommendation of per-field fallback assumes a user

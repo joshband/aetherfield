@@ -245,7 +245,8 @@ tradeoffs" §1 and "Remaining decisions and later evidence").
      code tracks elapsed-since-input against `T_silence` — so the bounded
      implementation plan must design and test it as a first-class feature,
      not assume it falls out of the existing `reset()`/fault-recovery
-     contract.
+     contract. See "Design note — hybrid bypass mechanism" below for the
+     state machine and the still-unverified closed-form bound.
    - **Wet-tail-on-bypass is bounded, not undefined or infinite.** ADR-003's
      proof that every recursive memory reaches exactly zero within a
      computable `T_silence` (a function of the configured decay/damping
@@ -350,6 +351,82 @@ tradeoffs" §1 and "Remaining decisions and later evidence").
    the still-unassigned state-schema prerequisite, none of which this ADR
    touches.
 
+## Design note — hybrid bypass mechanism (2026-09-19)
+
+Specifies §2's hybrid mechanism at the design level: architecture and
+state machine, no code, no new authorization. §2 already named this "new
+logic... to design and test"; this note answers *how*, not whether.
+
+**Ownership and state.** Per this ADR's own boundary — the DSP core has
+no bypass concept; bypass is wrapper policy — this is a small
+wrapper-owned state object, never a `DiffusionStereoPath`/
+`FeedbackDelayNetwork` member: a `silenceBoundSamples_` value (recomputed
+whenever bypass engages or Decay changes while bypassed), an
+`elapsedSinceBypass_` sample counter, and a `Running`/`Stopped` flag.
+
+**Trigger and lifecycle.**
+1. On bypass engage: read the current normalized Decay via the
+   `getAll()` read-back accessor ([ADR-011](ADR-011-state-schema.md)'s
+   design note), compute `silenceBoundSamples_` from it (see "Closed-form
+   bound" below), reset `elapsedSinceBypass_` to 0, enter `Running`.
+2. While `Running` and bypassed: continue calling the DSP core with
+   **zero input** — never the host's live, now-bypassed input, since real
+   input would prevent the tail from ever reaching silence and defeat the
+   entire premise — discard the output, and increment
+   `elapsedSinceBypass_` by each call's frame count.
+3. Once `elapsedSinceBypass_ >= silenceBoundSamples_`: stop calling the
+   DSP core entirely (enter `Stopped`). This is now behaviorally
+   identical to plain pause/freeze, but is only ever reached after state
+   is *provably* exact zero (ADR-003's proof), so it carries none of the
+   audible-discontinuity risk the plain pause/freeze alternative had.
+4. If Decay changes while `Running` (a Host/UI write can still land
+   while bypassed): recompute `silenceBoundSamples_` from the new value
+   and restart `elapsedSinceBypass_` at 0. Restarting the count against a
+   freshly recomputed bound is always at least as conservative as
+   continuing the old count against a stale one.
+5. On un-bypass: if still `Running`, resume normal live-input processing
+   immediately — the tail was continuously live throughout. If
+   `Stopped`, resume immediately too — state is exactly zero, so this is
+   audibly identical to a live network already at rest.
+
+**Closed-form bound — candidate derivation, NOT yet verified; named as a
+bounded follow-up task, not decided here.** ADR-003 already proves
+`T_silence ≤ (m_max/f_s)·ln(ε/‖s₀‖₂)/ln ρ` with `ρ = σ_max(ΓA) =
+maxᵢgᵢ`, and states `maxᵢgᵢ` is set by the *shortest* line:
+`maxᵢgᵢ = γ₀^{m_min}` (ADR-003, "quantifying the headroom" section; NS-4's
+table). Combining this with `ParameterAutomation::publish()`'s existing
+`t60Zero(decay)` closed form (already implemented; no new derivation
+needed there) gives a candidate — **derived this session, cross-
+referencing ADR-003's `ρ` formula and `publish()`'s existing code, but
+NOT independently verified against `docs/phases/phase1-pt-plan.md`'s own
+closed forms, and not yet decided:**
+
+`T_silence(decay) ≈ (m_max/m_min) · T60_zero(decay) · log10(‖s₀‖₂/ε) / 3`
+
+Two properties worth naming even before verification: (a) this bound is
+**independent of Damp** — `ρ` is defined purely from the per-line gains
+`Γ`, and the damping filters `Hᵢ(z)` never enter `‖ΓA‖₂` (ADR-003 states
+`sup|Hᵢ|≤1` as a separate fact), so using the Damp-independent bound is
+always safe regardless of the actual Damp setting, since damping can only
+shorten the true decay, never lengthen it; (b) **the DS-10 measured
+figure (321,914 samples @48kHz) cannot be reused as a universal
+constant** — it was measured at the wrapper's *default* fixture
+(Decay=0.5, `T60_0≈1.09s`), not at Decay=1 (the longest achievable
+tail), so a fixed-constant version of this mechanism would silently
+truncate the tail at higher Decay settings and must not be built that
+way.
+
+**This candidate formula requires a bounded, documentation-only
+verification task before being treated as ground truth** — cross-
+checking it against `docs/phases/phase1-pt-plan.md`'s actual closed
+forms and confirming the `‖s₀‖₂` reference convention (NS-8's
+"full-scale impulse"), the same kind of small owner-authorized research
+task this project has already used elsewhere (e.g. ADR-010's
+iOS-version research). Until that verification lands, this mechanism's
+exact numeric bound is named, not decided, and the bounded
+implementation plan must not code against the formula above without
+that check.
+
 ## Remaining decisions and later evidence
 
 Using this project's established phrasing pattern (see ADR-007's "Remaining
@@ -372,12 +449,18 @@ depends on this ADR, the owner must resolve —
   actually builds, since `DiffusionStereoPath::process` itself must always
   be called with distinct buffers regardless.
 - **Decided (2026-09-19): a hybrid approach to the bypass
-  CPU-vs-tail-continuity tradeoff** — see §2. Keep computing the wet path
-  only while state is provably non-silent (elapsed-since-input tracked
-  against the closed-form `T_silence` bound), stopping once past it. This
-  is new logic the bounded implementation plan must design and test as a
-  first-class feature; §2 states the bounded-tail-time and
-  bit-exact-passthrough requirements it must still satisfy.
+  CPU-vs-tail-continuity tradeoff** — see §2 and the "Design note —
+  hybrid bypass mechanism" section for the full state machine. Keep
+  computing the wet path only while state is provably non-silent
+  (elapsed-since-bypass tracked against the closed-form `T_silence`
+  bound), stopping once past it. This is new logic the bounded
+  implementation plan must design and test as a first-class feature; §2
+  states the bounded-tail-time and bit-exact-passthrough requirements it
+  must still satisfy. **The design note's `T_silence(decay)` closed form
+  is an unverified candidate**, not decided — a bounded
+  documentation-only verification task (cross-checking it against
+  `docs/phases/phase1-pt-plan.md`'s closed forms) must land before the
+  implementation plan codes against it.
 - **Explicitly deferred (2026-09-19), not decided:** whether a host-exposed
   "kill the wet tail instantly on bypass" affordance should exist, as a
   distinct, user-selectable behavior from the hybrid default in §2. The

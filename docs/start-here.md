@@ -95,7 +95,10 @@ test/CI code. ADR-010's floor is a **rolling policy, not a fixed number**
 — re-verify it against Apple's then-current data before writing the
 wrapper implementation plan. ADR-011 names two unimplemented
 `ParameterAutomation` obligations (a read-back accessor and a combined
-`setAll` publish entry point). ADR-012's device/chip-tier scope is
+`setAll` publish entry point); their design was finalized 2026-09-19
+(signatures, thread-safety, `setAll`'s validation contract, pre-render
+snap sequencing — see ADR-011's "Design note"), but both remain
+unimplemented and unauthorized. ADR-012's device/chip-tier scope is
 decided (2026-09-19) as per-family corners — iPhone SE 2nd gen/A13 +
 newest iPhone; iPad 8th gen/A12 + newest iPad Pro — though the "newest
 available" half of each pair must be re-verified at implementation-plan
