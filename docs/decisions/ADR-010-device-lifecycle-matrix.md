@@ -1,8 +1,9 @@
 ---
 id: "ADR-010"
-status: proposed
+status: accepted
+accepted: "2026-09-18"
 implementation: "none; architectural decision only, no wrapper/UI/dependency code"
-review: "pending owner review"
+review: "owner-accepted-2026-09-18"
 review_document: null
 depends_on: [ADR-001, ADR-003, ADR-004, ADR-005, ADR-007]
 ---
@@ -11,12 +12,29 @@ depends_on: [ADR-001, ADR-003, ADR-004, ADR-005, ADR-007]
 
 ## Review summary
 
-- **Proposal:** define, at a decision level, the device/OS/sample-rate/block-size matrix the future AUv3 wrapper claims support for, and the lifecycle/resource/failure-handling contract the wrapper must sit on top of the already-accepted DSP-core contract (ADR-003(d), DS-B Task 3) without duplicating or contradicting it.
+- **Decision:** define, at a decision level, the device/OS/sample-rate/block-size matrix the future AUv3 wrapper claims support for, and the lifecycle/resource/failure-handling contract the wrapper must sit on top of the already-accepted DSP-core contract (ADR-003(d), DS-B Task 3) without duplicating or contradicting it.
 - **Why:** ADR-007 named this matrix and this lifecycle/failure scope as an open prerequisite to any wrapper implementation plan, and no document in this repository has ever enumerated a supported-rate list, a minimum OS version, or a wrapper-level fault-escalation policy.
 - **Consequence:** a bounded implementation plan for the wrapper can be authorized against a concrete, honestly-labelled matrix instead of an implicit one; several genuine product/business choices are surfaced explicitly for the owner instead of being decided by omission inside implementation code.
-- **Uncertainty:** the minimum iOS/iPadOS version is now a pure market-reach/business tradeoff — a bounded research task closed the API-availability question (every cited API needs only iOS 9.0) — but the number itself, plus device/chip-tier claims and whether to expand the sample-rate matrix beyond what has ever been measured, remain unresolved by this ADR. No iOS device, simulator, or OS version has ever been tested against any Aetherfield code (ADR-001; testing.md's "cross-platform builds, iOS compilation, simulator/device hosting ... remain unverified").
+- **Uncertainty:** device/chip-tier claims and whether to expand the sample-rate matrix beyond what has ever been measured remain unresolved by this ADR. No iOS device, simulator, or OS version has ever been tested against any Aetherfield code (ADR-001; testing.md's "cross-platform builds, iOS compilation, simulator/device hosting ... remain unverified").
 
-**Status: Proposed.** This record authorizes no wrapper, UI, dependency, or other implementation. Acceptance of this ADR does not itself authorize any code; a separately authorized bounded implementation plan is still required afterward, exactly as ADR-007 already required, and as [ADR-008](ADR-008-parameter-event-bridge.md) and [ADR-009](ADR-009-production-bus-policy.md) likewise require for their own subject matter.
+**Status: Accepted (2026-09-18).** The owner set the minimum deployment
+target as a **rolling "current major version minus one"** policy —
+concretely **iOS/iPadOS 25+ as of 2026-09-18**, given Apple's own
+June 2026 distribution snapshot showing iOS 26/iPadOS 26 at 79%/68% of
+devices — chosen over pinning to the current major version alone (26+)
+for broader reach, since the API-availability floor (iOS 9.0) placed no
+constraint either way. This is a **relative policy, not a fixed number**:
+because "current major version" moves forward over time, the concrete
+floor this implies will change too, and whoever writes the eventual
+wrapper implementation plan must re-check Apple's then-current major
+version and distribution data rather than treating "25" as permanent —
+see "Revisit when." This record still authorizes no wrapper, UI,
+dependency, or other implementation. Acceptance of this ADR does not
+itself authorize any code; a separately authorized bounded implementation
+plan is still required afterward, exactly as ADR-007 already required,
+and as [ADR-008](ADR-008-parameter-event-bridge.md) and
+[ADR-009](ADR-009-production-bus-policy.md) likewise required for their
+own subject matter.
 
 ## Context and scope
 
@@ -73,7 +91,16 @@ This is a genuine reach-versus-maintenance-cost tradeoff this ADR does not settl
 | Maintenance cost | More `@available`/version-guard code the further below current the floor sits, though nothing here requires it for the *cited* API set specifically | Single code path, less conditional logic |
 | Device/chip generation correlation | A given iOS floor implicitly admits or excludes certain device/chip tiers (a related, separately flagged product choice below) | — |
 
-**Proposed default absent an owner decision:** none. The API-availability research removes one axis of uncertainty (the floor is not constrained by anything this design needs), but the actual number remains the owner's market-reach call, now made with real data rather than a guess. This is listed again under "Remaining decisions."
+**Decided (2026-09-18):** minimum deployment target is **current major
+version minus one** — concretely iOS/iPadOS 25+ as of this date, given
+Apple's own June 2026 snapshot (iOS 26/iPadOS 26 at 79%/68% of devices).
+The API-availability research removed the only axis that could have
+forced a specific number (nothing cited requires more than iOS 9.0); the
+owner chose broader reach over pinning to the current major version
+alone. Because this is a rolling policy rather than a fixed number, the
+concrete floor must be re-verified against Apple's then-current major
+version and distribution data at the time the wrapper implementation
+plan is actually written — see "Revisit when."
 
 ### (b) Sample rates
 
@@ -144,16 +171,16 @@ Named at the granularity of this project's existing DS-1…13/NS-1…11/PT-1…9
 
 This ADR fixes: the initial product sample-rate set as {48 kHz, 44.1 kHz} pending new evidence for any addition; the block-size handling model as fully host-variable including zero-length, deferring to the already-implemented DS-B Task 3 contract rather than adding new logic; the lifecycle mapping of `prepare`/`reset`/failure onto `allocateRenderResourcesAndReturnError:`/`-reset`/`NSError`, deferring to ADR-003 (d)'s and DS-B Task 3's existing guarantees rather than duplicating them; the source-list ownership convention and its drift-detection approach; and the named (not designed) future test categories HT-1…HT-12.
 
-It deliberately does not fix: the minimum iOS/iPadOS version, device/chip-tier support claims, whether an unsupported-configuration failure is additionally user-visible, whether to expand the sample-rate matrix for market reach, whether repeated aggregate faults warrant a host-visible signal beyond the existing self-recovering reset, or the cross-thread `reset()` concurrency question. Each is named explicitly in "Remaining decisions" rather than defaulted.
+It deliberately does not fix: device/chip-tier support claims, whether an unsupported-configuration failure is additionally user-visible, whether to expand the sample-rate matrix for market reach, whether repeated aggregate faults warrant a host-visible signal beyond the existing self-recovering reset, or the cross-thread `reset()` concurrency question. Each is named explicitly in "Remaining decisions" rather than defaulted. (The minimum iOS/iPadOS version is now decided — see "Status" above.)
 
 Accepting this ADR authorizes no wrapper, UI, or dependency code. A separately authorized, bounded implementation plan — naming concrete files, an Xcode/CMake integration approach, and its own test plan — is still required after acceptance, exactly as ADR-007 already required, and as [ADR-008](ADR-008-parameter-event-bridge.md) and [ADR-009](ADR-009-production-bus-policy.md) likewise require.
 
 ## Remaining decisions and later evidence
 
-Before a separately authorized wrapper implementation plan: the owner's minimum iOS/iPadOS deployment version — the API-availability question is now closed (every cited API needs only iOS 9.0, per the research above), so this is purely the market-reach-versus-maintenance tradeoff laid out in the table above; which device/chip generations to claim support for (a related but separate choice from the OS floor); whether an unsupported-configuration failure (rate, channel count, or otherwise) should be surfaced only through however the host presents an `AUAudioUnit` allocation error, or additionally through a user-visible diagnostic once UI is authorized; whether market reach justifies verifying and shipping support for a sample rate beyond {48 kHz, 44.1 kHz} given the ADR-005-style re-derivation and re-measurement cost that would require; whether repeated aggregate faults should escalate beyond the existing self-recovering next-block reset (e.g., an observable diagnostic property) or whether the current DSP-core behavior is sufficient as-is; the cross-thread `reset()`-versus-render-callback concurrency question, which is the same class of problem as ADR-008's parameter-event bridge and may be resolved alongside it rather than separately, though this ADR does not assign ownership of it to ADR-008 or any other record; and whether the wrapper keeps the C++ `DiffusionStereoPath` instance alive across a `deallocateRenderResources`/reallocate cycle (preserving the cumulative fault counter) or reconstructs it (requiring the counter to move to the wrapper's own persistent state), named above as an unresolved gap in the lifecycle table.
+Before a separately authorized wrapper implementation plan: re-verifying the concrete minimum-version number against Apple's then-current major version and distribution data, since "current major version minus one" is a rolling policy, not a fixed number, and the concrete iOS/iPadOS 25+ floor recorded above reflects only the 2026-09-18 snapshot; which device/chip generations to claim support for (a related but separate choice from the OS floor); whether an unsupported-configuration failure (rate, channel count, or otherwise) should be surfaced only through however the host presents an `AUAudioUnit` allocation error, or additionally through a user-visible diagnostic once UI is authorized; whether market reach justifies verifying and shipping support for a sample rate beyond {48 kHz, 44.1 kHz} given the ADR-005-style re-derivation and re-measurement cost that would require; whether repeated aggregate faults should escalate beyond the existing self-recovering next-block reset (e.g., an observable diagnostic property) or whether the current DSP-core behavior is sufficient as-is; the cross-thread `reset()`-versus-render-callback concurrency question, which is the same class of problem as ADR-008's parameter-event bridge and may be resolved alongside it rather than separately, though this ADR does not assign ownership of it to ADR-008 or any other record; and whether the wrapper keeps the C++ `DiffusionStereoPath` instance alive across a `deallocateRenderResources`/reallocate cycle (preserving the cumulative fault counter) or reconstructs it (requiring the counter to move to the wrapper's own persistent state), named above as an unresolved gap in the lifecycle table.
 
 An eventual verification plan must run HT-1 through HT-12 above on named devices/hosts/OS versions once the minimum-version decision is made; none of that evidence exists today, and this documentation-only ADR produces none of it.
 
 ## Revisit when
 
-The owner sets a minimum iOS/iPadOS version and device/chip-tier scope; ADR-005's own derivation method is run at a new sample rate and its NS/PT/DS-1…13 measurement suite is repeated there, making that rate a candidate for the supported set; [ADR-008](ADR-008-parameter-event-bridge.md) lands and also resolves (or explicitly declines to resolve) the `reset()`/render-callback concurrency question, at which point this ADR's open item is superseded rather than independently re-argued; the state-schema ADR lands, unblocking HT-7; a bounded wrapper implementation plan is authorized and HT-1…HT-12 begin producing real device/host evidence that may contradict any assumption recorded here (particularly the multi-instance source-inspection finding, which this ADR explicitly does not claim as tested); or a host is observed requesting a block size outside the `{1,13,64,512,3}` fixed partitions and DS-11's ragged `{7,29,3,211,5}` partition this project has actually measured, at which point HT-3 becomes actionable rather than named.
+Significant time passes before the wrapper implementation plan is written, requiring the concrete iOS/iPadOS 25+ floor to be re-verified against Apple's then-current major version and distribution data under the accepted "current minus one" policy; the owner sets a device/chip-tier scope; ADR-005's own derivation method is run at a new sample rate and its NS/PT/DS-1…13 measurement suite is repeated there, making that rate a candidate for the supported set; [ADR-008](ADR-008-parameter-event-bridge.md) lands and also resolves (or explicitly declines to resolve) the `reset()`/render-callback concurrency question, at which point this ADR's open item is superseded rather than independently re-argued; the state-schema ADR lands, unblocking HT-7; a bounded wrapper implementation plan is authorized and HT-1…HT-12 begin producing real device/host evidence that may contradict any assumption recorded here (particularly the multi-instance source-inspection finding, which this ADR explicitly does not claim as tested); or a host is observed requesting a block size outside the `{1,13,64,512,3}` fixed partitions and DS-11's ragged `{7,29,3,211,5}` partition this project has actually measured, at which point HT-3 becomes actionable rather than named.

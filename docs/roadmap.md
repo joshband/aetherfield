@@ -21,7 +21,7 @@ validation, modulation, or other product implementation — it selects a
 framework direction only. The historical milestone sections below retain
 their original scope; they are not a substitute for this current status.
 
-Two of the three post-acceptance design prerequisites named in the
+All three post-acceptance design prerequisites named in the
 [decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)
 are now **accepted**:
 
@@ -37,13 +37,17 @@ are now **accepted**:
   Several other items (bypass CPU-vs-tail tradeoff, kill-tail-on-bypass
   affordance, multi-channel target, `canProcessInPlace`'s actual value
   for the new bus) remain open in ADR-009's "Remaining decisions."
-- [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) — still
-  **proposed**: fixes the sample-rate set to {48kHz, 44.1kHz} but
-  declines to guess a minimum iOS/iPadOS version. A bounded research task
-  (Apple-documentation-only, no ADR decision) into the actual minimum iOS
-  version each cited API requires is authorized and in progress.
+- [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) — **accepted
+  (2026-09-18)**: fixes the sample-rate set to {48kHz, 44.1kHz} and sets
+  the minimum deployment target as a rolling "current major version
+  minus one" policy (concretely iOS/iPadOS 25+ as of acceptance), chosen
+  after a bounded research task found the API-availability floor (iOS
+  9.0) placed no real constraint. The concrete number must be
+  re-verified against Apple's then-current data before the wrapper
+  implementation plan is written, since it is a rolling policy, not a
+  fixed one.
 
-Acceptance of ADR-008/ADR-009 authorizes no wrapper, UI, dependency, or
+Acceptance of ADR-008/009/010 authorizes no wrapper, UI, dependency, or
 other implementation — a separately authorized bounded implementation
 plan is still required, exactly as ADR-007 required. State schema/
 version/migration design and the eventual wrapper implementation plan
@@ -78,7 +82,7 @@ Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the 
 |---|---|---|---|---|---|---|
 | Decide and implement future product work in bounded increments | First audible ambient field | Owner scope decision | L | Evaluation evidence mistaken for product readiness | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence; DS-B is closed as an evaluation baseline, while product behavior remains unauthorized |
 | Expand corpus and analysis when real decay exists | Detect ringing, stereo and decay regressions | Core DSP | M | Metrics mistaken for listening | Terra; Luna | Repeatable impulse/noise/musical fixtures and justified baselines; never refresh merely to pass |
-| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md) accepted; [ADR-008](decisions/ADR-008-parameter-event-bridge.md)/[ADR-009](decisions/ADR-009-production-bus-policy.md)/[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) drafted but not yet reviewed or accepted; state schema and a separately authorized wrapper plan still needed | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | ADR-007's acceptance is a framework decision only, not implementation authorization; later work needs actual device/host evidence and measured CPU. UI technology remains undecided |
+| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md)/[ADR-008](decisions/ADR-008-parameter-event-bridge.md)/[ADR-009](decisions/ADR-009-production-bus-policy.md)/[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) all accepted; state schema and a separately authorized wrapper plan still needed | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Acceptance of all four is a set of framework/architecture decisions only, not implementation authorization; later work needs actual device/host evidence and measured CPU. UI technology remains undecided |
 | Mobile performance and render-thread instrumentation | Reliable audio on supported devices | Nontrivial DSP and Apple integration | M | Host smoke tests overstate realtime safety | Terra; Luna; Sol review | Measured deadlines, allocation checks and documented supported configurations |
 | Broaden build verification to another host/toolchain and add CI if useful | Detect portability regressions | Stable portable loop | S | Platform assumptions | Luna | Actual clean builds and tests; platform independence alone is not verified portability |
 | Resolve project license, identifiers and name clearance before distribution | Clear distribution terms and identity | Distribution intent | M | Unresolved ownership/naming | Owner; Terra assists | Explicit owner decisions; no license or clearance assumed |

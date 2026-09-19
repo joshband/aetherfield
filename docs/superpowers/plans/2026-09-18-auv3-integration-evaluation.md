@@ -1,6 +1,6 @@
 # AUv3 integration decision-only evaluation plan
 
-**Status:** research drafted; owner decision pending. **No implementation authorized.**
+**Status:** ADR-007/008/009/010 all accepted. State schema (unassigned) and the wrapper implementation plan itself remain unstarted. **No implementation authorized.**
 
 **Purpose:** decide whether native Apple APIs or JUCE should later wrap the
 portable C++ core for iOS/iPadOS AUv3. The proposed outcome and primary-source
@@ -53,12 +53,12 @@ These unchecked items are future documentation/design requirements, not an
 instruction to begin them or implementation automatically after acceptance.
 Obtain the owner's next bounded scope decision first.
 
-- [ ] Design and review the event bridge: one non-render coefficient writer, producer serialization, bounded capacity/work, coalescing/overflow, timestamp/ramp handling, publication latency and deterministic online/offline ordering. Never call existing setters directly from render events or assume callback-thread safety. **Drafted as proposed [ADR-008](../../decisions/ADR-008-parameter-event-bridge.md); independent review and owner acceptance still pending — not checked off until accepted.**
-- [ ] Preserve ADR-004's block-start consumption and 20 ms internal ramps; if host timing/ramp fidelity demands a change, obtain an explicit ADR revision and bounded-work argument first. ADR-008's draft preserves this unchanged; still pending review/acceptance alongside it.
-- [ ] Decide production buses, dry/bypass/tail and buffer aliasing behavior; do not promote the mono-to-stereo DS-B evaluation route into a product contract. **Drafted as proposed [ADR-009](../../decisions/ADR-009-production-bus-policy.md); independent review and owner acceptance still pending — not checked off until accepted.**
+- [x] Design and review the event bridge: one non-render coefficient writer, producer serialization, bounded capacity/work, coalescing/overflow, timestamp/ramp handling, publication latency and deterministic online/offline ordering. Never call existing setters directly from render events or assume callback-thread safety. **Accepted as [ADR-008](../../decisions/ADR-008-parameter-event-bridge.md) (2026-09-18).**
+- [x] Preserve ADR-004's block-start consumption and 20 ms internal ramps; if host timing/ramp fidelity demands a change, obtain an explicit ADR revision and bounded-work argument first. ADR-008 (accepted) preserves this unchanged.
+- [x] Decide production buses, dry/bypass/tail and buffer aliasing behavior; do not promote the mono-to-stereo DS-B evaluation route into a product contract. **Accepted as [ADR-009](../../decisions/ADR-009-production-bus-policy.md) (2026-09-18): stereo-in/stereo-out with sum-to-mono reduction.**
 - [ ] Specify state schema/version/migration, invalid-state behavior and restore ordering through the same serialized control boundary; distinguish persistent controls from transient DSP history and stream formats. Not started; downstream of ADR-008's bridge shape (see ADR-008 §6).
-- [ ] Bound lifecycle/resource/failure handling and the device/OS/sample-rate/block-size matrix; document source-list ownership between portable and Apple builds. **Drafted as proposed [ADR-010](../../decisions/ADR-010-device-lifecycle-matrix.md); independent review and owner acceptance still pending — not checked off until accepted.**
-- [ ] Define later host/device acceptance cases for lifecycle, state recall, concurrent/dense automation, multiple instances, offline repeatability and realtime allocation/locking/deadline measurements. Record configurations and failures, not a generic compatibility claim.
+- [x] Bound lifecycle/resource/failure handling and the device/OS/sample-rate/block-size matrix; document source-list ownership between portable and Apple builds. **Accepted as [ADR-010](../../decisions/ADR-010-device-lifecycle-matrix.md) (2026-09-18): sample-rate set {48kHz, 44.1kHz}; minimum deployment target iOS/iPadOS 25+ (rolling "current minus one" policy, re-verify before implementation).**
+- [ ] Define later host/device acceptance cases for lifecycle, state recall, concurrent/dense automation, multiple instances, offline repeatability and realtime allocation/locking/deadline measurements. Record configurations and failures, not a generic compatibility claim. ADR-010 names future test categories HT-1…HT-12 at decision level; none is designed or run yet.
 - [ ] Write a separate small wrapper implementation plan with exact files, interfaces, commands, prerequisites, exclusions and rollback boundary. Obtain separate owner implementation authorization before any code/project/dependency/signing work.
 
 ## Documentation checks and handoff
@@ -70,5 +70,7 @@ link in the changed records. The parent
 owns the Release host configure/build/CTest checkpoint and agent-log handoff.
 Passing that checkpoint adds no AUv3 validation evidence.
 
-The next decision is owner acceptance of ADR-007 after review. There is no
-pre-authorized wrapper, prototype or UI task.
+The next decision is the still-unassigned state schema (versioning,
+persistence, restore ordering) and, eventually, a separately authorized
+bounded wrapper implementation plan. There is no pre-authorized wrapper,
+prototype or UI task.

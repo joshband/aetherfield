@@ -47,12 +47,12 @@ composition; it is not an AUv3 or product-wrapper diagram.
   include Apple or framework types either way, and no wrapper/UI/dependency
   code is authorized by this decision.
   [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (the parameter-event
-  bridge) and [ADR-009](decisions/ADR-009-production-bus-policy.md)
-  (production bus: stereo-in/stereo-out, sum-to-mono) are accepted
-  (2026-09-18) but authorize no wrapper/UI/dependency code either.
-  [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (device/OS/rate/
-  block-size matrix and lifecycle/failure scope) remains proposed, pending
-  the owner's minimum-iOS-version decision.
+  bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md)
+  (production bus: stereo-in/stereo-out, sum-to-mono), and
+  [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
+  {48kHz, 44.1kHz}; minimum deployment target: current major version minus
+  one, iOS/iPadOS 25+ as of acceptance) are all accepted (2026-09-18) but
+  authorize no wrapper/UI/dependency code either.
 
 ## Build and ownership
 

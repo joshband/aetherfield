@@ -478,9 +478,9 @@
         <div class="sub">what's actually built, not what's planned</div>
         <div class="grid cols-3">
           <div class="card stat-tile">
-            <div class="num">9</div>
+            <div class="num">10</div>
             <div class="label">Accepted ADRs</div>
-            <div class="detail">topology → damping → parameters → fixture → AUv3 framework → event bridge → bus policy</div>
+            <div class="detail">topology → damping → parameters → fixture → AUv3 framework → event bridge → bus policy → device matrix</div>
           </div>
           <div class="card stat-tile">
             <div class="num">3 + DS-B / 5</div>
@@ -606,7 +606,7 @@ flowchart LR
     <!-- ============ DECISIONS ============ -->
     <section class="page" data-page="decisions">
       <div class="eyebrow">Architecture · Decision Records</div>
-      <h1>Ten records, nine decided, with implementation tracked separately.</h1>
+      <h1>Ten decisions, with implementation tracked separately.</h1>
       <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
 
       <div class="adr">
@@ -687,9 +687,8 @@ flowchart LR
           support. This selects a framework direction only: it authorizes no
           wrapper, UI, dependency, or host/device work, and does not supersede
           ADR-001's deferred integration boundary. A separately authorized
-          bounded implementation plan, plus the still-open state schema and
-          ADR-010's device/lifecycle matrix below, remain prerequisites to
-          any wrapper code.</div>
+          bounded implementation plan, plus the still-unassigned state
+          schema, remain prerequisites to any wrapper code.</div>
         <div class="adr-meta"><a href="../decisions/ADR-007-auv3-integration-comparison.md">Full ADR</a>
           <a href="../superpowers/plans/2026-09-18-auv3-integration-evaluation.md">Decision-only evaluation plan</a></div>
       </div>
@@ -736,17 +735,18 @@ flowchart LR
         <div class="adr-head">
           <span class="id">ADR-010</span>
           <h3>Device/OS/rate/block-size matrix and lifecycle/failure scope</h3>
-          <span class="pill pending">Proposed — review pending</span>
+          <span class="pill good">Accepted (2026-09-18)</span>
         </div>
         <div class="decision">Fixes the initial product sample-rate set to
           {48kHz, 44.1kHz} — the only two rates ever measured in this project —
           and maps AUv3 lifecycle events onto the already-accepted ADR-003/
           DS-B Task 3 fault-recovery contract rather than inventing new
-          mechanism. Explicitly declines to guess a minimum iOS/iPadOS version:
-          no iOS device, simulator, or OS version has ever been tested against
-          any Aetherfield code, so that reach-versus-maintenance tradeoff is
-          left fully to the owner, alongside device/chip-tier scope and
-          sample-rate-matrix expansion.</div>
+          mechanism. A bounded research task found every cited API needs only
+          iOS 9.0 — no real constraint — so the owner set the minimum
+          deployment target as a rolling <b>"current major version minus
+          one"</b> policy, concretely iOS/iPadOS 25+ as of acceptance, per
+          Apple's own June 2026 distribution data. Device/chip-tier scope and
+          sample-rate-matrix expansion remain open.</div>
         <div class="adr-meta"><a href="../decisions/ADR-010-device-lifecycle-matrix.md">Full ADR</a></div>
       </div>
       <p><a href="../decisions/index.md">All ADR summaries, metadata and full records</a></p>
@@ -800,8 +800,8 @@ flowchart LR
           </div>
           <div class="card">
             <div class="pill pending" style="margin-bottom:10px;">Next — owner decision</div>
-            <b>Set the minimum iOS/iPadOS version (ADR-010)</b>
-            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">The parameter-event bridge (ADR-008) and production bus policy (ADR-009) are accepted. ADR-010's device/lifecycle matrix is drafted with the API-version research done: every cited API needs only iOS 9.0, so the real floor choice is market reach vs. Apple's SDK build-toolchain policy, not API availability. State schema and the wrapper implementation plan itself remain unstarted; no wrapper, UI, dependency, or host/device claim is authorized yet.</p>
+            <b>State schema, then a bounded wrapper implementation plan</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">ADR-007/008/009/010 are all accepted: framework, event bridge, bus policy, and device/lifecycle matrix. The state schema (versioning, persistence, restore ordering) is still unassigned, and no wrapper, UI, dependency, or host/device claim is authorized until a separately authorized bounded implementation plan is written.</p>
           </div>
           <div class="card">
             <div class="pill neutral" style="margin-bottom:10px;">Later</div>

@@ -71,22 +71,21 @@ APIs versus JUCE for a future AUv3 wrapper — is **accepted (2026-09-18)**.
 That acceptance selects an architectural direction only: it authorizes no
 wrapper, UI, dependency, or other product implementation.
 [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (parameter-event
-bridge) and [ADR-009](decisions/ADR-009-production-bus-policy.md)
-(production bus: stereo-in/stereo-out with sum-to-mono reduction) are
-**accepted (2026-09-18)**; each still names its own "Remaining decisions"
-that only the owner can resolve, and neither authorizes wrapper/UI/
-dependency code.
-[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (device/OS/rate/
-block-size matrix and lifecycle/failure scope) remains **proposed**: a
-bounded, documentation-only research task into the actual minimum iOS/
-iPadOS version has completed (see ADR-010's evidence section), and the
-owner's floor decision is pending. The state schema and the eventual
-wrapper implementation plan remain unstarted and are downstream of all
-three. Do not infer authorization from the fact that measurement,
-comparison, framework acceptance, or these drafts existing is
-finished — read roadmap.md's current continuation and ask, per this
-project's own repeated pattern in testing.md/ADRs of never treating
-"measured," "compared," "drafted," or "accepted" as "authorized to
+bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md)
+(production bus: stereo-in/stereo-out with sum-to-mono reduction), and
+[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
+{48kHz, 44.1kHz}; minimum deployment target: current major version minus
+one, iOS/iPadOS 25+ as of acceptance) are all **accepted (2026-09-18)**;
+each still names its own "Remaining decisions" that only the owner can
+resolve, and none authorizes wrapper/UI/dependency code. ADR-010's floor
+is a **rolling policy, not a fixed number** — re-verify it against
+Apple's then-current data before writing the wrapper implementation
+plan. The state schema and the eventual wrapper implementation plan
+remain unstarted and are downstream of all four ADRs. Do not infer
+authorization from the fact that measurement, comparison, or framework
+acceptance is finished — read roadmap.md's current continuation and ask,
+per this project's own repeated pattern in testing.md/ADRs of never
+treating "measured," "compared," or "accepted" as "authorized to
 implement."
 
 DS-A, the standalone [allpass primitive](phases/phase1-ds-plan.md), is
