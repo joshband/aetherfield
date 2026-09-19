@@ -48,11 +48,16 @@ composition; it is not an AUv3 or product-wrapper diagram.
   code is authorized by this decision.
   [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (the parameter-event
   bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md)
-  (production bus: stereo-in/stereo-out, sum-to-mono), and
+  (production bus: stereo-in/stereo-out, sum-to-mono),
   [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
   {48kHz, 44.1kHz}; minimum deployment target: current major version minus
-  one, iOS/iPadOS 25+ as of acceptance) are all accepted (2026-09-18) but
-  authorize no wrapper/UI/dependency code either.
+  one, iOS/iPadOS 25+ as of acceptance), [ADR-011](decisions/ADR-011-state-schema.md)
+  (state payload, versioning, and atomic 3-parameter restore, reopening
+  ADR-008's alternative (C) for the StateRestore role only), and
+  [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md)
+  (HT-1…HT-12 acceptance-test methodology and device/OS scope policy) are
+  all accepted (2026-09-18) but authorize no wrapper/UI/dependency/test/CI
+  code either.
 
 ## Build and ownership
 

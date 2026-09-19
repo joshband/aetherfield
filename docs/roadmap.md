@@ -21,9 +21,9 @@ validation, modulation, or other product implementation — it selects a
 framework direction only. The historical milestone sections below retain
 their original scope; they are not a substitute for this current status.
 
-All three post-acceptance design prerequisites named in the
+The first three post-acceptance design prerequisites named in the
 [decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)
-are now **accepted**:
+are **accepted**:
 
 - [ADR-008](decisions/ADR-008-parameter-event-bridge.md) — **accepted
   (2026-09-18)**: the nonblocking parameter-event bridge, a per-parameter/
@@ -47,12 +47,34 @@ are now **accepted**:
   implementation plan is written, since it is a rolling policy, not a
   fixed one.
 
-Acceptance of ADR-008/009/010 authorizes no wrapper, UI, dependency, or
-other implementation — a separately authorized bounded implementation
-plan is still required, exactly as ADR-007 required. State schema/
-version/migration design and the eventual wrapper implementation plan
-itself remain unstarted and are downstream of all three. UI technology
-remains deferred; CLAP remains not planned.
+Two further prerequisites are also now **accepted**:
+
+- [ADR-011](decisions/ADR-011-state-schema.md) — **accepted (2026-09-18)**:
+  the persisted state payload (three normalized doubles, `schemaVersion`,
+  a fixture stamp extended with `D_max`), per-field-fallback validation
+  with two hard-reject carve-outs, an accept-and-surface fixture-mismatch
+  policy, and — per the owner's stated requirement for instantaneous,
+  click-free preset switching during playback — **atomic 3-parameter
+  restore**, reopening ADR-008's alternative (C) for the StateRestore
+  producer role only (Host and UI are unaffected). This names two
+  unimplemented `ParameterAutomation` obligations (a read-back accessor,
+  and a combined `setAll` publish entry point) required by the design but
+  not authorized by drafting or accepting this record.
+- [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md) —
+  **accepted (2026-09-18)**: converts ADR-010's twelve named-but-undesigned
+  HT-1…HT-12 host/device acceptance categories into a methodology — axes,
+  evidence shapes, what stays owner/execution-time-open — and decides a
+  device/OS coverage policy, (D): corners only for most categories, plus
+  the weakest in-scope chip tier specifically for the two timing
+  categories (HT-11, HT-12). Which physical device tiers are actually in
+  scope remains a separate, still-open owner decision.
+
+Acceptance of ADR-008/009/010/011/012 authorizes no wrapper, UI,
+dependency, test, host, device, CI, or other implementation — a separately
+authorized bounded implementation plan is still required, exactly as
+ADR-007 required. The eventual wrapper implementation plan itself remains
+unstarted and is downstream of all five. UI technology remains deferred;
+CLAP remains not planned.
 
 ## NOW
 
@@ -82,7 +104,7 @@ Phase 1 exit: architecture and ADRs describe an accepted design, risks, and the 
 |---|---|---|---|---|---|---|
 | Decide and implement future product work in bounded increments | First audible ambient field | Owner scope decision | L | Evaluation evidence mistaken for product readiness | Terra; Sol critical review; Luna QA | Deterministic tests, signal analysis, reference renders and listening evidence; DS-B is closed as an evaluation baseline, while product behavior remains unauthorized |
 | Expand corpus and analysis when real decay exists | Detect ringing, stereo and decay regressions | Core DSP | M | Metrics mistaken for listening | Terra; Luna | Repeatable impulse/noise/musical fixtures and justified baselines; never refresh merely to pass |
-| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md)/[ADR-008](decisions/ADR-008-parameter-event-bridge.md)/[ADR-009](decisions/ADR-009-production-bus-policy.md)/[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) all accepted; state schema and a separately authorized wrapper plan still needed | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Acceptance of all four is a set of framework/architecture decisions only, not implementation authorization; later work needs actual device/host evidence and measured CPU. UI technology remains undecided |
+| Implement iOS/iPadOS AUv3 wrapper and eventual UI now that the framework direction is decided | Playable host integration with appropriate maintenance cost | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md)/[ADR-008](decisions/ADR-008-parameter-event-bridge.md)/[ADR-009](decisions/ADR-009-production-bus-policy.md)/[ADR-010](decisions/ADR-010-device-lifecycle-matrix.md)/[ADR-011](decisions/ADR-011-state-schema.md)/[ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md) all accepted; a separately authorized wrapper plan still needed | L | Lifecycle, automation, signing and CPU constraints | Sol decision; Terra bounded integration; Luna verification | Acceptance of all six is a set of framework/architecture decisions only, not implementation authorization; later work needs actual device/host evidence and measured CPU. Device/chip-tier scope, the `ParameterAutomation` read-back/`setAll` obligations, and UI technology remain undecided or unimplemented |
 | Mobile performance and render-thread instrumentation | Reliable audio on supported devices | Nontrivial DSP and Apple integration | M | Host smoke tests overstate realtime safety | Terra; Luna; Sol review | Measured deadlines, allocation checks and documented supported configurations |
 | Broaden build verification to another host/toolchain and add CI if useful | Detect portability regressions | Stable portable loop | S | Platform assumptions | Luna | Actual clean builds and tests; platform independence alone is not verified portability |
 | Resolve project license, identifiers and name clearance before distribution | Clear distribution terms and identity | Distribution intent | M | Unresolved ownership/naming | Owner; Terra assists | Explicit owner decisions; no license or clearance assumed |

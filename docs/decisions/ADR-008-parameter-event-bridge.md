@@ -216,7 +216,11 @@ Per the recommendation above: **nine fixed mailbox cells**, one per
 (parameter ∈ {Decay, Damp, Mix}) × (producer role ∈ {Host, UI,
 StateRestore}). Each cell is exactly `{ std::atomic<float> value;
 std::atomic<uint64_t> generation; }`, matching `ParameterAutomation`'s own
-existing transport shape field-for-field.
+existing transport shape field-for-field. *(As designed here. Per the
+2026-09-18 amendment above, StateRestore's three cells are since
+superseded by [ADR-011](ADR-011-state-schema.md)'s separate atomic
+triple-buffer; Host and UI's six cells are exactly as described in this
+section, unchanged.)*
 
 - **Capacity**: one pending value per cell — nine values total, fixed at
   compile time, never resized, never allocated after preparation.
@@ -410,6 +414,16 @@ later evidence":
   sufficient for Host and UI today.
 
 ## Revisit when
+
+**Amendment (2026-09-18):** the first trigger below has fired.
+[ADR-011](ADR-011-state-schema.md) (state schema, accepted 2026-09-18)
+recorded the owner's requirement for instantaneous, click-free preset
+switching during live playback and reopened alternative (C) for the
+StateRestore producer role only, exactly as anticipated here. Host and UI
+are unaffected: they continue to use this ADR's nine-cell single-slot
+mailbox design (now six cells, since StateRestore no longer uses it)
+unchanged. See ADR-011 §(iii) and §4 for the resulting design and the new
+`ParameterAutomation::setAll` obligation it names.
 
 Real device/host evidence contradicts the online scheduling-latency
 estimate in §5, or shows the Controller cannot keep the publication

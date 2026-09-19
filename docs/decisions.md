@@ -45,3 +45,13 @@ Accepted (2026-09-18): stereo-in/stereo-out bus with sum-to-mono reduction. No w
 
 Canonical record: [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md).
 Accepted (2026-09-18): minimum deployment target is "current major version minus one" (iOS/iPadOS 25+ as of acceptance). No wrapper/UI/dependency implementation authorized.
+
+## ADR-011 — Persisted state payload, schema versioning, migration and restore semantics
+
+Canonical record: [ADR-011](decisions/ADR-011-state-schema.md).
+Accepted (2026-09-18): payload shape (three normalized doubles, `schemaVersion`, a fixture stamp extended with `D_max`), per-field-fallback validation, an accept-and-surface fixture-mismatch policy, and atomic 3-parameter restore (reopening ADR-008's alternative (C) for the StateRestore role). Names two unimplemented `ParameterAutomation` obligations. No wrapper/UI/dependency implementation authorized.
+
+## ADR-012 — Host/device acceptance-test catalog: methodology for HT-1…HT-12, device/OS scope policy, and tooling scope
+
+Canonical record: [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md).
+Accepted (2026-09-18): methodology for ADR-010's twelve named HT categories, plus device/OS scope policy (D) — corners, with the weakest tier added for the two timing categories. Device/chip-tier scope itself remains owner-open. No test/host/device/CI implementation authorized.

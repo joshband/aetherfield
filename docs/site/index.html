@@ -478,9 +478,9 @@
         <div class="sub">what's actually built, not what's planned</div>
         <div class="grid cols-3">
           <div class="card stat-tile">
-            <div class="num">10</div>
+            <div class="num">12</div>
             <div class="label">Accepted ADRs</div>
-            <div class="detail">topology → damping → parameters → fixture → AUv3 framework → event bridge → bus policy → device matrix</div>
+            <div class="detail">topology → damping → parameters → fixture → AUv3 framework → event bridge → bus policy → device matrix → state schema → acceptance catalog</div>
           </div>
           <div class="card stat-tile">
             <div class="num">3 + DS-B / 5</div>
@@ -606,7 +606,7 @@ flowchart LR
     <!-- ============ DECISIONS ============ -->
     <section class="page" data-page="decisions">
       <div class="eyebrow">Architecture · Decision Records</div>
-      <h1>Ten decisions, with implementation tracked separately.</h1>
+      <h1>Twelve decisions, with implementation tracked separately.</h1>
       <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
 
       <div class="adr">
@@ -687,8 +687,8 @@ flowchart LR
           support. This selects a framework direction only: it authorizes no
           wrapper, UI, dependency, or host/device work, and does not supersede
           ADR-001's deferred integration boundary. A separately authorized
-          bounded implementation plan, plus the still-unassigned state
-          schema, remain prerequisites to any wrapper code.</div>
+          bounded implementation plan remains the last prerequisite to any
+          wrapper code.</div>
         <div class="adr-meta"><a href="../decisions/ADR-007-auv3-integration-comparison.md">Full ADR</a>
           <a href="../superpowers/plans/2026-09-18-auv3-integration-evaluation.md">Decision-only evaluation plan</a></div>
       </div>
@@ -700,14 +700,14 @@ flowchart LR
           <span class="pill good">Accepted (2026-09-18)</span>
         </div>
         <div class="decision">A single non-render "Bridge Controller" becomes the
-          sole caller of the existing, not-realtime-safe parameter setters. Host,
-          UI, and a future state-restore producer each write into fixed,
-          wait-free single-slot mailboxes instead of calling those setters
-          directly. Accepts a per-parameter atomic-value-plus-generation
-          mailbox over a ring buffer or tuple buffer, trading dense-automation
-          fidelity for a strictly bounded, allocation-free render-thread path —
-          the owner accepted that fidelity risk, deferring it to a listening
-          test. Design only — no bridge, wrapper, UI, or dependency code.</div>
+          sole caller of the existing, not-realtime-safe parameter setters. Host
+          and UI each write into fixed, wait-free single-slot mailboxes instead
+          of calling those setters directly, trading dense-automation fidelity
+          for a strictly bounded, allocation-free render-thread path — the
+          owner accepted that fidelity risk, deferring it to a listening test.
+          The reserved state-restore producer role was later amended (ADR-011)
+          to a separate atomic mechanism for true 3-parameter restore. Design
+          only — no bridge, wrapper, UI, or dependency code.</div>
         <div class="adr-meta"><a href="../decisions/ADR-008-parameter-event-bridge.md">Full ADR</a></div>
       </div>
 
@@ -748,6 +748,48 @@ flowchart LR
           Apple's own June 2026 distribution data. Device/chip-tier scope and
           sample-rate-matrix expansion remain open.</div>
         <div class="adr-meta"><a href="../decisions/ADR-010-device-lifecycle-matrix.md">Full ADR</a></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-011</span>
+          <h3>Persisted state payload, versioning, migration and restore semantics</h3>
+          <span class="pill good">Accepted (2026-09-18)</span>
+        </div>
+        <div class="decision">Persists exactly three normalized parameter
+          values, a <code>schemaVersion</code>, and a fixture-identity stamp
+          (extended with <code>D_max</code>) — nothing else. Per-field
+          fallback to documented defaults on a corrupt field; whole-payload
+          rejection on an unrecognized schema version; and, on a fixture-stamp
+          mismatch, accept the values and surface the mismatch. The owner
+          confirmed instantaneous, click-free preset switching during
+          playback as a real requirement, so restore applies all three
+          parameters as <b>one atomic publish</b> — reopening ADR-008's
+          rejected tuple-buffer alternative for the state-restore role only.
+          Names two unimplemented engine obligations (a read-back accessor,
+          and a combined <code>setAll</code> publish entry point) — named,
+          not authorized, by this record.</div>
+        <div class="adr-meta"><a href="../decisions/ADR-011-state-schema.md">Full ADR</a></div>
+      </div>
+
+      <div class="adr">
+        <div class="adr-head">
+          <span class="id">ADR-012</span>
+          <h3>Host/device acceptance-test catalog: HT-1…HT-12 methodology and scope</h3>
+          <span class="pill good">Accepted (2026-09-18)</span>
+        </div>
+        <div class="decision">Converts ADR-010's twelve named-but-undesigned
+          host/device acceptance categories into a methodology: which
+          configuration axes actually matter per category, what a recorded
+          result must contain to count as evidence, and what stays open for
+          the implementation plan. Decides a device/OS coverage policy —
+          corners only (oldest OS/oldest tier, newest OS/newest tier) for
+          most categories, plus the weakest in-scope chip tier specifically
+          for the two timing-sensitive categories — over a full cross-product
+          this project's own discipline would forbid reporting as complete.
+          Which physical device tiers are actually in scope remains a
+          separate, still-open owner decision. Produces zero evidence.</div>
+        <div class="adr-meta"><a href="../decisions/ADR-012-host-device-acceptance-catalog.md">Full ADR</a></div>
       </div>
       <p><a href="../decisions/index.md">All ADR summaries, metadata and full records</a></p>
 
@@ -800,8 +842,8 @@ flowchart LR
           </div>
           <div class="card">
             <div class="pill pending" style="margin-bottom:10px;">Next — owner decision</div>
-            <b>State schema, then a bounded wrapper implementation plan</b>
-            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">ADR-007/008/009/010 are all accepted: framework, event bridge, bus policy, and device/lifecycle matrix. The state schema (versioning, persistence, restore ordering) is still unassigned, and no wrapper, UI, dependency, or host/device claim is authorized until a separately authorized bounded implementation plan is written.</p>
+            <b>A bounded wrapper implementation plan</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">ADR-007 through ADR-012 are all accepted: framework, event bridge, bus policy, device/lifecycle matrix, state schema, and the host/device acceptance catalog. No wrapper, UI, dependency, test, or host/device claim is authorized until a separately authorized bounded implementation plan is written.</p>
           </div>
           <div class="card">
             <div class="pill neutral" style="margin-bottom:10px;">Later</div>
