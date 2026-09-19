@@ -363,12 +363,14 @@ settled engineering facts, and are called out explicitly for owner
 review, in the same spirit as ADR-007's own "Remaining decisions and
 later evidence":
 
-- **Cross-producer tie-break order** (§2: proposed StateRestore → Host →
+- **Cross-producer tie-break order** (§2: proposed Host → StateRestore →
   UI) is a UX decision about what happens when a host automates a
   parameter at the same instant a user touches its on-screen control, or a
   restore lands mid-automation. This ADR picks an order for concreteness;
   it is not derived from any engineering constraint and may be wrong for
-  the product.
+  the product. It also has a named residual gap (§2): this order protects
+  a restore only from a *stale* Host write pending from an earlier pass,
+  not from a UI touch landing in the *same* pass as the restore.
 - **Single-slot last-write-wins coalescing (§2/§3) is a fidelity/
   simplicity tradeoff, not a proof of sufficiency. Owner-accepted
   (2026-09-18) as the design to build, with the risk explicitly
