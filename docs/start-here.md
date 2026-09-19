@@ -75,7 +75,11 @@ bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md)
 (production bus: stereo-in/stereo-out with sum-to-mono reduction),
 [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
 {48kHz, 44.1kHz}; minimum deployment target: current major version minus
-one, iOS/iPadOS 25+ as of acceptance), [ADR-011](decisions/ADR-011-state-schema.md)
+one, iOS/iPadOS 26+ — corrected 2026-09-19 from the 25+ originally
+recorded, since iOS 27 had already shipped four days before the ADR's
+2026-09-18 acceptance, making its own "minus one" computation stale at
+the moment of acceptance; see ADR-010's "Correction note"),
+[ADR-011](decisions/ADR-011-state-schema.md)
 (state payload, versioning, and atomic 3-parameter restore — reopening
 ADR-008's alternative (C) for the StateRestore role only), and
 [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md)

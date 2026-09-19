@@ -44,7 +44,7 @@ Accepted (2026-09-18): stereo-in/stereo-out bus with sum-to-mono reduction. No w
 ## ADR-010 — Supported device/OS/rate/block-size matrix and AUv3 lifecycle/failure scope
 
 Canonical record: [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md).
-Accepted (2026-09-18): minimum deployment target is "current major version minus one" (iOS/iPadOS 25+ as of acceptance). No wrapper/UI/dependency implementation authorized.
+Accepted (2026-09-18): minimum deployment target is "current major version minus one" (iOS/iPadOS 26+, corrected 2026-09-19 from the 25+ originally recorded — see ADR-010's "Correction note"). No wrapper/UI/dependency implementation authorized.
 
 ## ADR-011 — Persisted state payload, schema versioning, migration and restore semantics
 

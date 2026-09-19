@@ -40,9 +40,10 @@ are **accepted**:
 - [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) — **accepted
   (2026-09-18)**: fixes the sample-rate set to {48kHz, 44.1kHz} and sets
   the minimum deployment target as a rolling "current major version
-  minus one" policy (concretely iOS/iPadOS 25+ as of acceptance), chosen
-  after a bounded research task found the API-availability floor (iOS
-  9.0) placed no real constraint. The concrete number must be
+  minus one" policy (concretely **iOS/iPadOS 26+**, corrected 2026-09-19
+  from the 25+ originally recorded at acceptance — see ADR-010's
+  "Correction note"), chosen after a bounded research task found the
+  API-availability floor (iOS 9.0) placed no real constraint. The concrete number must be
   re-verified against Apple's then-current data before the wrapper
   implementation plan is written, since it is a rolling policy, not a
   fixed one.

@@ -125,7 +125,7 @@ while drafting: `docs/decisions/ADR-010-device-lifecycle-matrix.md`,
 |---|---|
 | ADR-010, "Future host/device acceptance test categories" | The twelve HT titles and their scope, quoted verbatim above and not redefined here. |
 | ADR-010, "Revisit when" | The device/chip-tier question being the owner's, still open: "the owner sets a device/chip-tier scope." |
-| ADR-010, Status | The accepted rolling **"current major version minus one"** deployment floor — iOS/iPadOS 25+ as of 2026-09-18 — explicitly "a **relative policy, not a fixed number**," to be re-verified when the implementation plan is written. |
+| ADR-010, Status | The accepted rolling **"current major version minus one"** deployment floor — iOS/iPadOS 26+ (corrected 2026-09-19 from the 25+ originally recorded at 2026-09-18 acceptance; see ADR-010's "Correction note") — explicitly "a **relative policy, not a fixed number**," to be re-verified when the implementation plan is written. |
 | ADR-010 (b) | The supported sample-rate set is exactly **{48 kHz, 44.1 kHz}**, on evidence availability, not market judgment. |
 | ADR-010 (c); docs/phases/phase1-ds-integration-plan.md Task 2; docs/testing.md DS-11 | The measured whole-path block-partition coverage: the fixed set `{1,13,64,512,3}` and DS-11's ragged `{7,29,3,211,5}`; ADR-010's own reading that "'beyond 512' is the honest boundary of measured territory, not 'beyond 64'." |
 | docs/testing.md, S2/NS-7 record | The **bare FDN alone** was additionally rendered under `{1, 13, 64, 512, 977}`, its peak output magnitude (≈23.6×) identical across all five with `nonFiniteCount() == 0`. This is FDN-layer coverage of a peak diagnostic, not whole-path bit-identity — see the note under HT-3. |
@@ -870,8 +870,9 @@ is still required, and HT-1…HT-12 remain unrun.
   owner decision; which of alternatives (A)–(D) governs coverage is now
   decided as (D).
 - **The concrete OS floor at execution time** — ADR-010's "current major
-  version minus one" is a rolling policy, and its concrete iOS/iPadOS 25+ value
-  reflects only the 2026-09-18 snapshot. Whoever schedules HT execution
+  version minus one" is a rolling policy, and its concrete iOS/iPadOS 26+
+  value (corrected 2026-09-19 from 25+; see ADR-010's "Correction note")
+  reflects only the 2026-09-18/19 snapshot. Whoever schedules HT execution
   re-verifies it then, per ADR-010's own instruction.
 - **HT-7's remaining schema-dependent methodology** — versioning/migration
   cases and `setAll`'s exact validation contract (whole-triple reject vs.

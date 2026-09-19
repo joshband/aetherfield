@@ -17,24 +17,71 @@ depends_on: [ADR-001, ADR-003, ADR-004, ADR-005, ADR-007]
 - **Consequence:** a bounded implementation plan for the wrapper can be authorized against a concrete, honestly-labelled matrix instead of an implicit one; several genuine product/business choices are surfaced explicitly for the owner instead of being decided by omission inside implementation code.
 - **Uncertainty:** device/chip-tier claims and whether to expand the sample-rate matrix beyond what has ever been measured remain unresolved by this ADR. No iOS device, simulator, or OS version has ever been tested against any Aetherfield code (ADR-001; testing.md's "cross-platform builds, iOS compilation, simulator/device hosting ... remain unverified").
 
-**Status: Accepted (2026-09-18).** The owner set the minimum deployment
-target as a **rolling "current major version minus one"** policy —
-concretely **iOS/iPadOS 25+ as of 2026-09-18**, given Apple's own
-June 2026 distribution snapshot showing iOS 26/iPadOS 26 at 79%/68% of
-devices — chosen over pinning to the current major version alone (26+)
-for broader reach, since the API-availability floor (iOS 9.0) placed no
-constraint either way. This is a **relative policy, not a fixed number**:
-because "current major version" moves forward over time, the concrete
-floor this implies will change too, and whoever writes the eventual
-wrapper implementation plan must re-check Apple's then-current major
-version and distribution data rather than treating "25" as permanent —
-see "Revisit when." This record still authorizes no wrapper, UI,
-dependency, or other implementation. Acceptance of this ADR does not
-itself authorize any code; a separately authorized bounded implementation
-plan is still required afterward, exactly as ADR-007 already required,
-and as [ADR-008](ADR-008-parameter-event-bridge.md) and
+**Status: Accepted (2026-09-18); floor number corrected 2026-09-19 — see
+"Correction note" below.** The owner set the minimum deployment target as
+a **rolling "current major version minus one"** policy — concretely
+**iOS/iPadOS 26+, not the 25+ originally recorded here** (the original
+figure treated iOS 26 as "current major" at acceptance, but iOS 27/iPadOS
+27 had already shipped four days earlier, so "current major" was already
+27 and "minus one" is 26). Apple's own June 2026 distribution snapshot
+(iOS 26/iPadOS 26 at 79%/68% of devices; no newer snapshot exists yet for
+iOS 27) remains the best available distribution evidence for this floor.
+Pinning to the current major version alone would now mean 27+; the
+owner's chosen "minus one" policy, for broader reach, means 26+, since
+the API-availability floor (iOS 9.0) placed no constraint either way.
+This is a **relative policy, not a fixed number**: because "current
+major version" moves forward over time, the concrete floor this implies
+will change too, and whoever writes the eventual wrapper implementation
+plan must re-check Apple's then-current major version and distribution
+data rather than treating "26" as permanent — see "Revisit when." This
+record still authorizes no wrapper, UI, dependency, or other
+implementation. Acceptance of this ADR does not itself authorize any
+code; a separately authorized bounded implementation plan is still
+required afterward, exactly as ADR-007 already required, and as
+[ADR-008](ADR-008-parameter-event-bridge.md) and
 [ADR-009](ADR-009-production-bus-policy.md) likewise required for their
 own subject matter.
+
+## Correction note — iOS/iPadOS floor recomputed (2026-09-19)
+
+An independent research task (2026-09-19, one day after acceptance)
+found that **iOS 27/iPadOS 27 publicly released 2026-09-14 — four days
+before this ADR's own 2026-09-18 acceptance date**
+([MacRumors](https://www.macrumors.com/2026/09/09/apple-announces-ios-27-release-date/),
+[AppleInsider](https://appleinsider.com/articles/26/09/09/ios-27-arrives-on-september-14-heres-what-youll-get),
+[Wikipedia](https://en.wikipedia.org/wiki/IOS_27)). The "Status" text and
+"(a) Minimum iOS/iPadOS version" section below computed the "current
+major version minus one" floor as iOS/iPadOS 25+, treating iOS 26 as
+"current major" as of acceptance. But iOS 27 had already shipped by
+then, so under this ADR's own unchanged rolling rule, "current major
+version" was already 27 at the moment of acceptance — making "current
+major version minus one" **iOS/iPadOS 26+, not 25+**. This was a
+miscalculation present at acceptance, not new drift accumulated since.
+
+Separately: Apple's major-version numbering skips 19 through 25 entirely
+(jumping 18 → 26 → 27), so "25" was never a released OS — no device has
+ever run it. Because of that gap, a literal deployment-target string of
+"25.0" happens to admit exactly the same device population as "26.0"
+would today (the lowest real OS satisfying `>= 25.0` is 26.0), so this
+correction does not change which physical devices are supported *right
+now*. It matters because leaving "25" recorded as the anchor would
+compound: a future re-verification starting from "current major = 26"
+(instead of the correct 27) would again be one full generation stale
+before any further time passes.
+
+**Wherever this record says "iOS/iPadOS 25+," read "iOS/iPadOS 26+."**
+This note is part of this ADR's current contract; where it conflicts
+with dated language elsewhere in this record, this note governs, per
+this project's existing correction-note convention (see ADR-006). The
+rolling policy itself — current major version minus one, re-verified at
+wrapper-implementation-plan time — is unchanged and not reopened by this
+note, nor is any other section of this ADR (sample rates, block-size
+handling, lifecycle mapping, HT-1…HT-12). No newer Apple
+adoption-distribution snapshot than the June 2026 figures exists yet for
+iOS 27, since a new major's first adoption chart typically lands months
+after release; the 79%/68% figures remain the best available
+distribution evidence even though they describe iOS 26 rather than the
+now-current iOS 27.
 
 ## Context and scope
 
@@ -91,16 +138,22 @@ This is a genuine reach-versus-maintenance-cost tradeoff this ADR does not settl
 | Maintenance cost | More `@available`/version-guard code the further below current the floor sits, though nothing here requires it for the *cited* API set specifically | Single code path, less conditional logic |
 | Device/chip generation correlation | A given iOS floor implicitly admits or excludes certain device/chip tiers (a related, separately flagged product choice below) | — |
 
-**Decided (2026-09-18):** minimum deployment target is **current major
-version minus one** — concretely iOS/iPadOS 25+ as of this date, given
-Apple's own June 2026 snapshot (iOS 26/iPadOS 26 at 79%/68% of devices).
-The API-availability research removed the only axis that could have
-forced a specific number (nothing cited requires more than iOS 9.0); the
-owner chose broader reach over pinning to the current major version
-alone. Because this is a rolling policy rather than a fixed number, the
-concrete floor must be re-verified against Apple's then-current major
-version and distribution data at the time the wrapper implementation
-plan is actually written — see "Revisit when."
+**Decided (2026-09-18); number corrected 2026-09-19 (see "Correction
+note" above):** minimum deployment target is **current major version
+minus one** — concretely **iOS/iPadOS 26+**, not the 25+ originally
+recorded here, because iOS 27/iPadOS 27 had already shipped
+(2026-09-14, four days before this ADR's 2026-09-18 acceptance), making
+"current major version" 27 at acceptance and "minus one" 26. Apple's own
+June 2026 snapshot (iOS 26/iPadOS 26 at 79%/68% of devices) remains the
+best available distribution evidence for this floor; no iOS 27-specific
+snapshot exists yet. The API-availability research removed the only axis
+that could have forced a specific number (nothing cited requires more
+than iOS 9.0); the owner chose broader reach over pinning to the current
+major version alone (which would now be 27+). Because this is a rolling
+policy rather than a fixed number, the concrete floor must be
+re-verified against Apple's then-current major version and distribution
+data at the time the wrapper implementation plan is actually written —
+see "Revisit when."
 
 ### (b) Sample rates
 
@@ -177,10 +230,10 @@ Accepting this ADR authorizes no wrapper, UI, or dependency code. A separately a
 
 ## Remaining decisions and later evidence
 
-Before a separately authorized wrapper implementation plan: re-verifying the concrete minimum-version number against Apple's then-current major version and distribution data, since "current major version minus one" is a rolling policy, not a fixed number, and the concrete iOS/iPadOS 25+ floor recorded above reflects only the 2026-09-18 snapshot; which device/chip generations to claim support for (a related but separate choice from the OS floor); whether an unsupported-configuration failure (rate, channel count, or otherwise) should be surfaced only through however the host presents an `AUAudioUnit` allocation error, or additionally through a user-visible diagnostic once UI is authorized; whether market reach justifies verifying and shipping support for a sample rate beyond {48 kHz, 44.1 kHz} given the ADR-005-style re-derivation and re-measurement cost that would require; whether repeated aggregate faults should escalate beyond the existing self-recovering next-block reset (e.g., an observable diagnostic property) or whether the current DSP-core behavior is sufficient as-is; the cross-thread `reset()`-versus-render-callback concurrency question, which is the same class of problem as ADR-008's parameter-event bridge and may be resolved alongside it rather than separately, though this ADR does not assign ownership of it to ADR-008 or any other record; and whether the wrapper keeps the C++ `DiffusionStereoPath` instance alive across a `deallocateRenderResources`/reallocate cycle (preserving the cumulative fault counter) or reconstructs it (requiring the counter to move to the wrapper's own persistent state), named above as an unresolved gap in the lifecycle table.
+Before a separately authorized wrapper implementation plan: re-verifying the concrete minimum-version number against Apple's then-current major version and distribution data, since "current major version minus one" is a rolling policy, not a fixed number, and the concrete iOS/iPadOS 26+ floor recorded above (corrected 2026-09-19; see "Correction note") reflects only the 2026-09-18/19 snapshot; which device/chip generations to claim support for (a related but separate choice from the OS floor); whether an unsupported-configuration failure (rate, channel count, or otherwise) should be surfaced only through however the host presents an `AUAudioUnit` allocation error, or additionally through a user-visible diagnostic once UI is authorized; whether market reach justifies verifying and shipping support for a sample rate beyond {48 kHz, 44.1 kHz} given the ADR-005-style re-derivation and re-measurement cost that would require; whether repeated aggregate faults should escalate beyond the existing self-recovering next-block reset (e.g., an observable diagnostic property) or whether the current DSP-core behavior is sufficient as-is; the cross-thread `reset()`-versus-render-callback concurrency question, which is the same class of problem as ADR-008's parameter-event bridge and may be resolved alongside it rather than separately, though this ADR does not assign ownership of it to ADR-008 or any other record; and whether the wrapper keeps the C++ `DiffusionStereoPath` instance alive across a `deallocateRenderResources`/reallocate cycle (preserving the cumulative fault counter) or reconstructs it (requiring the counter to move to the wrapper's own persistent state), named above as an unresolved gap in the lifecycle table.
 
 An eventual verification plan must run HT-1 through HT-12 above on named devices/hosts/OS versions once the minimum-version decision is made; none of that evidence exists today, and this documentation-only ADR produces none of it.
 
 ## Revisit when
 
-Significant time passes before the wrapper implementation plan is written, requiring the concrete iOS/iPadOS 25+ floor to be re-verified against Apple's then-current major version and distribution data under the accepted "current minus one" policy; the owner sets a device/chip-tier scope; ADR-005's own derivation method is run at a new sample rate and its NS/PT/DS-1…13 measurement suite is repeated there, making that rate a candidate for the supported set; [ADR-008](ADR-008-parameter-event-bridge.md) lands and also resolves (or explicitly declines to resolve) the `reset()`/render-callback concurrency question, at which point this ADR's open item is superseded rather than independently re-argued; the state-schema ADR lands, unblocking HT-7; a bounded wrapper implementation plan is authorized and HT-1…HT-12 begin producing real device/host evidence that may contradict any assumption recorded here (particularly the multi-instance source-inspection finding, which this ADR explicitly does not claim as tested); or a host is observed requesting a block size outside the `{1,13,64,512,3}` fixed partitions and DS-11's ragged `{7,29,3,211,5}` partition this project has actually measured, at which point HT-3 becomes actionable rather than named.
+Significant time passes before the wrapper implementation plan is written, requiring the concrete iOS/iPadOS 26+ floor (corrected 2026-09-19; see "Correction note") to be re-verified against Apple's then-current major version and distribution data under the accepted "current minus one" policy; the owner sets a device/chip-tier scope; ADR-005's own derivation method is run at a new sample rate and its NS/PT/DS-1…13 measurement suite is repeated there, making that rate a candidate for the supported set; [ADR-008](ADR-008-parameter-event-bridge.md) lands and also resolves (or explicitly declines to resolve) the `reset()`/render-callback concurrency question, at which point this ADR's open item is superseded rather than independently re-argued; the state-schema ADR lands, unblocking HT-7; a bounded wrapper implementation plan is authorized and HT-1…HT-12 begin producing real device/host evidence that may contradict any assumption recorded here (particularly the multi-instance source-inspection finding, which this ADR explicitly does not claim as tested); or a host is observed requesting a block size outside the `{1,13,64,512,3}` fixed partitions and DS-11's ragged `{7,29,3,211,5}` partition this project has actually measured, at which point HT-3 becomes actionable rather than named.

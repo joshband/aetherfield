@@ -51,7 +51,8 @@ composition; it is not an AUv3 or product-wrapper diagram.
   (production bus: stereo-in/stereo-out, sum-to-mono),
   [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (sample-rate set
   {48kHz, 44.1kHz}; minimum deployment target: current major version minus
-  one, iOS/iPadOS 25+ as of acceptance), [ADR-011](decisions/ADR-011-state-schema.md)
+  one, iOS/iPadOS 26+ (corrected 2026-09-19 from 25+; see ADR-010's
+  "Correction note")), [ADR-011](decisions/ADR-011-state-schema.md)
   (state payload, versioning, and atomic 3-parameter restore, reopening
   ADR-008's alternative (C) for the StateRestore role only), and
   [ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md)
