@@ -45,7 +45,13 @@ composition; it is not an AUv3 or product-wrapper diagram.
   ([ADR-007](decisions/ADR-007-auv3-integration-comparison.md), accepted
   2026-09-18, in favor of native Apple APIs); the portable core must not
   include Apple or framework types either way, and no wrapper/UI/dependency
-  code is authorized by this decision.
+  code is authorized by this decision. Three of the wrapper's design
+  prerequisites are drafted as proposed (not yet accepted) ADRs:
+  [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (the parameter-event
+  bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md) (production
+  bus/dry-bypass/buffer-aliasing policy), and
+  [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (device/OS/rate/
+  block-size matrix and lifecycle/failure scope).
 
 ## Build and ownership
 
