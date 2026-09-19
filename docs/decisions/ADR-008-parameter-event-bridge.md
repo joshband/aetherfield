@@ -1,8 +1,9 @@
 ---
 id: "ADR-008"
-status: proposed
+status: accepted
+accepted: "2026-09-18"
 implementation: "none; design-only, no bridge/wrapper/UI/dependency code"
-review: "pending owner review"
+review: "owner-accepted-2026-09-18"
 review_document: null
 depends_on: [ADR-001, ADR-004, ADR-007]
 ---
@@ -40,12 +41,24 @@ depends_on: [ADR-001, ADR-004, ADR-007]
   is perceptually acceptable under dense automation are none of them
   settled by this design; they are named below as owner-gated.
 
-**Status: Proposed.** This record authorizes no bridge, wrapper, UI,
-dependency, or other implementation. It does not choose a state-restore
-schema (a separate, later ADR owns versioning/persistence/restore
-semantics) — it only names the producer slot that ADR reuses. A separately
-authorized bounded implementation plan is still required before any code,
-exactly as [ADR-007](ADR-007-auv3-integration-comparison.md) requires.
+**Status: Accepted (2026-09-18).** The owner accepted the recommended
+single-slot mailbox design (alternative (B)) as drafted, including its
+named tradeoff: coalescing always discards every intermediate value
+between two Controller drains, not only under dense automation. The
+owner explicitly accepted that risk rather than requiring the
+higher-fidelity SPSC ring buffer (alternative (A)) up front, deferring
+the fidelity question to a real listening test once code exists, per
+this ADR's own suggestion. This record still authorizes no bridge,
+wrapper, UI, dependency, or other implementation. It does not choose a
+state-restore schema (a separate, later ADR owns versioning/persistence/
+restore semantics) — it only names the producer slot that ADR reuses. A
+separately authorized bounded implementation plan is still required
+before any code, exactly as
+[ADR-007](ADR-007-auv3-integration-comparison.md) requires. The
+per-callback event cap, Controller scheduling mechanism/priority, and
+cross-producer tie-break's residual same-pass UI-over-restore gap remain
+open implementation-plan-level decisions (see "Remaining decisions and
+later evidence" below), unaffected by this acceptance.
 
 ## Context and scope
 
@@ -357,14 +370,19 @@ later evidence":
   it is not derived from any engineering constraint and may be wrong for
   the product.
 - **Single-slot last-write-wins coalescing (§2/§3) is a fidelity/
-  simplicity tradeoff, not a proof of sufficiency.** Dense host automation
-  — many closely spaced events targeting one parameter across several
-  render callbacks before the Controller drains — is silently reduced to
-  only the last value seen at each drain, which can read as an audible
-  "staircase" or a loss of an intended automation shape. This ADR does not
-  evaluate that perceptually; like ADR-004's `D_max`, it is a question for
-  testing.md's Sonic acceptance gate once real code and audition exist,
-  not something a design document can settle by argument.
+  simplicity tradeoff, not a proof of sufficiency. Owner-accepted
+  (2026-09-18) as the design to build, with the risk explicitly
+  acknowledged rather than resolved.** Dense host automation — many
+  closely spaced events targeting one parameter across several render
+  callbacks before the Controller drains — is silently reduced to only
+  the last value seen at each drain, which can read as an audible
+  "staircase" or a loss of an intended automation shape. This ADR does
+  not evaluate that perceptually; like ADR-004's `D_max`, it is a
+  question for testing.md's Sonic acceptance gate once real code and
+  audition exist, not something a design document can settle by
+  argument. If that gate later finds the coalescing audible, alternative
+  (A)'s SPSC ring buffer is this ADR's own named successor (see "Revisit
+  when").
 - **A hard per-callback cap on the number of `AUParameterEvent`s the
   render-thread intake step will scan** (§3) is proposed as defense against
   a pathological or misbehaving host, but no specific cap value, or the

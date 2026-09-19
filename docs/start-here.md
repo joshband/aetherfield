@@ -69,18 +69,21 @@ pre-authorized *implementation* task.
 [ADR-007](decisions/ADR-007-auv3-integration-comparison.md) — native Apple
 APIs versus JUCE for a future AUv3 wrapper — is **accepted (2026-09-18)**.
 That acceptance selects an architectural direction only: it authorizes no
-wrapper, UI, dependency, or other product implementation. Three of the
-post-acceptance design prerequisites are now drafted as **proposed** ADRs,
-none yet reviewed or accepted:
+wrapper, UI, dependency, or other product implementation.
 [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (parameter-event
-bridge), [ADR-009](decisions/ADR-009-production-bus-policy.md) (production
-bus/dry-bypass/buffer-aliasing policy), and
+bridge) and [ADR-009](decisions/ADR-009-production-bus-policy.md)
+(production bus: stereo-in/stereo-out with sum-to-mono reduction) are
+**accepted (2026-09-18)**; each still names its own "Remaining decisions"
+that only the owner can resolve, and neither authorizes wrapper/UI/
+dependency code.
 [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) (device/OS/rate/
-block-size matrix and lifecycle/failure scope). Each names its own
-"Remaining decisions" that only the owner can resolve. The state schema and
-the eventual wrapper implementation plan remain unstarted and are
-downstream of these three. Do not infer authorization from the fact that
-measurement, comparison, framework acceptance, or these drafts existing is
+block-size matrix and lifecycle/failure scope) remains **proposed**: a
+bounded, documentation-only research task into the actual minimum iOS/
+iPadOS version has completed (see ADR-010's evidence section), and the
+owner's floor decision is pending. The state schema and the eventual
+wrapper implementation plan remain unstarted and are downstream of all
+three. Do not infer authorization from the fact that measurement,
+comparison, framework acceptance, or these drafts existing is
 finished — read roadmap.md's current continuation and ask, per this
 project's own repeated pattern in testing.md/ADRs of never treating
 "measured," "compared," "drafted," or "accepted" as "authorized to
