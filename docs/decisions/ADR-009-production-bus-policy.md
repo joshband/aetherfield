@@ -1,8 +1,9 @@
 ---
 id: "ADR-009"
-status: proposed
+status: accepted
+accepted: "2026-09-18"
 implementation: "none; architectural decision only, no wrapper/UI/dependency code"
-review: "pending owner review"
+review: "owner-accepted-2026-09-18"
 review_document: null
 depends_on: [ADR-001, ADR-003, ADR-004, ADR-006, ADR-007]
 ---
@@ -11,31 +12,39 @@ depends_on: [ADR-001, ADR-003, ADR-004, ADR-006, ADR-007]
 
 ## Review summary
 
-- **Proposal:** decide the production AUv3 bus shape's engineering constraints, a
-  dry/bypass and wet-tail policy at decision level, and a buffer-aliasing
-  policy for the wrapper — without authorizing any wrapper, UI, or dependency
-  code.
+- **Decision:** the production bus is **stereo-in/stereo-out (alternative
+  (B))**, with a sum-to-mono reduction feeding the existing unmodified mono
+  diffusion chain. A dry/bypass and wet-tail policy at decision level, and
+  a buffer-aliasing policy, are also decided — without authorizing any
+  wrapper, UI, or dependency code.
 - **Why:** ADR-007 named production bus layout, dry/bypass behavior, and
   buffer-aliasing policy as open prerequisites to any wrapper implementation
   plan, and stated plainly that "DS-B's mono-to-stereo route does not decide
-  these." Nothing in the codebase currently answers them.
-- **Consequence:** the input/output *channel-count* bus shape and several
-  concrete bypass/tail behaviors are recorded here as owner-gated product
-  choices, not engineering facts — this ADR narrows the option set and states
-  the tradeoffs, it does not select for the owner. Buffer-aliasing policy and
-  the zero/variable-block invariant *are* decided here as grounded technical
-  findings from the current source.
-- **Uncertainty:** whether the product ships as mono-in/stereo-out or
-  stereo-in/stereo-out, how a stereo input would be reduced or routed into the
-  existing mono diffusion chain, and what a host-exposed "kill tail on
-  bypass" control should do are all unresolved and require explicit owner
-  sign-off (see "Remaining decisions").
+  these." The owner chose (B) over the as-is mono-in/stereo-out route (A) to
+  match conventional AUv3 host insert-slot expectations, accepting the cost
+  of an extra reduction step and the loss of input stereo *image* (not just
+  level) until/unless a true stereo-diffusion successor to ADR-006 (g) is
+  built.
+- **Consequence:** the sum-to-mono reduction is a new wrapper-side step
+  ahead of the unmodified `src/dsp/` chain; it does not touch `src/dsp/`
+  internals. Buffer-aliasing policy and the zero/variable-block invariant
+  are decided here as grounded technical findings from the current source.
+  Several other bypass/tail behaviors remain owner-gated (see "Remaining
+  decisions and later evidence").
+- **Uncertainty:** whether sum-to-mono reduction is a permanent product
+  behavior or only an interim step pending a true stereo-diffusion
+  successor; the bypass CPU-vs-tail-continuity tradeoff; whether a
+  host-exposed "kill tail on bypass" control should exist; and whether
+  multi-channel/surround output is ever a target — all remain unresolved
+  and require explicit owner sign-off (see "Remaining decisions").
 
-**Status: Proposed — architectural decision only, no implementation.** This
-record authorizes no wrapper, UI, dependency, or other implementation. Even if
-accepted as written, a separately authorized bounded implementation plan is
-still required before any code is written against it, exactly as ADR-007's
-acceptance did not authorize a wrapper plan on its own.
+**Status: Accepted (2026-09-18) — architectural decision only, no
+implementation.** The owner selected alternative (B), stereo-in/stereo-out
+with sum-to-mono reduction, resolving this ADR's single biggest open
+question. This record still authorizes no wrapper, UI, dependency, or
+other implementation. A separately authorized bounded implementation plan
+is still required before any code is written against it, exactly as
+ADR-007's acceptance did not authorize a wrapper plan on its own.
 
 ## Context and scope
 
@@ -176,22 +185,29 @@ channels without changing it. A no-input generator has no such signal.
 Adopting (C) would require reopening and rewriting ADR-004's parameter
 contract, which is out of this ADR's scope and is not recommended.
 
-Between (A) and (B), no engineering fact in this repository forces one
-answer — it is a genuine **product-scope choice**, because it depends on how
-the shipped reverb is meant to be used (always inserted on a stereo channel
-strip vs. also fed from mono sources; whether host-insert-slot compatibility
-with common iOS DAWs matters more than avoiding an extra reduction step).
-This ADR does not select between (A) and (B) on the owner's behalf; it
-narrows the field to these two and records their tradeoffs. See "Remaining
-decisions."
+Between (A) and (B), no engineering fact in this repository forced one
+answer — it was a genuine **product-scope choice**, because it depends on
+how the shipped reverb is meant to be used (always inserted on a stereo
+channel strip vs. also fed from mono sources; whether host-insert-slot
+compatibility with common iOS DAWs matters more than avoiding an extra
+reduction step). The table above narrowed the field to these two and
+recorded their tradeoffs; the owner selected **(B)** (see "Decision and
+tradeoffs" §1 and "Remaining decisions and later evidence").
 
 ## Decision and tradeoffs
 
-1. **Bus channel-count layout remains an explicit owner decision (see
-   "Remaining decisions"), narrowed to alternatives (A) and (B) above.**
-   Alternative (C), no-input generator, is rejected on the grounded
-   engineering basis that it contradicts ADR-004's accepted dry-input Mix
-   contract without a new parameter ADR. This ADR does not pick (A) or (B).
+1. **Bus channel-count layout: decided as alternative (B) —
+   stereo-in/stereo-out with a sum-to-mono reduction ahead of the
+   unmodified mono diffusion chain.** The owner selected (B) over (A) to
+   match conventional AUv3 host insert-slot expectations, accepting the
+   sum-to-mono reduction's engineering cost and its loss of input stereo
+   *image* (not just level) as the tradeoff. Whether sum-to-mono is a
+   permanent product behavior or an interim step pending a true
+   stereo-diffusion successor to ADR-006 (g)'s deferred "second input
+   diffusion chain" remains open (see "Remaining decisions and later
+   evidence"). Alternative (C), no-input generator, is rejected on the
+   grounded engineering basis that it contradicts ADR-004's accepted
+   dry-input Mix contract without a new parameter ADR.
 
 2. **Dry/bypass policy, at decision level:**
    - On engaging `AUAudioUnit.shouldBypassEffect`, the wrapper's output must
@@ -232,28 +248,35 @@ decisions."
      behavior above) is a genuine product decision — see "Remaining
      decisions."
 
-3. **Buffer-aliasing policy: in-place processing cannot be declared safe
-   under a mono-in/stereo-out bus, and this is a grounded finding, not a
-   guess.** `DiffusionStereoPath::process` takes a 1-channel input and a
-   2-channel output as three independent pointers. Apple's conventional
-   in-place optimization for an effect AU assumes the *same* buffer list
-   serves as input and output with matching channel counts per bus; a
-   mono-in/stereo-out shape cannot satisfy that assumption because one input
-   channel's storage cannot simultaneously be two output channels' storage.
-   **`canProcessInPlace` must therefore report false (or the wrapper must
-   force distinct buffers) for as long as the production bus stays
-   asymmetric in channel count — i.e., this constraint is a direct
-   consequence of item 1's alternative (A), not independent of it.** If
-   item 1 instead selects alternative (B), or a future true
-   stereo-diffusion successor is adopted, with matching channel counts,
-   the current implementation's read-before-write, no-lookahead per-sample
-   discipline (confirmed by reading `DiffusionStereoPath::processOne`) is
-   *compatible* with per-channel in-place aliasing, provided any future
-   per-block implementation preserves that same discipline (read every
-   input channel at sample index `i` fully before writing any output
-   channel at index `i`) — this is stated as a requirement on a future
-   implementation, not a claim that any current code already supports a
-   stereo bus.
+3. **Buffer-aliasing policy: `DiffusionStereoPath::process` itself still
+   cannot be called in-place, and the AU-facing bus's own in-place safety
+   under item 1's now-decided alternative (B) is a new, unresolved
+   question this ADR does not answer.** `DiffusionStereoPath::process`
+   takes a 1-channel input and a 2-channel output as three independent
+   pointers — this did not change when the owner selected (B), because (B)
+   sums a *symmetric stereo AU-facing bus* down to mono before feeding the
+   existing, unmodified mono-input core; the core function's own
+   channel-count mismatch, and the impossibility of one input channel's
+   storage simultaneously being two output channels' storage, are
+   unaffected. **`DiffusionStereoPath::process` must therefore always be
+   called with distinct input/output buffers, regardless of item 1's
+   decision.** What item 1's acceptance newly opens is a *separate*
+   question this ADR does not resolve: whether the AU's own public
+   `canProcessInPlace` can report true for its now-symmetric stereo-in/
+   stereo-out bus, given that the wrapper's sum-to-mono reduction step
+   must read both input channels at a sample index before the core writes
+   any output at that index. That depends on how the reduction step and
+   the core call are sequenced in a future implementation, which this ADR
+   has not designed. If a future true stereo-diffusion successor to
+   ADR-006 (g) is built instead of the sum-to-mono interim step, and its
+   implementation preserves `DiffusionStereoPath::processOne`'s
+   read-before-write, no-lookahead per-sample discipline (confirmed by
+   reading the source) across all channels, in-place aliasing would become
+   straightforwardly safe at that point — this is stated as a requirement
+   on that future implementation, not a claim that any current code
+   already supports it. The bounded implementation plan that eventually
+   builds item 1's decision must resolve `canProcessInPlace`'s actual
+   value; this ADR only establishes what is and is not already known.
 
 4. **This ADR does not promote DS-B's tap/diffusion parameters into a
    product configuration.** ADR-006's own boundary language is preserved
@@ -261,9 +284,9 @@ decisions."
    assignment, and diffusion coefficients "remain an evaluation baseline,
    not a proved stereo or perceptual result," and nothing in this ADR
    authorizes reading DS-9's measured L/R asymmetry, or any other DS-1…DS-13
-   figure, as an accepted product characteristic. A future bounded
-   implementation plan choosing alternative (A) or (B) still inherits
-   ADR-006's evaluation-only status for the DSP route it wraps until a
+   figure, as an accepted product characteristic. The bounded implementation
+   plan that eventually builds alternative (B) still inherits ADR-006's
+   evaluation-only status for the mono-core DSP route it wraps until a
    separate ADR says otherwise.
 
 5. **Variable- and zero-length render blocks: the required invariant is
@@ -297,18 +320,22 @@ Using this project's established phrasing pattern (see ADR-007's "Remaining
 decisions and later evidence"): before any wrapper implementation plan that
 depends on this ADR, the owner must resolve —
 
-- **Effect bus channel-count layout**: mono-in/stereo-out (as DS-B stands,
-  alternative (A)) versus stereo-in/stereo-out with a sum-to-mono input
-  reduction (alternative (B)). This is a product-scope choice about target
-  host insert conventions and expected source material, not an engineering
-  fact; §2's table narrows it but does not resolve it. (The no-input
-  generator alternative (C) is not open — it is rejected on the grounded
-  engineering basis stated in §1 and §Alternatives.)
-- **If (B) is selected**, whether sum-to-mono input reduction is an
-  acceptable permanent product behavior, or whether it is only an interim
-  step pending a true stereo-diffusion successor (ADR-006 (g)'s deferred
-  "second input diffusion chain with its own delay set") — a sonic/scope
-  decision, not this ADR's to make.
+- **Effect bus channel-count layout: decided (2026-09-18) as alternative
+  (B), stereo-in/stereo-out with a sum-to-mono input reduction.** (The
+  no-input generator alternative (C) was never open — it was rejected on
+  the grounded engineering basis stated in §1 and §Alternatives.)
+- **Whether sum-to-mono input reduction is an acceptable *permanent*
+  product behavior, or only an interim step** pending a true
+  stereo-diffusion successor (ADR-006 (g)'s deferred "second input
+  diffusion chain with its own delay set") — a sonic/scope decision, still
+  open, not resolved by accepting (B) itself.
+- **`canProcessInPlace`'s actual value for the now-decided stereo-in/
+  stereo-out bus**, given that `DiffusionStereoPath::process` itself must
+  always be called with distinct buffers regardless (§3) — whether the
+  wrapper's sum-to-mono reduction and core call can be sequenced so the
+  AU's *own* public bus can safely report in-place support is a new,
+  unresolved implementation-level question this ADR's acceptance opened
+  but does not answer (§3).
 - **Bypass CPU-vs-tail-continuity tradeoff**: whether `shouldBypassEffect`
   pauses/freezes the DSP core (saving render cost, at the cost of losing
   tail continuity across a bypass toggle) or keeps it running silently in
@@ -334,14 +361,14 @@ depends on this ADR, the owner must resolve —
   any production dry/wet-mix or mono-fold-down claim is made at the second
   fixture rate; this ADR does not close it.
 
-None of the above is resolved by this ADR's acceptance. Acceptance narrows
-the option set and states the engineering constraints; it does not stand in
-for the owner's sign-off on any bulleted item.
+Only the bus channel-count layout itself is resolved by this ADR's
+acceptance. Every other bulleted item above remains open; acceptance does
+not stand in for the owner's sign-off on any of them.
 
 ## Revisit when
 
-Alternative (A) or (B) is selected by the owner and a true stereo-diffusion
-successor to ADR-006 (g)'s deferred second input chain becomes relevant;
+A true stereo-diffusion successor to ADR-006 (g)'s deferred second input
+chain becomes relevant, superseding the sum-to-mono interim reduction;
 DS-9's L/R asymmetry or DS-7's coherence finding is reviewed and judged
 unacceptable, which would reopen ADR-006's tap design and, with it, this
 ADR's assumption that the wrapped route is a fixed evaluation baseline;

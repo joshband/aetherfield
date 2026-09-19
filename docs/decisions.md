@@ -34,12 +34,12 @@ Accepted (2026-09-18): native Apple APIs are the framework direction. No wrapper
 ## ADR-008 — Nonblocking parameter-event bridge for host/UI-to-render-thread control delivery
 
 Canonical record: [ADR-008](decisions/ADR-008-parameter-event-bridge.md).
-Proposed. Design only; no bridge/wrapper/UI/dependency implementation authorized.
+Accepted (2026-09-18). Design only; no bridge/wrapper/UI/dependency implementation authorized.
 
 ## ADR-009 — Production audio bus layout, dry/bypass, and buffer-aliasing policy
 
 Canonical record: [ADR-009](decisions/ADR-009-production-bus-policy.md).
-Proposed. Architectural decision only; no wrapper/UI/dependency implementation authorized.
+Accepted (2026-09-18): stereo-in/stereo-out bus with sum-to-mono reduction. No wrapper/UI/dependency implementation authorized.
 
 ## ADR-010 — Supported device/OS/rate/block-size matrix and AUv3 lifecycle/failure scope
 

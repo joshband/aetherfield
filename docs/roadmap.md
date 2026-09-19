@@ -21,25 +21,34 @@ validation, modulation, or other product implementation — it selects a
 framework direction only. The historical milestone sections below retain
 their original scope; they are not a substitute for this current status.
 
-Three of the post-acceptance design prerequisites named in the
+Two of the three post-acceptance design prerequisites named in the
 [decision-only evaluation plan](superpowers/plans/2026-09-18-auv3-integration-evaluation.md)
-are now drafted as **proposed** ADRs, pending independent review and owner
-decision:
+are now **accepted**:
 
-- [ADR-008](decisions/ADR-008-parameter-event-bridge.md) — the nonblocking
-  parameter-event bridge design.
-- [ADR-009](decisions/ADR-009-production-bus-policy.md) — production bus
-  layout, dry/bypass, and buffer-aliasing policy.
-- [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) — the supported
-  device/OS/rate/block-size matrix and lifecycle/failure scope.
+- [ADR-008](decisions/ADR-008-parameter-event-bridge.md) — **accepted
+  (2026-09-18)**: the nonblocking parameter-event bridge, a per-parameter/
+  producer single-slot mailbox design. The owner accepted its named
+  coalescing-fidelity risk, deferring the question to a real listening
+  test rather than building the higher-fidelity ring-buffer alternative
+  up front.
+- [ADR-009](decisions/ADR-009-production-bus-policy.md) — **accepted
+  (2026-09-18)**: the production bus is stereo-in/stereo-out with a
+  sum-to-mono reduction ahead of the existing mono diffusion chain.
+  Several other items (bypass CPU-vs-tail tradeoff, kill-tail-on-bypass
+  affordance, multi-channel target, `canProcessInPlace`'s actual value
+  for the new bus) remain open in ADR-009's "Remaining decisions."
+- [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) — still
+  **proposed**: fixes the sample-rate set to {48kHz, 44.1kHz} but
+  declines to guess a minimum iOS/iPadOS version. A bounded research task
+  (Apple-documentation-only, no ADR decision) into the actual minimum iOS
+  version each cited API requires is authorized and in progress.
 
-None of the three is accepted, and none authorizes any wrapper, UI,
-dependency, or other implementation — each still needs the owner to work
-through its own "Remaining decisions" before acceptance, exactly as
-ADR-007 required. State schema/version/migration design and the eventual
-wrapper implementation plan itself remain unstarted and are downstream of
-these three, per the evaluation plan. UI technology remains deferred; CLAP
-remains not planned.
+Acceptance of ADR-008/ADR-009 authorizes no wrapper, UI, dependency, or
+other implementation — a separately authorized bounded implementation
+plan is still required, exactly as ADR-007 required. State schema/
+version/migration design and the eventual wrapper implementation plan
+itself remain unstarted and are downstream of all three. UI technology
+remains deferred; CLAP remains not planned.
 
 ## NOW
 

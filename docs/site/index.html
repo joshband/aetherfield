@@ -478,9 +478,9 @@
         <div class="sub">what's actually built, not what's planned</div>
         <div class="grid cols-3">
           <div class="card stat-tile">
-            <div class="num">7</div>
+            <div class="num">9</div>
             <div class="label">Accepted ADRs</div>
-            <div class="detail">topology → damping → parameters → fixture → AUv3 framework</div>
+            <div class="detail">topology → damping → parameters → fixture → AUv3 framework → event bridge → bus policy</div>
           </div>
           <div class="card stat-tile">
             <div class="num">3 + DS-B / 5</div>
@@ -606,7 +606,7 @@ flowchart LR
     <!-- ============ DECISIONS ============ -->
     <section class="page" data-page="decisions">
       <div class="eyebrow">Architecture · Decision Records</div>
-      <h1>Ten decisions, with implementation tracked separately.</h1>
+      <h1>Ten records, nine decided, with implementation tracked separately.</h1>
       <p class="lede">Durable architectural memory. Each ADR states its alternatives, what it decided and why, and — just as deliberately — what it refuses to decide yet.</p>
 
       <div class="adr">
@@ -687,9 +687,9 @@ flowchart LR
           support. This selects a framework direction only: it authorizes no
           wrapper, UI, dependency, or host/device work, and does not supersede
           ADR-001's deferred integration boundary. A separately authorized
-          bounded implementation plan, plus the still-proposed (not yet
-          accepted) ADR-008 parameter-event bridge and ADR-009 production
-          bus/state design below, remain prerequisites to any wrapper code.</div>
+          bounded implementation plan, plus the still-open state schema and
+          ADR-010's device/lifecycle matrix below, remain prerequisites to
+          any wrapper code.</div>
         <div class="adr-meta"><a href="../decisions/ADR-007-auv3-integration-comparison.md">Full ADR</a>
           <a href="../superpowers/plans/2026-09-18-auv3-integration-evaluation.md">Decision-only evaluation plan</a></div>
       </div>
@@ -698,16 +698,17 @@ flowchart LR
         <div class="adr-head">
           <span class="id">ADR-008</span>
           <h3>Nonblocking parameter-event bridge</h3>
-          <span class="pill pending">Proposed — review pending</span>
+          <span class="pill good">Accepted (2026-09-18)</span>
         </div>
         <div class="decision">A single non-render "Bridge Controller" becomes the
           sole caller of the existing, not-realtime-safe parameter setters. Host,
           UI, and a future state-restore producer each write into fixed,
           wait-free single-slot mailboxes instead of calling those setters
-          directly. Recommends a per-parameter atomic-value-plus-generation
+          directly. Accepts a per-parameter atomic-value-plus-generation
           mailbox over a ring buffer or tuple buffer, trading dense-automation
-          fidelity for a strictly bounded, allocation-free render-thread path.
-          Design only — no bridge, wrapper, UI, or dependency code.</div>
+          fidelity for a strictly bounded, allocation-free render-thread path —
+          the owner accepted that fidelity risk, deferring it to a listening
+          test. Design only — no bridge, wrapper, UI, or dependency code.</div>
         <div class="adr-meta"><a href="../decisions/ADR-008-parameter-event-bridge.md">Full ADR</a></div>
       </div>
 
@@ -715,18 +716,19 @@ flowchart LR
         <div class="adr-head">
           <span class="id">ADR-009</span>
           <h3>Production bus, dry/bypass, and buffer-aliasing policy</h3>
-          <span class="pill pending">Proposed — review pending</span>
+          <span class="pill good">Accepted (2026-09-18)</span>
         </div>
-        <div class="decision">Narrows the production bus shape to two owner-gated
-          alternatives (mono-in/stereo-out, matching the current evaluation
-          route, or stereo-in/stereo-out with a sum-to-mono reduction) and
-          rejects a no-input generator bus as incompatible with ADR-004's
-          accepted dry-input Mix law. Decides, as grounded technical findings
-          rather than product choices, that in-place processing cannot be
-          declared safe under the current mono/stereo channel-count mismatch,
-          and that bypass tail time is bounded (not infinite) per ADR-003's
-          denormal-cutoff proof. Does not select the bus layout or the
-          bypass CPU-vs-tail-continuity tradeoff — both remain owner decisions.</div>
+        <div class="decision">The production bus is <b>stereo-in/stereo-out</b>
+          with a sum-to-mono reduction feeding the unmodified mono diffusion
+          chain, over the current evaluation route's mono-in/stereo-out shape,
+          and rejects a no-input generator bus as incompatible with ADR-004's
+          accepted dry-input Mix law. Also decides, as grounded technical
+          findings rather than product choices, that `DiffusionStereoPath`
+          itself still requires distinct input/output buffers regardless of
+          bus layout, and that bypass tail time is bounded (not infinite) per
+          ADR-003's denormal-cutoff proof. The bypass CPU-vs-tail-continuity
+          tradeoff, a kill-tail-on-bypass affordance, and whether sum-to-mono
+          is permanent or interim all remain open owner decisions.</div>
         <div class="adr-meta"><a href="../decisions/ADR-009-production-bus-policy.md">Full ADR</a></div>
       </div>
 
@@ -798,8 +800,8 @@ flowchart LR
           </div>
           <div class="card">
             <div class="pill pending" style="margin-bottom:10px;">Next — owner decision</div>
-            <b>Review and decide ADR-008 / ADR-009 / ADR-010</b>
-            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">Three post-acceptance design prerequisites are drafted and proposed: the parameter-event bridge, production bus/dry-bypass policy, and the device/lifecycle matrix. Each names its own "Remaining decisions" for the owner. State schema and the wrapper implementation plan itself remain unstarted; no wrapper, UI, dependency, or host/device claim is authorized yet.</p>
+            <b>Set the minimum iOS/iPadOS version (ADR-010)</b>
+            <p style="color:var(--text-dim); font-size:13px; margin-top:8px;">The parameter-event bridge (ADR-008) and production bus policy (ADR-009) are accepted. ADR-010's device/lifecycle matrix is drafted with the API-version research done: every cited API needs only iOS 9.0, so the real floor choice is market reach vs. Apple's SDK build-toolchain policy, not API availability. State schema and the wrapper implementation plan itself remain unstarted; no wrapper, UI, dependency, or host/device claim is authorized yet.</p>
           </div>
           <div class="card">
             <div class="pill neutral" style="margin-bottom:10px;">Later</div>

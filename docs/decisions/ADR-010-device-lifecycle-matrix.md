@@ -14,7 +14,7 @@ depends_on: [ADR-001, ADR-003, ADR-004, ADR-005, ADR-007]
 - **Proposal:** define, at a decision level, the device/OS/sample-rate/block-size matrix the future AUv3 wrapper claims support for, and the lifecycle/resource/failure-handling contract the wrapper must sit on top of the already-accepted DSP-core contract (ADR-003(d), DS-B Task 3) without duplicating or contradicting it.
 - **Why:** ADR-007 named this matrix and this lifecycle/failure scope as an open prerequisite to any wrapper implementation plan, and no document in this repository has ever enumerated a supported-rate list, a minimum OS version, or a wrapper-level fault-escalation policy.
 - **Consequence:** a bounded implementation plan for the wrapper can be authorized against a concrete, honestly-labelled matrix instead of an implicit one; several genuine product/business choices are surfaced explicitly for the owner instead of being decided by omission inside implementation code.
-- **Uncertainty:** the minimum iOS/iPadOS version, device/chip-tier claims, and whether to expand the sample-rate matrix beyond what has ever been measured are business/reach tradeoffs this ADR deliberately does not resolve. No iOS device, simulator, or OS version has ever been tested against any Aetherfield code (ADR-001; testing.md's "cross-platform builds, iOS compilation, simulator/device hosting ... remain unverified").
+- **Uncertainty:** the minimum iOS/iPadOS version is now a pure market-reach/business tradeoff — a bounded research task closed the API-availability question (every cited API needs only iOS 9.0) — but the number itself, plus device/chip-tier claims and whether to expand the sample-rate matrix beyond what has ever been measured, remain unresolved by this ADR. No iOS device, simulator, or OS version has ever been tested against any Aetherfield code (ADR-001; testing.md's "cross-platform builds, iOS compilation, simulator/device hosting ... remain unverified").
 
 **Status: Proposed.** This record authorizes no wrapper, UI, dependency, or other implementation. Acceptance of this ADR does not itself authorize any code; a separately authorized bounded implementation plan is still required afterward, exactly as ADR-007 already required, and as [ADR-008](ADR-008-parameter-event-bridge.md) and [ADR-009](ADR-009-production-bus-policy.md) likewise require for their own subject matter.
 
@@ -28,7 +28,7 @@ The wrapper contract described below must sit *on top of* the DS-B Task 3 fault/
 
 ## Evidence basis
 
-No new measurement was performed for this ADR. Every factual claim below is either (a) a quotation or direct restatement of an already-accepted ADR or already-recorded test result, or (b) a documentation-only Apple API fact already cited in ADR-003/ADR-007's evidence tables. No Apple deployment-target research (minimum iOS/iPadOS version needed for `AUAudioUnit`'s specific API surface) has been performed by this ADR or by any prior one; ADR-007 explicitly distinguished "the archived extension guide establishes packaging context, not current deployment-version eligibility," and that gap remains fully open here.
+No new measurement was performed for this ADR. Every factual claim below is either (a) a quotation or direct restatement of an already-accepted ADR or already-recorded test result, (b) a documentation-only Apple API fact already cited in ADR-003/ADR-007's evidence tables, or (c) the result of a bounded, owner-authorized, documentation-only research task (2026-09-18) into the minimum iOS/iPadOS version each API this design cites actually requires, verified against Apple's own primary-source developer documentation (see "(a) Minimum iOS/iPadOS version" below for the findings and their source basis). ADR-007 explicitly distinguished "the archived extension guide establishes packaging context, not current deployment-version eligibility"; that specific gap is now closed for the API-availability question (every cited API needs only iOS 9.0), though the owner's actual market-reach floor decision remains open.
 
 | Source | What it grounds in this ADR |
 |---|---|
@@ -43,17 +43,37 @@ No new measurement was performed for this ADR. Every factual claim below is eith
 
 ### (a) Minimum iOS/iPadOS version
 
-This is a genuine reach-versus-maintenance-cost tradeoff this ADR does not settle. No document in this repository has ever researched or verified a minimum deployment target, and no Apple API-version research was performed while drafting this ADR. The engineering considerations the owner needs, without inventing a number:
+This is a genuine reach-versus-maintenance-cost tradeoff this ADR does not settle. A bounded, documentation-only research task (owner-authorized 2026-09-18, Apple-primary-source only, no code and no ADR decision made by the researcher) has since closed the API-availability half of this question. Findings, verified against each API's raw DocC JSON metadata on developer.apple.com, not just the rendered page:
+
+| API / concept | Min iOS/iPadOS (Apple-stated) | Deprecated? |
+|---|---|---|
+| `AUAudioUnit` (class) | iOS 9.0 | No |
+| `allocateRenderResources()` / `deallocateRenderResources()` | iOS 9.0 | No |
+| `AUParameterTree` | iOS 9.0 | No |
+| `fullState` | iOS 9.0 | No |
+| `shouldBypassEffect` | iOS 9.0 | No |
+| `canProcessInPlace` | iOS 9.0 | No |
+| `maximumFramesToRender` | iOS 9.0 | No |
+| `reset()` | iOS 9.0 | No |
+| `internalRenderBlock` / `AUInternalRenderBlock` | Not stated in Apple's docs (no `introducedAt` in the page's own metadata) | No |
+| `AUParameterEvent` / `AUParameterObserver` | Not stated in Apple's docs (same gap) | No |
+
+**Hard floor: iOS/iPadOS 9.0** — the release that introduced AUv3 itself. Every cited API for which Apple states a version requires exactly 9.0; no single API is a stricter binding constraint than the rest. This makes the API-availability question moot for any deployment decision plausible in 2026: nothing in the cited AUv3 surface pushes the floor above ancient hardware. Four APIs (`internalRenderBlock`, `AUInternalRenderBlock`, `AUParameterEvent`, `AUParameterObserver`) have no Apple-stated version at all — a gap in Apple's own documentation, not filled with an assumption here.
+
+**The real constraint is market reach and Apple's build-toolchain policy, not API availability.** Separately researched, both primary-source:
+
+- **Build-toolchain policy (distinct from deployment target):** Apple's official minimum-SDK notice states that, effective **April 28, 2026**, all new App Store submissions/updates must be **built with the iOS 26 / iPadOS 26 SDK or later** — this governs the SDK Xcode builds with, not the app's chosen minimum deployment target; a project can build with the iOS 26 SDK while still setting a much lower deployment target.
+- **Adoption data (informational, not a recommendation):** Apple's own distribution page (snapshot 2026-06-07) publishes only current-major-version adoption, not a per-version breakdown: iOS 26 = 79% of all devices (86% of devices ≤4 years old); iPadOS 26 = 68% of all devices (79% of devices ≤4 years old). Apple does not publish a "current−1/−2/−3" breakdown; only "≈21% of iOS / ≈32% of iPadOS devices are on iOS/iPadOS 25 or older" can be derived from Apple's own numbers, with no finer split available. Third-party trackers publish more granular estimates, but none of those are Apple's own data and are not used here as fact.
 
 | Consideration | What it means for a lower minimum | What it means for a higher minimum |
 |---|---|---|
-| Market reach | Larger addressable device/OS population | Smaller, skews toward users on current hardware/OS |
-| `AUAudioUnit` API surface actually used | Must avoid any API introduced after the chosen floor (unresearched which, if any, of the render/parameter-tree/`fullState` APIs ADR-007 cites require a specific floor) | Free to use the newest AU/AVFAudio conveniences without a compatibility shim |
-| Swift/Obj-C runtime and toolchain | Older Xcode/SDK combinations may be required, constraining CI and the owner's own dev machine (locally, Xcode 27.0 is what's installed and version-checked only, per testing.md) | Can target the newest SDK the owner's Xcode installation supports |
-| Maintenance cost | Two code paths (or defensive `@available` checks) if any newer convenience API is wanted later | Single code path, less conditional logic |
+| Market reach | Larger addressable device/OS population; below iOS 25 the only data available is third-party, not Apple's own | Smaller; iOS 26+ alone is 79%/68% of devices per Apple's own June 2026 snapshot |
+| `AUAudioUnit` API surface actually used | No longer a constraint — the hard floor is 9.0 regardless of the owner's choice | Same — no cited API benefits from a higher floor |
+| Build toolchain | Independent of deployment target — Xcode must build with the iOS 26 SDK from 2026-04-28 regardless of what floor is chosen | Same requirement either way |
+| Maintenance cost | More `@available`/version-guard code the further below current the floor sits, though nothing here requires it for the *cited* API set specifically | Single code path, less conditional logic |
 | Device/chip generation correlation | A given iOS floor implicitly admits or excludes certain device/chip tiers (a related, separately flagged product choice below) | — |
 
-**Proposed default absent an owner decision:** none. This ADR takes no position on a number and explicitly declines to default to "latest" or "oldest" without the owner's input, because both carry real cost the owner has not yet been shown. This is listed again under "Remaining decisions."
+**Proposed default absent an owner decision:** none. The API-availability research removes one axis of uncertainty (the floor is not constrained by anything this design needs), but the actual number remains the owner's market-reach call, now made with real data rather than a guess. This is listed again under "Remaining decisions."
 
 ### (b) Sample rates
 
@@ -130,7 +150,7 @@ Accepting this ADR authorizes no wrapper, UI, or dependency code. A separately a
 
 ## Remaining decisions and later evidence
 
-Before a separately authorized wrapper implementation plan: the owner's minimum iOS/iPadOS deployment version (with the reach-versus-API-surface-versus-maintenance tradeoff laid out above, and no engineering evidence yet gathered on which specific `AUAudioUnit`/`AVAudioSession` APIs actually require which floor); which device/chip generations to claim support for (a related but separate choice from the OS floor); whether an unsupported-configuration failure (rate, channel count, or otherwise) should be surfaced only through however the host presents an `AUAudioUnit` allocation error, or additionally through a user-visible diagnostic once UI is authorized; whether market reach justifies verifying and shipping support for a sample rate beyond {48 kHz, 44.1 kHz} given the ADR-005-style re-derivation and re-measurement cost that would require; whether repeated aggregate faults should escalate beyond the existing self-recovering next-block reset (e.g., an observable diagnostic property) or whether the current DSP-core behavior is sufficient as-is; the cross-thread `reset()`-versus-render-callback concurrency question, which is the same class of problem as ADR-008's parameter-event bridge and may be resolved alongside it rather than separately, though this ADR does not assign ownership of it to ADR-008 or any other record; and whether the wrapper keeps the C++ `DiffusionStereoPath` instance alive across a `deallocateRenderResources`/reallocate cycle (preserving the cumulative fault counter) or reconstructs it (requiring the counter to move to the wrapper's own persistent state), named above as an unresolved gap in the lifecycle table.
+Before a separately authorized wrapper implementation plan: the owner's minimum iOS/iPadOS deployment version — the API-availability question is now closed (every cited API needs only iOS 9.0, per the research above), so this is purely the market-reach-versus-maintenance tradeoff laid out in the table above; which device/chip generations to claim support for (a related but separate choice from the OS floor); whether an unsupported-configuration failure (rate, channel count, or otherwise) should be surfaced only through however the host presents an `AUAudioUnit` allocation error, or additionally through a user-visible diagnostic once UI is authorized; whether market reach justifies verifying and shipping support for a sample rate beyond {48 kHz, 44.1 kHz} given the ADR-005-style re-derivation and re-measurement cost that would require; whether repeated aggregate faults should escalate beyond the existing self-recovering next-block reset (e.g., an observable diagnostic property) or whether the current DSP-core behavior is sufficient as-is; the cross-thread `reset()`-versus-render-callback concurrency question, which is the same class of problem as ADR-008's parameter-event bridge and may be resolved alongside it rather than separately, though this ADR does not assign ownership of it to ADR-008 or any other record; and whether the wrapper keeps the C++ `DiffusionStereoPath` instance alive across a `deallocateRenderResources`/reallocate cycle (preserving the cumulative fault counter) or reconstructs it (requiring the counter to move to the wrapper's own persistent state), named above as an unresolved gap in the lifecycle table.
 
 An eventual verification plan must run HT-1 through HT-12 above on named devices/hosts/OS versions once the minimum-version decision is made; none of that evidence exists today, and this documentation-only ADR produces none of it.
 
