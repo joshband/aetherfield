@@ -83,6 +83,31 @@ after release; the 79%/68% figures remain the best available
 distribution evidence even though they describe iOS 26 rather than the
 now-current iOS 27.
 
+## Re-verification note (2026-09-20)
+
+This ADR's own text requires the rolling "current major version minus
+one" floor to be re-checked "against Apple's then-current major version
+and distribution data" at wrapper-implementation-plan time. Task 3 of
+`docs/phases/phase1-wrapper-skeleton-plan.md` names this moment as that
+time (2026-09-20, two days after the 2026-09-18 acceptance and one day
+after the 2026-09-19 correction note above). A web-search re-check was
+performed against Apple's current release state.
+
+**Finding: no drift.** iOS 27/iPadOS 27 remains the current major
+version as of 2026-09-20. No iOS 28/iPadOS 28 has shipped or been
+announced; iOS 28 is expected to be announced at WWDC 2027, with public
+rollout not before September 2027, per
+[TechPP's iOS 28 roundup](https://techpp.com/roundup/ios-28/), and
+[Wikipedia's iOS 27 article](https://en.wikipedia.org/wiki/IOS_27)
+records no successor as released. Because "current major version" is
+unchanged at 27, this ADR's "current major version minus one"
+computation is unchanged: the deployment floor remains **iOS/iPadOS
+26+**, exactly as the 2026-09-19 correction note above recorded. A
+"no drift found, re-verified 2026-09-20" result is itself the expected
+and correct outcome of this rolling policy given only one day elapsed
+since the prior check — it is not a reason to skip the check, and no
+change is made to the floor recorded above.
+
 ## Context and scope
 
 ADR-007 (accepted 2026-09-18) selected native Apple AUv3 APIs as the integration direction and listed, in "Remaining decisions and later evidence," an open prerequisite list that includes "supported device/OS/rate/block-size matrix" and "resource and failure behavior," alongside its evidence-table finding that "AUv3 hosts can call render with variable-length or zero-length blocks." Those two items are this ADR's entire scope. It does not reopen the parameter-event bridge ([ADR-008](ADR-008-parameter-event-bridge.md)), production bus/state schema ([ADR-009](ADR-009-production-bus-policy.md) and the still-unassigned state-schema ADR), UI toolkit, signing/identifiers, or licensing — all remain open exactly as ADR-007 left them.

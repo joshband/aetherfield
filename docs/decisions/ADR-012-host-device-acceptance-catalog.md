@@ -819,6 +819,33 @@ against Apple's then-current lineup** before locking in specific
 hardware — the same rolling-re-verification discipline ADR-010 already
 applies to the OS floor.
 
+**Re-verification note (2026-09-20).** Task 3 of
+`docs/phases/phase1-wrapper-skeleton-plan.md`'s Step 0 re-ran this
+check against Apple's current lineup, as this section's own text
+requires at implementation-plan time. **Finding: drift detected on the
+iPhone corner; no drift on the iPad Pro corner.** Apple shipped the
+iPhone 18 Pro and iPhone 18 Pro Max on 2026-09-18 — two days before this
+re-verification — carrying the new **Apple A20 Pro** chip
+([Apple Newsroom](https://www.apple.com/newsroom/2026/09/apple-debuts-iphone-18-pro-and-iphone-18-pro-max/);
+[MacRumors](https://www.macrumors.com/2026/09/09/iphone-18-pro-preorders-release-date-announced/);
+[MacRumors' A20 analysis](https://www.macrumors.com/2026/09/05/what-m6-tells-us-about-a20/)),
+superseding the iPhone 17 Pro/Pro Max's A19 Pro chip
+([Apple Newsroom, 2025-09](https://www.apple.com/newsroom/2025/09/apple-unveils-iphone-17-pro-and-iphone-17-pro-max/))
+this section named as "newest available" on 2026-09-19. **The iPhone
+newest-corner device is therefore updated to iPhone 18 Pro / iPhone 18
+Pro Max, Apple A20 Pro**, superseding the "iPhone A19" figure recorded
+above. The iPad Pro corner shows no drift: as of a 2026-09-12 snapshot,
+Apple's own product pages still list the iPad Pro's newest chip as
+**M5**, with no iPad Pro refresh expected before spring 2027
+([the-gadgeteer.com's WWDC 2026 report](https://the-gadgeteer.com/2026/06/07/wwdc-2026-no-new-ipad-pro-m5-flagship/));
+the "iPad Pro M5" figure recorded above remains accurate. This drift
+affects only the concrete chip/model name recorded for the iPhone
+newest-corner device — it does not reopen policy (D)'s corners *shape*,
+nor the iPhone SE 2nd gen/A13 or iPad 8th gen/A12 oldest-corner devices,
+which remain fixed by the OS floor and correctly needed no
+re-verification. Any future HT execution work targeting the iPhone
+newest corner should use iPhone 18 Pro/A20 Pro, not iPhone A19.
+
 ## Tooling policy — `auval`
 
 **Proposed: `auval` is in scope as a cheap, first-line structural check, run
