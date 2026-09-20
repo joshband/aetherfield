@@ -10,6 +10,7 @@
 #include <iterator>
 #include <limits>
 #include <new>
+#include <vector>
 
 namespace {
 

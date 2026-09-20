@@ -53,8 +53,7 @@ std::size_t ParameterBridge::drain(aetherfield::dsp::DiffusionStereoPath& path) 
             hasPending = true;
         }
 
-        if (hasPending) {
-            applySetter(path, static_cast<Parameter>(index), winningValue);
+        if (hasPending && applySetter(path, static_cast<Parameter>(index), winningValue)) {
             ++applied;
         }
     }
