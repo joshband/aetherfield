@@ -10,7 +10,8 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
-CMAKE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' cmake/DspSources.cmake | sort -u) || {
+# Compared as bare filenames (see XCODE_LIST below for why).
+CMAKE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' cmake/DspSources.cmake | sed 's#^src/dsp/##' | sort -u) || {
     echo "FAIL: no DSP sources found in cmake/DspSources.cmake"
     exit 1
 }
@@ -21,10 +22,25 @@ if [[ ! -f "$XCODE_PROJECT" ]]; then
     exit 0
 fi
 
-XCODE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' "$XCODE_PROJECT" | sort -u) || {
+# xcodegen (Task 3) does not repeat the full "src/dsp/Name.cpp" relative
+# path inside each PBXFileReference -- it writes only the bare filename
+# (`path = Name.cpp;`) and encodes the directory nesting once, on the
+# enclosing PBXGroup itself (`name = dsp; path = ../../src/dsp;`).
+# Confirmed by direct inspection of a real xcodegen-generated
+# project.pbxproj (2026-09-20): a full "src/dsp/...cpp" string never
+# appears anywhere in the file, which is why the original regex here
+# (written for a hand-authored/GUI project that might spell out the full
+# relative path per file) always found zero matches -- a path-format
+# false mismatch, not real drift; the two build systems can still be
+# checked against the same manifest by comparing bare filenames scoped
+# to the "dsp" PBXGroup specifically, so a same-named file accidentally
+# added to some other group (src/wrapper, src/auv3) would not be
+# mistaken for a src/dsp/ file.
+XCODE_LIST=$(sed -n '/\/\* dsp \*\/ = {/,/^\t\t};/p' "$XCODE_PROJECT" | grep -oE '[A-Za-z0-9_]+\.cpp' | sort -u)
+if [[ -z "$XCODE_LIST" ]]; then
     echo "FAIL: no DSP sources found in $XCODE_PROJECT"
     exit 1
-}
+fi
 
 if [[ "$CMAKE_LIST" != "$XCODE_LIST" ]]; then
     echo "FAIL: cmake/DspSources.cmake and $XCODE_PROJECT disagree on the DSP source list."
