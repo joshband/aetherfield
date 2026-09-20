@@ -1456,6 +1456,101 @@ both already committed). Sol's own verdict stands: no architectural
 revision is warranted by any of this evidence, and nothing here reopens
 `N`, the delay set, the tap design, or any other ADR-006/ADR-002 decision.
 
+### PB-1…PB-8 — parameter bridge mechanism (2026-09-20)
+
+Task 2 of
+[phase1-wrapper-skeleton-plan.md](phases/phase1-wrapper-skeleton-plan.md):
+a portable, host-independent parameter-event bridge implementing
+[ADR-008](decisions/ADR-008-parameter-event-bridge.md) §1–§7 (mailbox
+cells, Host-then-UI drain tie-break, render-thread event coalescing, and
+the wait-free reset-request flag), built as plain C++ with no Apple
+dependency. New files: `src/wrapper/ResetRequest.h`,
+`src/wrapper/ParameterBridge.h`, `src/wrapper/ParameterBridge.cpp`,
+`tests/ParameterBridgeTests.cpp`; `CMakeLists.txt` gained the
+`aetherfield_wrapper` static library and the `aetherfield_wrapper_tests`
+executable/CTest entry, added to the existing
+`-Wall -Wextra -Wpedantic -Werror` loop. `src/dsp/` was not touched.
+
+Written test-first: `tests/ParameterBridgeTests.cpp` with only the
+fixture helpers and PB-1 was confirmed to fail to compile before
+`src/wrapper/ParameterBridge.h` existed:
+
+```sh
+g++ -std=c++20 -Isrc -c tests/ParameterBridgeTests.cpp -o /dev/null
+```
+```
+tests/ParameterBridgeTests.cpp:1:10: fatal error: 'wrapper/ParameterBridge.h' file not found
+    1 | #include "wrapper/ParameterBridge.h"
+      |          ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+1 error generated.
+```
+
+`ParameterBridge`/`ResetRequest` were then implemented, and PB-1 was
+confirmed applied through `drain()`. PB-2 through PB-8 (UI-wins tie-break,
+generation-gated non-reapplication, `applyHostEvents()` burst coalescing
+to the last value per parameter, an empty-batch no-op, drain-before-any-
+write no-op, a 1000-cycle allocation check reusing this project's existing
+`SchroederAllpassTests.cpp` global-`operator new`/`operator delete`
+override pattern, and a `ResetRequest` set/consume/clear round trip) were
+added next; each was already handled by the Step 4 implementation, so this
+was a green-from-write TDD cycle, verified by actually running the binary
+rather than assumed from the design:
+
+```sh
+export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+Actual observed CTest output (2026-09-20):
+
+```
+Test project .../wrapper-skeleton-plan/build
+    Start 1: aetherfield_dsp_tests
+1/7 Test #1: aetherfield_dsp_tests ....................   Passed    0.41 sec
+    Start 2: aetherfield_dsp_delay_tests
+2/7 Test #2: aetherfield_dsp_delay_tests ..............   Passed    0.16 sec
+    Start 3: aetherfield_dsp_fdn_tests
+3/7 Test #3: aetherfield_dsp_fdn_tests ................   Passed    1.31 sec
+    Start 4: aetherfield_dsp_param_tests
+4/7 Test #4: aetherfield_dsp_param_tests ..............   Passed    0.89 sec
+    Start 5: aetherfield_dsp_allpass_tests
+5/7 Test #5: aetherfield_dsp_allpass_tests ............   Passed    0.31 sec
+    Start 6: aetherfield_dsp_diffusion_stereo_tests
+6/7 Test #6: aetherfield_dsp_diffusion_stereo_tests ...   Passed    3.91 sec
+    Start 7: aetherfield_wrapper_tests
+7/7 Test #7: aetherfield_wrapper_tests ................   Passed    0.18 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   7.17 sec
+```
+
+And the actual observed direct-run output of `./build/aetherfield_wrapper_tests`:
+
+```
+PB-1 Host write applied through drain(): output diverged from Decay=0.5 default
+PB-2 UI write won over same-drain Host write, as ADR-008 section 2 requires
+PB-3 a consumed Host write is not reapplied on a subsequent empty drain
+PB-4 applyHostEvents() coalesced a 4-event burst to 2 mailbox writes, last value per parameter
+PB-5 an empty event batch produces zero mailbox writes
+PB-6 draining before any write applies zero parameters
+PB-7 allocation delta through 1000 write/drain cycles: 0
+PB-8 ResetRequest round trip: set once, consumed once, cleared
+ParameterBridge tests passed
+```
+
+Scope: this is a mechanism-only, portable-C++ check of ADR-008's mailbox
+and reset-flag design under the existing CMake/CTest loop. No AUv3 host,
+`AUAudioUnit`, `AURenderEvent`, or Xcode project is involved — Task 3 of
+the same plan wires this bridge to real host callbacks and is unimplemented.
+`ParameterBridge` never calls anything but
+`DiffusionStereoPath::setDecay()`/`setDamp()`/`setMix()`, and `ResetRequest`
+never touches `DiffusionStereoPath` at all, matching the design's own
+stated boundary.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.

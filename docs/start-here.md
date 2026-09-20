@@ -38,6 +38,11 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   authorizes **no further implementation** beyond what is already committed.
   The S2/PT-only Sonic acceptance component (mono network, no diffusion) was
   not carried further and remains as testing.md's round-1 notes left it.
+- **Wrapper parameter bridge (`src/wrapper/`):** `ParameterBridge` and
+  `ResetRequest`, implementing ADR-008 §1–§7's mailbox and reset-flag
+  design; PB-1 through PB-8 pass under `aetherfield_wrapper_tests`. This
+  is a portable, host-independent mechanism check only — no AUv3 host has
+  run this code; see `phase1-wrapper-skeleton-plan.md`.
 
 The latest recorded baseline is a Release configure/build and CTest result
 from 2026-09-18: **6/6 suites passed**, including DS-13 and the
