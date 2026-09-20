@@ -1,0 +1,95 @@
+# xcodegen spec for the Aetherfield AUv3 skeleton (Task 3,
+# docs/phases/phase1-wrapper-skeleton-plan.md). This file is the source
+# of truth; platform/apple/Aetherfield.xcodeproj/ is generated from it via
+# `xcodegen generate` and may be regenerated at any time.
+#
+# Bundle identifiers below (com.aetherfield.placeholder.*) are explicit
+# placeholders per ADR-007/ADR-010's deferred real-identifier decision --
+# not a product commitment. AetherfieldAUExtension's identifier is
+# nested under AetherfieldHost's (...AetherfieldHost.AetherfieldAUExtension,
+# not a sibling ...AetherfieldAUExtension) because Apple's embedded-binary
+# validation rejects an extension whose bundle identifier is not prefixed
+# by its container app's identifier ("Embedded binary's bundle identifier
+# is not prefixed with the parent app's bundle identifier") -- confirmed
+# by an actual build failure with the original sibling placeholders, not
+# assumed in advance.
+#
+# deploymentTarget "26.0" is ADR-010's rolling "current major version
+# minus one" floor, re-verified 2026-09-20 (see ADR-010's "Re-verification
+# note" -- no drift found; iOS 27/iPadOS 27 remains current, so the floor
+# remains iOS/iPadOS 26+).
+name: Aetherfield
+options:
+  bundleIdPrefix: com.aetherfield.placeholder
+targets:
+  AetherfieldAUExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: ../../src/dsp
+        excludes: ["*.h"]
+      - path: ../../src/wrapper
+        excludes: ["*.h"]
+      - path: ../../src/auv3
+    settings:
+      HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../src"]
+      CLANG_CXX_LANGUAGE_STANDARD: "c++20"
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost.AetherfieldAUExtension
+    # xcodegen's `info:` key GENERATES the Info.plist at this path on
+    # every `xcodegen generate` run -- it does not preserve a hand-edited
+    # file there (confirmed: an earlier hand-authored Info.plist at this
+    # exact path was silently overwritten with xcodegen's bare-minimum
+    # default on the first `generate`). The fix is to hand xcodegen the
+    # custom keys via `properties:` so they are merged into the plist it
+    # writes, rather than trying to keep a separately hand-maintained
+    # file at the same path that `xcodegen generate` would just clobber
+    # again on the next run.
+    info:
+      path: ../../src/auv3/Info.plist
+      properties:
+        CFBundleDisplayName: Aetherfield
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.AudioUnit
+          NSExtensionPrincipalClass: AetherfieldAudioUnitFactory
+          NSExtensionAttributes:
+            AudioComponents:
+              - type: aufx
+                subtype: Aeth
+                manufacturer: Josh
+                name: "Aetherfield: Reverb"
+                description: "Aetherfield ambient reverb (AUv3 skeleton over src/dsp/DiffusionStereoPath; not yet auval/host/device verified)"
+                version: 1
+                factoryFunction: AetherfieldAudioUnitFactory
+                tags:
+                  - Effects
+    # NOTE: a top-level `frameworks:` key (as this plan's own template
+    # text originally specified) is not a recognized xcodegen 2.46.0
+    # target key -- xcodegen silently ignores it (no schema error), so
+    # AudioToolbox/AVFoundation were never added to the "Link Binary With
+    # Libraries" build phase and the link step failed with undefined
+    # AUAudioUnit/AVAudioFormat/etc. symbols. The correct xcodegen key for
+    # linking an SDK framework is `dependencies: - sdk: <name>`.
+    dependencies:
+      - sdk: AudioToolbox.framework
+      - sdk: AVFoundation.framework
+  AetherfieldHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources: []
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost
+      # AetherfieldHost has no source files and no custom Info.plist
+      # content -- it exists only so AetherfieldAUExtension has a
+      # container app to embed in, per Apple's AUv3 packaging
+      # requirement. Without either an `info:` key or this setting,
+      # Xcode has no Info.plist for the app target at all and the build
+      # fails at ValidateEmbeddedBinary with "Build input file cannot be
+      # found ... AetherfieldHost.app/Info.plist". GENERATE_INFOPLIST_FILE
+      # synthesizes a minimal one purely from build settings, with no
+      # physical plist file needed for a target with no real content.
+      GENERATE_INFOPLIST_FILE: true
+    dependencies:
+      - target: AetherfieldAUExtension
+        embed: true
