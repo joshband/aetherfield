@@ -1544,12 +1544,103 @@ ParameterBridge tests passed
 
 Scope: this is a mechanism-only, portable-C++ check of ADR-008's mailbox
 and reset-flag design under the existing CMake/CTest loop. No AUv3 host,
-`AUAudioUnit`, `AURenderEvent`, or Xcode project is involved — Task 3 of
-the same plan wires this bridge to real host callbacks and is unimplemented.
-`ParameterBridge` never calls anything but
-`DiffusionStereoPath::setDecay()`/`setDamp()`/`setMix()`, and `ResetRequest`
-never touches `DiffusionStereoPath` at all, matching the design's own
-stated boundary.
+`AUAudioUnit`, `AURenderEvent`, or Xcode project is involved here — Task 3
+of the same plan (below) wires this bridge to real host callbacks, but
+still runs under no host/device/`auval`. `ParameterBridge` never calls
+anything but `DiffusionStereoPath::setDecay()`/`setDamp()`/`setMix()`, and
+`ResetRequest` never touches `DiffusionStereoPath` at all, matching the
+design's own stated boundary. (Note: `drain()`'s implementation was
+corrected once after this section was first written — it now only counts a
+parameter as "applied" when the underlying setter actually accepts the
+value, rather than unconditionally — but this changes nothing about the
+PB-1…PB-8 output above, since none of these cases exercise the rejection
+path; the printed lines are the current, post-fix behavior.)
+
+### AUv3 wrapper skeleton build (2026-09-20)
+
+Task 3 of
+[phase1-wrapper-skeleton-plan.md](phases/phase1-wrapper-skeleton-plan.md):
+a minimal native `AUAudioUnit` (`src/auv3/AetherfieldAudioUnit.h`/`.mm`,
+`AetherfieldAudioUnitFactory.mm`, `Info.plist`) wiring PB-1…PB-8's
+`ParameterBridge`/`ResetRequest` into real host callbacks, generated via
+`xcodegen` (`platform/apple/project.yml` → `platform/apple/Aetherfield.xcodeproj`,
+two targets: `AetherfieldAUExtension` and a minimal container app
+`AetherfieldHost`). Implements ADR-010's lifecycle mapping
+(`allocateRenderResourcesAndReturnError:` → `DiffusionStereoPath::prepare()`,
+rejecting unsupported sample rate/channel count rather than clamping;
+`-reset` → ADR-008 §7's wait-free flag, consumed only at the top of the
+render callback; `deallocateRenderResources` keeps the C++ instance alive
+rather than reconstructing it, preserving the cumulative fault counter) and
+ADR-009's already-decided bus/dry-passthrough behavior (stereo-in/stereo-out,
+sum-to-mono reduction, bit-exact dry passthrough on `shouldBypassEffect` via
+a render-thread-safe atomic snapshot — **not** the still-open `T_silence`
+hybrid CPU optimization, which remains unimplemented).
+
+Command actually run (code signing disabled — this machine has no Apple
+Developer team configured, and this task requires no device install):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldAUExtension -configuration Debug \
+  -destination "generic/platform=iOS" \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO \
+  clean build
+```
+
+Result: **`** BUILD SUCCEEDED **`**, with 3 remaining warnings, all on the
+intentionally-empty `AetherfieldHost` container-app target (a CFBundleVersion
+mismatch against its own synthesized/absent parent-app value, and two
+missing-UI-configuration warnings for an app with no interface at all) —
+none on `AetherfieldAUExtension`'s own code. A fourth warning
+(`AetherfieldAudioUnitFactory` not conforming to `NSExtensionRequestHandling`)
+was found and fixed during final review by adding a documented no-op
+`-beginRequestWithExtensionContext:` stub, matching Apple's own AUv3
+templates.
+
+Getting to a real, linking build required six documented, build-forced
+corrections to the plan's literal template code — none changing the
+decided architecture, all discovered only by actually compiling against
+the Apple SDK rather than guessed in advance: `xcodegen`'s `info: path:`
+key regenerates (and would otherwise silently clobber) `Info.plist` on
+every run, so its `NSExtension`/`AudioComponents` content lives in
+`project.yml`'s `info.properties` instead (with a `GENERATED, do not
+hand-edit` warning comment added to `Info.plist` itself, empirically
+confirmed not to survive a content-changing regeneration); a target-level
+`frameworks:` key is silently accepted but non-functional in xcodegen
+2.46.0, replaced with `dependencies: - sdk: ...`; `AVAudioFormat`/
+`AVAudioFrameCount` need an explicit `#import <AVFoundation/AVFoundation.h>`
+(only forward-declared by `AudioToolbox.h`); `AURenderPullInputBlock`'s
+real signature takes a caller-owned `AudioBufferList*`, not an
+out-parameter, requiring a pre-allocated `AVAudioPCMBuffer` scratch buffer
+(sized once in `allocateRenderResourcesAndReturnError:`, matching this
+project's existing allocate-only-at-prepare discipline); Apple requires an
+embedded extension's bundle identifier to be a child of its container
+app's; and the empty container app needs `GENERATE_INFOPLIST_FILE: true`.
+
+Two rounds of code review on this task, before it was accepted, found and
+fixed two Critical real-time-audio defects (a `dealloc`/dispatch-timer
+teardown race that could use-after-free `_bridge`/`_path`, closed with a
+`dispatch_source_cancel` + `dispatch_sync` drain; a `std::vector::resize()`
+call inside the render block that could allocate on the audio thread on
+the first or a larger-than-seen `frameCount` callback, closed by
+pre-sizing a `_monoScratch` ivar in `allocateRenderResourcesAndReturnError:`)
+plus five Important issues (unchecked `AUAudioUnitBus` init failure;
+missing channel-count validation alongside the existing sample-rate check;
+undocumented host-re-fetch assumption on the input scratch buffer's
+lifetime across a reconfigure cycle; no generated-file warning on
+`Info.plist`; an unverified assumption that `AUAudioUnit` routes every
+`shouldBypassEffect` write through this class's setter override) — all
+fixed and independently re-verified. A third round found and fixed one
+further, narrower defect introduced by the first fix itself: the
+`dispatch_sync` teardown could self-deadlock if the AU's own last strong
+reference were released from inside the timer handler's own weak-to-strong
+resolution; closed with a `dispatch_queue_set_specific`/
+`dispatch_get_specific` self-execution guard.
+
+Scope: **compiles and links under Xcode only.** Not run under `auval`, any
+host, any simulator, or any device. HT-1 through HT-12
+([ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md)) remain
+entirely unrun; `src/dsp/` was not touched by this task.
 
 ## PLANNED validation gates after Phase 1
 

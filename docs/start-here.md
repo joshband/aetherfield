@@ -50,12 +50,13 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   `auval`, any host, or any device.** HT-1 through HT-12 remain unrun.
   See `phase1-wrapper-skeleton-plan.md`.
 
-The latest recorded baseline is a Release configure/build and CTest result
-from 2026-09-18: **6/6 suites passed**, including DS-13 and the
-control-thread API tests. Read [testing.md](testing.md) for commands,
-diagnostics, scope limits, renderer evidence, the standalone DS-A
-measurements, DS-B Task 4's full measured record, and all three Sonic
-acceptance listening rounds plus Sol's review.
+The DS-B-era baseline (2026-09-18) recorded **6/6 suites passed**, including
+DS-13 and the control-thread API tests. As of 2026-09-20, the
+`aetherfield_wrapper_tests` suite (PB-1…PB-8) is added, bringing the current
+Release configure/build/CTest baseline to **7/7 suites passed**. Read
+[testing.md](testing.md) for commands, diagnostics, scope limits, renderer
+evidence, the standalone DS-A measurements, DS-B Task 4's full measured
+record, and all three Sonic acceptance listening rounds plus Sol's review.
 
 ## What is decided, and what is not
 
