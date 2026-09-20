@@ -6,14 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(aetherfield_dsp STATIC
-    src/dsp/GainProcessor.cpp
-    src/dsp/DelayLine.cpp
-    src/dsp/FeedbackDelayNetwork.cpp
-    src/dsp/ParameterAutomation.cpp
-    src/dsp/SchroederAllpass.cpp
-    src/dsp/DiffusionStereoPath.cpp
-)
+include(cmake/DspSources.cmake)
+
+add_library(aetherfield_dsp STATIC ${AETHERFIELD_DSP_SOURCES})
 target_include_directories(aetherfield_dsp PUBLIC src)
 
 add_executable(aetherfield_dsp_tests tests/GainProcessorTests.cpp)
