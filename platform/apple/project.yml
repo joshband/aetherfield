@@ -44,7 +44,15 @@ targets:
     # custom keys via `properties:` so they are merged into the plist it
     # writes, rather than trying to keep a separately hand-maintained
     # file at the same path that `xcodegen generate` would just clobber
-    # again on the next run.
+    # again on the next run. NOTE: src/auv3/Info.plist itself carries a
+    # "GENERATED, do not hand-edit" XML comment for anyone who opens that
+    # file directly, but xcodegen writes the plist from this properties:
+    # data only, not from that file's existing XML text -- so that
+    # comment (and the subtype/manufacturer placeholder note below) does
+    # NOT survive a future `xcodegen generate` and must be re-added by
+    # hand afterward until this is solved more durably (e.g. a
+    # post-generation script, or xcodegen support for preserving
+    # arbitrary plist comments).
     info:
       path: ../../src/auv3/Info.plist
       properties:
@@ -54,6 +62,10 @@ targets:
           NSExtensionPrincipalClass: AetherfieldAudioUnitFactory
           NSExtensionAttributes:
             AudioComponents:
+              # type/subtype/manufacturer are ALL explicit placeholders,
+              # same as the com.aetherfield.placeholder.* bundle
+              # identifiers above -- not just the bundle IDs are
+              # placeholder values in this component registration.
               - type: aufx
                 subtype: Aeth
                 manufacturer: Josh

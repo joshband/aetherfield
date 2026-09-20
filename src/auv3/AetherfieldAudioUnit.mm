@@ -83,7 +83,34 @@ using aetherfield::wrapper::ResetRequest;
     // AVAudioPCMBuffer object itself) into the block, matching this
     // file's existing pattern of capturing raw pointers for
     // render-thread use.
+    //
+    // ASSUMPTION, unverified by this task (out of scope -- no host/device
+    // test has run): unlike _path/_bridge/_resetRequest, this buffer is
+    // NOT kept alive across a deallocateRenderResources/reallocate cycle
+    // -- it is nil'd in -deallocateRenderResources and only reallocated
+    // by the next -allocateRenderResourcesAndReturnError:. The raw
+    // AudioBufferList* captured into -internalRenderBlock's returned
+    // block therefore becomes stale across that cycle. This relies on
+    // the standard AUv3 host contract that a host re-fetches
+    // -internalRenderBlock after any reconfiguration (deallocate/
+    // reallocate) rather than reusing a block obtained before it; if a
+    // host ever violated that contract, this pointer would dangle. Needs
+    // confirming on first real host/device test (see ADR-012's HT-1/HT-2).
     AVAudioPCMBuffer* _inputPCMBuffer;
+
+    // Mono downmix scratch buffer, sized to maximumFramesToRender and
+    // allocated once in -allocateRenderResourcesAndReturnError: (off the
+    // render thread). Previously this was a function-local
+    // `static thread_local std::vector<float>` that called `.resize()`
+    // inside the render block itself -- resize() reallocates whenever
+    // the requested size exceeds current capacity, which is guaranteed
+    // on the very first callback (capacity starts at 0) and on any
+    // callback with a larger frameCount than previously seen, i.e. real
+    // heap allocation on the real-time render thread. Fixed by moving
+    // allocation here, matching the _inputPCMBuffer pattern exactly: the
+    // render block only ever writes into existing capacity, never
+    // resizes.
+    std::vector<float> _monoScratch;
 }
 @end
 
@@ -108,6 +135,20 @@ using aetherfield::wrapper::ResetRequest;
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000.0 channels:2];
     _inputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:outError];
     _outputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:outError];
+    // AUAudioUnitBus's initializer can fail and return nil (e.g. an
+    // invalid format); inserting nil into an @[...] array literal below
+    // would raise an exception. Fail the whole initializer rather than
+    // crash -- whatever NSError -initWithFormat:error: already populated
+    // into outError is propagated as-is, with a fallback generic error
+    // if it left outError untouched.
+    if (_inputBus == nil || _outputBus == nil) {
+        if (outError != nil && *outError == nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FailedInitialization
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Failed to construct AUAudioUnitBus"}];
+        }
+        return nil;
+    }
     // ADR-009 section 1 (decided): stereo-in/stereo-out.
     _inputBusArray = [[AUAudioUnitBusArray alloc] initWithAudioUnit:self
                                                              busType:AUAudioUnitBusTypeInput
@@ -139,7 +180,23 @@ using aetherfield::wrapper::ResetRequest;
 
 - (void)dealloc {
     if (_bridgeControllerTimer != nullptr) {
+        // dispatch_source_cancel only guarantees the event handler will
+        // not be invoked AGAIN after cancellation -- Apple's own docs:
+        // it "does not interrupt an event handler block that is already
+        // in progress." The handler captures weakSelf, resolves
+        // strongSelf, and calls strongSelf->_bridge->drain(*strongSelf->_path).
+        // _bridge/_path are plain std::unique_ptr members destroyed by
+        // the compiler-synthesized .cxx_destruct after this method
+        // returns, with no ordering relative to the timer queue
+        // otherwise -- a handler that is mid-execution (or already
+        // enqueued) when the last strong reference drops could race
+        // with, or outlive, _bridge/_path's destruction. Synchronously
+        // draining the (strictly serial) queue after cancelling
+        // guarantees any in-flight/enqueued invocation completes before
+        // the C++ members are torn down. This cannot deadlock: dealloc
+        // never runs on _bridgeControllerQueue itself.
         dispatch_source_cancel(_bridgeControllerTimer);
+        dispatch_sync(_bridgeControllerQueue, ^{});
     }
 }
 
@@ -219,6 +276,22 @@ using aetherfield::wrapper::ResetRequest;
         return NO;
     }
 
+    // ADR-009 section 1 (decided): stereo-in/stereo-out only. Without
+    // this check, a host configuring a non-stereo format on either bus
+    // would only be discovered later, per-callback, inside the render
+    // block's `mNumberBuffers < 2` check -- returning an error mid-stream
+    // instead of failing fast at allocate time, contradicting this
+    // method's own "never substitute a different configuration silently"
+    // principle (ADR-003 (d) rule 7 / ADR-010).
+    if (self.inputBusses[0].format.channelCount != 2 || self.outputBusses[0].format.channelCount != 2) {
+        if (outError != nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FormatNotSupported
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Aetherfield requires exactly 2 channels on both busses"}];
+        }
+        return NO;
+    }
+
     DiffusionStereoConfig config {
         .sampleRate = sampleRate,
         .lineCount = 8,
@@ -259,6 +332,12 @@ using aetherfield::wrapper::ResetRequest;
         }
         return NO;
     }
+
+    // Mono downmix scratch, sized once here (off the render thread) --
+    // see this buffer's ivar comment for why the render block must never
+    // resize it.
+    _monoScratch.assign(self.maximumFramesToRender, 0.0F);
+
     return YES;
 }
 
@@ -268,6 +347,8 @@ using aetherfield::wrapper::ResetRequest;
     // nonFiniteCount() survives exactly as DS-B Task 3 requires, with no
     // need to relocate the counter into wrapper-owned state.
     _inputPCMBuffer = nil;
+    _monoScratch.clear();
+    _monoScratch.shrink_to_fit();
     [super deallocateRenderResources];
 }
 
@@ -283,6 +364,17 @@ using aetherfield::wrapper::ResetRequest;
 // not render-thread-settable). Updating the atomic snapshot here, rather
 // than reading self.shouldBypassEffect from inside the render block, is
 // what makes the render block's bypass check render-thread-safe.
+//
+// ASSUMPTION, unverified: this override's correctness depends on
+// AUAudioUnit routing every write to shouldBypassEffect through this
+// Objective-C setter -- including host-initiated ones -- rather than
+// through some other internal path this override wouldn't observe.
+// Apple documents shouldBypassEffect as a normal, KVO-compliant,
+// host-settable property, which is consistent with that assumption, but
+// AUAudioUnit's internals are private and this cannot be confirmed by
+// source-level review of this codebase alone. Verify with logging (or
+// an equivalent on-device check) on the first real host/device test
+// (ADR-012 HT-5) that a host's bypass toggle actually reaches here.
 - (void)setShouldBypassEffect:(BOOL)shouldBypassEffect {
     [super setShouldBypassEffect:shouldBypassEffect];
     _bypassed.store(shouldBypassEffect, std::memory_order_relaxed);
@@ -305,7 +397,19 @@ using aetherfield::wrapper::ResetRequest;
     // above). Only the raw C AudioBufferList* is captured here, matching
     // this file's existing pattern of capturing raw pointers rather than
     // Objective-C objects for render-thread use.
+    //
+    // ASSUMPTION, unverified (see _inputPCMBuffer's ivar comment): this
+    // raw pointer is only valid until the next
+    // deallocateRenderResources/reallocate cycle, since _inputPCMBuffer
+    // (unlike _path/_bridge/_resetRequest) is NOT kept alive across one.
+    // Relies on the host re-fetching -internalRenderBlock after any
+    // reconfiguration rather than reusing a block obtained beforehand.
     AudioBufferList *inputBufferList = _inputPCMBuffer.mutableAudioBufferList;
+    // Mono downmix scratch: raw pointer into _monoScratch, sized once in
+    // -allocateRenderResourcesAndReturnError: (see its ivar comment) --
+    // the render block below only ever writes into existing capacity, up
+    // to frameCount elements, and never resizes.
+    float *monoScratch = _monoScratch.data();
 
     return ^AUAudioUnitStatus(AudioUnitRenderActionFlags *actionFlags,
                                const AudioTimeStamp *timestamp,
@@ -364,6 +468,12 @@ using aetherfield::wrapper::ResetRequest;
         if (pullStatus != noErr || inputBufferList->mNumberBuffers < 2) {
             return pullStatus != noErr ? pullStatus : kAudioUnitErr_NoConnection;
         }
+        // Mirrors the inputBufferList check above: outputData is host-
+        // supplied and its buffer count is not otherwise validated
+        // before dereferencing mBuffers[0]/[1] below.
+        if (outputData == nullptr || outputData->mNumberBuffers < 2) {
+            return kAudioUnitErr_NoConnection;
+        }
 
         const float *inputLeft = static_cast<const float *>(inputBufferList->mBuffers[0].mData);
         const float *inputRight = static_cast<const float *>(inputBufferList->mBuffers[1].mData);
@@ -384,13 +494,14 @@ using aetherfield::wrapper::ResetRequest;
         }
 
         // ADR-009 section 1 (decided): sum-to-mono reduction feeding the
-        // existing unmodified mono DiffusionStereoPath.
-        static thread_local std::vector<float> monoScratch;
-        monoScratch.resize(frameCount);
+        // existing unmodified mono DiffusionStereoPath. Writes only into
+        // monoScratch's existing (preallocated) capacity, up to
+        // frameCount elements -- never resizes/reallocates on this
+        // thread; see monoScratch's capture-site comment above.
         for (AVAudioFrameCount i = 0; i < frameCount; ++i) {
             monoScratch[i] = 0.5F * (inputLeft[i] + inputRight[i]);
         }
-        path->process(monoScratch.data(), outputLeft, outputRight, frameCount);
+        path->process(monoScratch, outputLeft, outputRight, frameCount);
 
         return noErr;
     };
