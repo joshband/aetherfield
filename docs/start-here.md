@@ -102,10 +102,19 @@ unimplemented and unauthorized. ADR-012's device/chip-tier scope is
 decided (2026-09-19) as per-family corners — iPhone SE 2nd gen/A13 +
 newest iPhone; iPad 8th gen/A12 + newest iPad Pro — though the "newest
 available" half of each pair must be re-verified at implementation-plan
-time. The eventual wrapper implementation plan remains
-unstarted and is downstream of all five ADRs. Do not infer authorization
-from the fact that measurement, comparison, or framework acceptance is
-finished — read roadmap.md's current continuation and ask, per this
+time. ADR-009's `T_silence(decay)` closed form and its diffusion-cascade-
+drain follow-up are both verified (2026-09-19, ADR-009 "Verification
+note"); ADR-008 is amended (2026-09-19, ADR-008 §7) to close ADR-010's
+named host-reset-concurrency gap with a wait-free flag. **A first bounded
+wrapper implementation plan now exists:**
+[phase1-wrapper-skeleton-plan.md](phases/phase1-wrapper-skeleton-plan.md)
+— an AUv3 skeleton plus ADR-008's parameter-event bridge only (no bypass
+hybrid mechanism, no state schema/restore, no HT-1…HT-12 execution). Like
+every prior `phase1-*-plan.md`, writing this plan does not itself
+authorize the `.h`/`.cpp`/`.mm`/Xcode-project work it describes; that
+remains a separate authorization. Do not infer authorization from the
+fact that measurement, comparison, framework acceptance, or plan-writing
+is finished — read roadmap.md's current continuation and ask, per this
 project's own repeated pattern in testing.md/ADRs of never treating
 "measured," "compared," or "accepted" as "authorized to implement."
 
@@ -140,6 +149,7 @@ Resume prompt:
 | Change the fixed DSP core | [ADR-002](decisions/ADR-002-late-network.md), [ADR-003](decisions/ADR-003-numerical-safety.md), [ADR-005](decisions/ADR-005-evaluation-fixture.md) | [S1 plan](phases/phase1-s1-plan.md), [S2 plan](phases/phase1-s2-plan.md), [testing.md](testing.md) |
 | Change parameters | [ADR-004](decisions/ADR-004-parameters.md) | [PT plan](phases/phase1-pt-plan.md) and [testing.md](testing.md) |
 | Plan or review diffusion/stereo | [ADR-006](decisions/ADR-006-diffusion-stereo.md) and its [review](phases/phase1-ds-review.md) | [DS-A plan](phases/phase1-ds-plan.md) and [DS-B integration plan](phases/phase1-ds-integration-plan.md); obtain separate implementation authorization |
+| Plan or review the AUv3 wrapper skeleton/parameter bridge | [ADR-007](decisions/ADR-007-auv3-integration-comparison.md), [ADR-008](decisions/ADR-008-parameter-event-bridge.md) (incl. §7), [ADR-010](decisions/ADR-010-device-lifecycle-matrix.md) | [Wrapper skeleton plan](phases/phase1-wrapper-skeleton-plan.md); obtain separate implementation authorization |
 | Run or assess evidence | [testing.md](testing.md) | Relevant ADR and phase verification plan |
 | Work on host/UI/product features | [ADR-001](decisions/ADR-001-portable-core.md) and [roadmap.md](roadmap.md) | Obtain explicit authorization |
 
