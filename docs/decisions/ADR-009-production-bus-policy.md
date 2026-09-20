@@ -491,26 +491,82 @@ formula bounds only the FDN's own internal state, not the whole
 ADR-003's `ρ = maxᵢgᵢ` is defined purely from the FDN's own `Γ`; it says
 nothing about the input- and output-diffusion allpass sections' own memory.
 `docs/testing.md`'s DS-10 correction round already establishes those two
-diffusion cascades have their own fixed, `Decay`-independent settling drains
-(measured there at the `T60_zero = 4s` fixture: input-cascade ≈87,841 /
-80,207 samples, output-cascade ≈92,494 / 85,025 samples, at 48kHz/44.1kHz
-respectively — fixed because both cascades' allpass coefficient `q` is a
-constant, uncoupled from the FDN's `Decay` control), chained **additively,
-not maxed**, with the FDN's own drain, "because each stage's own zero-input
-clock starts only once the stage before it has itself fully drained." The
-same chaining rule applies here: a correct `silenceBoundSamples_` for the
-actual wrapped `DiffusionStereoPath` is `inputCascadeDrainSamples +
-T_silence(decay)·f_s + outputCascadeDrainSamples`, not `T_silence(decay)·f_s`
-alone — using the FDN-only figure would let the wrapper stop driving the DSP
-core with zero input before the diffusion sections' own state has actually
-reached `ε`, defeating the mechanism's own bit-exact-silence premise. The
-two cascade-drain constants are so far measured at only one fixture point
-(`T60_zero = 4s`); their claimed `Decay`-independence is well-motivated by
-the fixed-`q` topology but has not been independently re-confirmed at a
-second `Decay` value. **This is named as a further bounded,
-documentation-only follow-up, not decided or verified here**, and the
-implementation plan must not code `silenceBoundSamples_` as
-`T_silence(decay)·f_s` alone without it.
+diffusion cascades' settling drains, chained **additively, not maxed**, with
+the FDN's own drain, "because each stage's own zero-input clock starts only
+once the stage before it has itself fully drained." **This follow-up is now
+closed** (2026-09-19), by mirroring `testDs10ProofTemplateAndMeasuredSilence`'s
+exact formulas (`fdnLoopGainLogBound`, `fdnPoleRadiusBound`,
+`stageDrainCircuits`, `dampingStateDrainSamples`,
+`inputCascadeAbsoluteDrain`, `chainedOutputDrain` — all in
+`tests/DiffusionStereoPathTests.cpp`) independently in Python and evaluating
+them at four points across the full `Decay ∈ [0,1]` range (`T60_zero ∈
+{0.006408s, 1.093397417s, 4.0s, 186.560s}`, 48kHz, `Damp=0` throughout so
+`aᵢ=0` matches the only fixture this methodology has real evidence for).
+The mirror reproduces the recorded `T60_zero=4s` figures (input-cascade
+drain 87,841; output-cascade drain 92,494; FDN drain 5,839,909 vs. recorded
+5,839,906; whole-chain 5,932,403 vs. recorded 5,932,400 — the handful-of-
+samples difference is float32-vs-double coefficient rounding, not a
+methodology divergence), which validates the mirror before trusting its
+other three points:
+
+| `Decay` | `T60_zero` | input-cascade drain | FDN drain | output-cascade drain | whole-chain |
+|---|---|---|---|---|---|
+| 0 (`T60_min`) | 0.006408s | 87,841 | 99,221 | 75,646 | 174,867 |
+| 0.5 (wrapper default) | 1.093397417s | 87,841 | 1,603,313 | 88,750 | 1,692,063 |
+| — (test fixture) | 4.0s | 87,841 | 5,839,909 | 92,494 | 5,932,403 |
+| 1 (`T60_max`) | 186.560s | 87,841 | 298,359,360 | 102,095 | 298,461,455 |
+
+**Result, corrected from the prior note's assumption: the input cascade is
+exactly `Decay`-independent, but the output cascade is not.**
+`inputCascadeAbsoluteDrain` is confirmed **exactly constant (87,841 samples
+@48kHz)** across the entire range — expected from inspection alone, since
+its formula (`docs/decisions/ADR-009...` design note's own citation of
+`tests/DiffusionStereoPathTests.cpp`'s loop) never references any
+FDN-derived quantity (`rho`, `mu`, `fdnDecayRate`), only the fixed input
+delay lengths and the fixed stored allpass coefficient `q`. The prior note's
+claim that the **output** cascade drain is likewise a fixed constant is
+**wrong, corrected here**: `outputChainDrain` depends on `Decay` through
+`qMax → mu, fdnDecayRate → rho`, and ranges from 75,646 to 102,095 samples
+(48kHz) across the full range — a real ≈35% swing, not a constant, though
+small in absolute terms (≤ 0.6s) and dominated everywhere in this table by
+the FDN's own drain, which itself spans over three orders of magnitude
+(99,221 to 298,359,360) across the same range. **The correct general
+`silenceBoundSamples_(decay)` for the actual wrapped `DiffusionStereoPath`
+is `inputCascadeDrainSamples + T_silence(decay)·f_s +
+outputCascadeDrainSamples(decay)`**, chained additively per the rule above;
+using the fixed `Decay=1` worst-case value of `outputCascadeDrainSamples`
+(≈102,095 @48kHz — not yet computed at 44.1kHz) as a conservative constant
+is a defensible simplification for an implementation plan, but should be
+recorded as an approximation, not an exact invariant, if taken.
+
+**A second, independent finding from this same numeric exercise, useful but
+outside this follow-up's original question:** the FDN-drain figures this
+table computes via the more elaborate per-line `rStar`/`mu`/`qMax` method
+(the one `testDs10ProofTemplateAndMeasuredSilence` already uses) are
+**consistently looser (larger) than this ADR's own simpler, already-verified
+`T_silence(decay)` candidate** — by a roughly constant ≈1.5x across all four
+points (e.g. at `T60_zero=4s`: 5,839,909 vs. `T_silence(4s)·f_s ≈
+3,924,678`; at `T60_zero=186.56s`: 298,359,360 vs. `≈183,067,000`). Both are
+independently-derived, valid, conservative (never-violated) upper bounds on
+the FDN's own state; they simply come from different proof techniques
+(global operator-norm vs. per-line pole-radius), so neither is required to
+dominate the other, and this ADR's simpler formula happening to be the
+tighter one of the two makes it the more practical choice for the FDN-only
+term of `silenceBoundSamples_`, not a discrepancy needing resolution.
+
+**A third finding, a test-code gap rather than a math error:** the existing
+`fdnWriteDrain` search in `tests/DiffusionStereoPathTests.cpp` is an
+explicit linear loop capped at 200,000,000 iterations. At `Decay=1`
+(`T60_zero=186.56s`) it needs **≈298,267,629** iterations — this Python
+mirror only completed that point using a closed-form replacement (the
+underlying quantity is a plain geometric decay; the loop is not load-bearing
+math, just how the test happens to compute it). If
+`testDs10ProofTemplateAndMeasuredSilence` were ever parameterized to run at
+`Decay=1` instead of its current single hardcoded `T60_zero=T60_pi=4.0`
+fixture, it would hit this cap and report a spurious convergence failure,
+not a real one. Named here as a latent test-code limitation, not a defect in
+any currently-recorded evidence (the test has never actually been run at
+that fixture), and not something this documentation-only task fixes.
 
 ## Remaining decisions and later evidence
 
@@ -546,13 +602,18 @@ depends on this ADR, the owner must resolve —
   proven bound — see "Verification note" above for the algebra, the
   `‖s₀‖₂ = √N` convention, the seconds-vs-samples unit correction, and the
   numeric cross-checks against NS-8/DS-10's recorded measurements. That
-  verification also surfaced a real, previously-unnamed scope gap: the
-  formula bounds only the FDN's own state, not the whole
-  `DiffusionStereoPath` the mechanism actually wraps, so a further bounded
-  documentation-only task (confirming the diffusion cascades' fixed drain
-  constants and the additive chaining rule at a second `Decay` value) must
-  still land before the implementation plan codes `silenceBoundSamples_`
-  against this formula alone.
+  verification surfaced a real, previously-unnamed scope gap — the formula
+  bounds only the FDN's own state, not the whole `DiffusionStereoPath` the
+  mechanism actually wraps — which the follow-up cascade-drain task (also
+  2026-09-19, same "Verification note" section) has now closed: the input
+  cascade's drain is confirmed exactly `Decay`-independent (87,841 samples
+  @48kHz, constant across the full range), but the output cascade's drain is
+  **not** — it varies ≈35% (75,646 to 102,095 samples @48kHz) across
+  `Decay ∈ [0,1]`, correcting the prior note's assumption that both were
+  fixed. The implementation plan must sum `inputCascadeDrainSamples +
+  T_silence(decay)·f_s + outputCascadeDrainSamples(decay)` (or the
+  `Decay=1` worst case of the last term, as a documented approximation) —
+  not `T_silence(decay)·f_s` alone.
 - **Explicitly deferred (2026-09-19), not decided:** whether a host-exposed
   "kill the wet tail instantly on bypass" affordance should exist, as a
   distinct, user-selectable behavior from the hybrid default in §2. The
