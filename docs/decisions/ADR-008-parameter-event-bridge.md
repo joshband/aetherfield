@@ -5,7 +5,7 @@ accepted: "2026-09-18"
 implementation: "none; design-only, no bridge/wrapper/UI/dependency code"
 review: "owner-accepted-2026-09-18"
 review_document: null
-depends_on: [ADR-001, ADR-004, ADR-007]
+depends_on: [ADR-001, ADR-004, ADR-007, ADR-010]
 ---
 
 # ADR-008 — Nonblocking parameter-event bridge for host/UI-to-render-thread control delivery
@@ -359,6 +359,85 @@ across a changed delay set (already an open item under
 ADR-004's Consequences). It decides only the plug point: StateRestore is
 one of the three fixed producer roles in §1/§2, using the identical
 mailbox mechanism, subject to the same fixed scan-order tie-break in §2.
+
+## §7 — Host-triggered reset concurrency (amendment, 2026-09-19)
+
+**This closes the gap [ADR-010](ADR-010-device-lifecycle-matrix.md) named
+and explicitly declined to assign: "AUAudioUnit hosts may invoke `-reset`
+from a thread other than the render thread... Whether that requires a
+synchronization mechanism, and if so what, is unaddressed by any accepted
+ADR," offering exactly two routes — "either ADR-008's scope must be
+explicitly widened to cover it, or a separate decision must adopt it."
+This ADR takes the first route, because the mechanism below is a direct,
+un-generalized reuse of the wait-free primitive §1–§3 already establish,
+not a new concept.**
+
+**The hazard, restated precisely.** `DiffusionStereoPath::reset()` is
+`noexcept` and allocation-free, but its safety contract — like every
+other core mutator — assumes it is not called concurrently with
+`process()` from another thread. A host's `-reset` (e.g., on transport
+stop) may arrive on a thread that is not the render thread, at any time,
+including mid-callback. Calling `reset()` directly from that thread would
+race the render thread's own `process()` call on the same object — the
+exact class of hazard §1 already names for parameter setters ("Do not
+wire ... directly to these setters") and never intended to leave open for
+`reset()`.
+
+**Decision: a single wait-free "reset request" flag, owned by the
+wrapper, never by `DiffusionStereoPath`.** One `std::atomic<bool>
+resetRequested_`, initialized `false`.
+
+- **Host-triggered `-reset`, on whatever thread the host calls it from:**
+  performs exactly one wait-free store — `resetRequested_.store(true,
+  std::memory_order_release)` — and returns immediately. It never calls
+  `DiffusionStereoPath::reset()` directly, under any circumstance,
+  matching this ADR's existing hard invariant in §1 for the setters.
+- **The render thread, unconditionally, at the very start of every
+  `internalRenderBlock` invocation — before any Bridge Controller drain,
+  before consulting `frameCount`, before calling `process()`:**
+  `if (resetRequested_.exchange(false, std::memory_order_acquire)) {
+  path_.reset(); }`. Because the actual `reset()` call happens only here,
+  on the render thread, it is never concurrent with `process()` — the
+  hazard is closed by construction (single-threaded ownership of the
+  mutation), not by a lock, matching this ADR's own no-lock, no-block
+  render-thread constraint.
+- **This flag is deliberately independent of `DiffusionStereoPath`'s own
+  internal `resetPending_`** (DS-B Task 3's self-triggered fault-recovery
+  latch). The two are different reasons to reset, own their state
+  separately, and are not merged: this ADR does not modify
+  `DiffusionStereoPath` at all, consistent with ADR-007/ADR-010's
+  boundary that wrapper-level decisions sit on top of the core contract
+  rather than reopening it. `reset()` itself is idempotent and safe to
+  call regardless of the core's own internal pending state, so the two
+  mechanisms compose without conflict.
+- **Zero-frame calls.** Unlike the core's own `resetPending_` check (which
+  DS-B Task 3 specifically skips on a zero-frame call, to avoid losing a
+  self-triggered pending reset before it can act on real audio), this
+  wrapper-level exchange-and-reset runs even when `frameCount == 0`.
+  `reset()` takes no frame count and is defined to be safe pre-`process()`
+  at any time; there is no benefit to delaying a host's explicit reset
+  request past an empty callback, and doing so would only add latency the
+  host did not ask for. HT-6 (ADR-012) already requires zero-length calls
+  in its configuration axes for exactly this kind of interaction and can
+  verify this ordering choice directly.
+- **Coalescing is trivial and lossless here, unlike §2's parameter
+  mailboxes.** A reset request carries no value — only "has one arrived
+  since the last drain" — so multiple `-reset` calls before the render
+  thread's next check collapse into exactly one `reset()` call with no
+  information loss. This is a structural simplification over the
+  parameter mailboxes (§2), not a smaller version of the same tradeoff.
+
+**What this does not decide.** Whether the wrapper additionally forwards
+`-reset` semantics anywhere else (e.g., cancelling an in-flight bypass
+hybrid countdown, once [ADR-009](ADR-009-production-bus-policy.md)'s
+mechanism is implemented) is out of scope here — this section closes only
+the concurrency hazard ADR-010 named, not every product question a host
+reset might eventually raise. Whether a thread-sanitizer or equivalent
+instrumentation run is required before this is treated as verified (as
+opposed to designed) is an implementation-plan/HT-6 question, not settled
+by this amendment; per ADR-012's HT-6, "a clean run of N trials is
+evidence about those N trials only," and this amendment is a design
+closing the class of hazard, not a substitute for that evidence.
 
 ## Remaining decisions and later evidence
 
