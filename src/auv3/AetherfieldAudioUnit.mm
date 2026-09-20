@@ -23,6 +23,12 @@ using aetherfield::wrapper::Parameter;
 using aetherfield::wrapper::ParameterBridge;
 using aetherfield::wrapper::ResetRequest;
 
+// Marks _bridgeControllerQueue so -dealloc can detect whether it is
+// already executing on that queue (see -dealloc's dispatch_sync guard
+// below). The address of this variable itself is the key, per GCD's own
+// documented idiom for dispatch_queue_set_specific/dispatch_get_specific.
+static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
+
 @interface AetherfieldAudioUnit () {
     // Owned C++ state. Constructed once in -initWithComponentDescription:
     // and destroyed in dealloc; NOT reconstructed across a
@@ -160,6 +166,10 @@ using aetherfield::wrapper::ResetRequest;
     [self buildParameterTree];
 
     _bridgeControllerQueue = dispatch_queue_create("com.aetherfield.bridgecontroller", DISPATCH_QUEUE_SERIAL);
+    // Marks this queue with kBridgeControllerQueueKey so -dealloc can
+    // detect, via dispatch_get_specific, whether it is already executing
+    // on this exact queue -- see -dealloc's dispatch_sync guard below.
+    dispatch_queue_set_specific(_bridgeControllerQueue, kBridgeControllerQueueKey, (void *)kBridgeControllerQueueKey, NULL);
     _bridgeControllerTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _bridgeControllerQueue);
     dispatch_source_set_timer(_bridgeControllerTimer, dispatch_time(DISPATCH_TIME_NOW, 0),
                                1 * NSEC_PER_MSEC, 0);
@@ -193,10 +203,27 @@ using aetherfield::wrapper::ResetRequest;
         // with, or outlive, _bridge/_path's destruction. Synchronously
         // draining the (strictly serial) queue after cancelling
         // guarantees any in-flight/enqueued invocation completes before
-        // the C++ members are torn down. This cannot deadlock: dealloc
-        // never runs on _bridgeControllerQueue itself.
+        // the C++ members are torn down.
         dispatch_source_cancel(_bridgeControllerTimer);
-        dispatch_sync(_bridgeControllerQueue, ^{});
+
+        // dispatch_sync onto a queue already executing on IS a deadlock
+        // (or an assertion crash on newer libdispatch) -- and this can
+        // genuinely happen: if this AU's LAST strong reference is
+        // released from inside the timer handler's own weak-to-strong-
+        // self resolution above (`strongSelf = weakSelf`), -dealloc runs
+        // synchronously, nested inside a block already executing on
+        // _bridgeControllerQueue. The dispatch_queue_set_specific mark
+        // set at queue-creation time lets us detect exactly that case:
+        // if we're already on this queue, any handler invocation that
+        // could still be "in flight" IS this very call frame, not a
+        // concurrent one, so there is nothing left to wait out and
+        // skipping the sync is safe rather than merely convenient. In
+        // every other case (dealloc triggered from any other thread or
+        // queue) the sync still runs and waits out any in-flight/
+        // enqueued handler exactly as before.
+        if (dispatch_get_specific(kBridgeControllerQueueKey) == nullptr) {
+            dispatch_sync(_bridgeControllerQueue, ^{});
+        }
     }
 }
 
