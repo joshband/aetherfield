@@ -964,32 +964,80 @@ say "re-verify... at implementation-plan time." This plan is that time.
 
 ### Step 1: Create the Xcode project
 
-Using Xcode (GUI or `xcodebuild`, not hand-authored `.pbxproj` editing):
+**Amendment (2026-09-20):** this session's environment has Xcode 27.0 but is
+headless (a CLI agent session, no GUI automation available for Xcode's "New
+Project" wizard) and has no `xcodegen` pre-installed. Rather than hand-editing
+a raw `.pbxproj` (a fragile, easy-to-corrupt format with no way to validate
+short of a full build, and a poor fit for code review — a reviewer cannot
+meaningfully diff binary-plist-shaped project internals), the owner
+authorized installing `xcodegen` (`brew install xcodegen`) and generating the
+project from a small, human-readable, reviewable YAML spec instead. This is
+the same "not hand-authored" principle the plan already stated, satisfied by
+a different concrete tool than originally named (Xcode GUI vs. `xcodegen`) —
+no requirement changes, only the mechanism producing the `.xcodeproj`.
 
-- Project: `platform/apple/Aetherfield.xcodeproj`, one target
-  `AetherfieldAUExtension` (type: Audio Unit Extension, App Extension
-  point identifier `com.apple.AudioUnit-UI` is wrong for an effect with no
-  custom UI — use `com.apple.AudioUnit`), one minimal containing-app
-  target `AetherfieldHost` (Apple requires every AUv3 extension to ship
-  embedded in a container app; this target exists only to satisfy that
-  requirement and has no functionality of its own beyond embedding the
-  extension).
-- Deployment target: the number Step 0 just re-verified (do not hardcode
-  "26.0" without having actually re-run Step 0).
-- Bundle identifiers: `com.aetherfield.placeholder.AetherfieldHost` and
-  `com.aetherfield.placeholder.AetherfieldAUExtension` — **explicitly
-  placeholders**, named as such in the project's own README or a comment
-  at the top of `Info.plist`; ADR-007/ADR-010 both defer the real
-  identifier decision to the owner.
-- Signing: automatic, development-team-less local signing for now (owner
-  identifier/signing decisions remain deferred).
-- Add the extension target's membership for every file in
-  `cmake/DspSources.cmake`'s list (Task 1) plus every file in
-  `src/wrapper/` plus `src/auv3/`'s own files. Set the target's header
-  search path to include `src/` (matching the CMake target's
-  `target_include_directories(... PUBLIC src)`).
-- Link `AudioToolbox.framework` and `AVFoundation.framework` against the
-  extension target.
+- Install: `brew install xcodegen` (one-time, dev-tool-only; not a product
+  dependency, nothing links against it, and it produces no runtime artifact
+  — it only generates the `.xcodeproj` file).
+- Write `platform/apple/project.yml` (the xcodegen spec — kept in version
+  control; the generated `.xcodeproj` itself may also be committed for
+  convenience, but `project.yml` is the source of truth for regeneration):
+
+```yaml
+name: Aetherfield
+options:
+  bundleIdPrefix: com.aetherfield.placeholder
+targets:
+  AetherfieldAUExtension:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "REPLACE_WITH_STEP_0_FLOOR"
+    sources:
+      - path: ../../src/dsp
+        excludes: ["*.h"]
+      - path: ../../src/wrapper
+        excludes: ["*.h"]
+      - path: ../../src/auv3
+    settings:
+      HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../src"]
+      CLANG_CXX_LANGUAGE_STANDARD: "c++20"
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldAUExtension
+    info:
+      path: ../../src/auv3/Info.plist
+    frameworks:
+      - AudioToolbox.framework
+      - AVFoundation.framework
+  AetherfieldHost:
+    type: application
+    platform: iOS
+    deploymentTarget: "REPLACE_WITH_STEP_0_FLOOR"
+    sources: []
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost
+    dependencies:
+      - target: AetherfieldAUExtension
+        embed: true
+```
+
+(Apple requires every AUv3 extension to ship embedded in a container app;
+`AetherfieldHost` exists only to satisfy that requirement and has no
+functionality of its own beyond embedding the extension. Replace both
+`REPLACE_WITH_STEP_0_FLOOR` placeholders with the actual number Step 0
+re-verifies — do not hardcode "26.0" without having actually re-run Step 0.
+`com.aetherfield.placeholder.*` bundle identifiers are **explicitly
+placeholders**, named as such in a comment at the top of `project.yml`;
+ADR-007/ADR-010 both defer the real identifier decision to the owner.
+Signing is left at xcodegen's default (automatic, development-team-less) for
+now.)
+
+- Run `cd platform/apple && xcodegen generate` to produce
+  `platform/apple/Aetherfield.xcodeproj`.
+- This sources every file in `cmake/DspSources.cmake`'s list (Task 1) plus
+  every `.cpp` in `src/wrapper/` plus everything in `src/auv3/` directly
+  from `project.yml`'s `sources:` list — the header search path
+  (`$(SRCROOT)/../../src`) matches the CMake target's own
+  `target_include_directories(... PUBLIC src)`, so both build systems
+  resolve `#include "dsp/..."` / `#include "wrapper/..."` identically.
 
 ### Step 2: `AetherfieldAudioUnit.h` — the subclass interface
 
