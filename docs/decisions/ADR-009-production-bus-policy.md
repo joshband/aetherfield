@@ -427,6 +427,91 @@ exact numeric bound is named, not decided, and the bounded
 implementation plan must not code against the formula above without
 that check.
 
+## Verification note — `T_silence(decay)` closed form (2026-09-19)
+
+Closes the verification task named above. Documentation-only: no code
+inspected changes, no new authorization.
+
+**The algebraic combination is confirmed exact, not approximate.**
+Substituting `ParameterAutomation::publish()`'s actual, already-implemented
+`t60Zero(decay)` (`src/dsp/ParameterAutomation.cpp`: `t60Zero = t60Min_ *
+pow(t60Max_ / t60Min_, decay)`, matching `docs/phases/phase1-pt-plan.md`'s
+`T60_0(d) = T60_min·(T60_max/T60_min)^d` verbatim) into ADR-003's own
+`γ₀ = 10^(−3/(f_s·T60₀))` and `ρ = γ₀^{m_min}`, then into `T_silence ≤
+(m_max/f_s)·ln(ε/‖s₀‖₂)/ln ρ`, the `f_s` and `ln 10` terms cancel exactly
+(not approximately), leaving:
+
+`T_silence(decay) = (m_max/m_min) · T60_zero(decay) · log10(‖s₀‖₂/ε) / 3`
+
+— the design note's candidate, confirmed by hand and numerically (Python,
+double precision) to 9+ significant figures at two independent operating
+points (`T60_zero = 4s`: `81.7641310508s` both ways; `T60_zero =
+1.093397417s`, the DS-10 default fixture: `22.3501724236s` both ways). The
+design note's "`≈`" should read "`=`": this is an exact re-parameterization
+of ADR-003's already-proven bound by `decay`, not a new approximation, and
+carries the same proof ADR-003 already gives it. Both of the note's
+Damp-independence and DS-10-figure-non-reusability observations hold
+unchanged by this result.
+
+**Units: `T_silence(decay)` is seconds, not samples.** ADR-003's own bound
+is dimensioned in seconds (`m_max` samples divided by `f_s` samples/second),
+and every `f_s` term cancels in the reduction above, so the candidate
+formula returns seconds directly from `T60_zero(decay)` (also seconds) with
+no remaining sample-rate dependence. **`silenceBoundSamples_` is therefore
+`T_silence(decay) · f_s`, not `T_silence(decay)` itself** — an implementation
+detail the design note's naming does not spell out, flagged here so the
+bounded implementation plan does not code the two quantities interchangeably.
+
+**`‖s₀‖₂` reference convention confirmed: `√N`.** NS-8's "full-scale impulse"
+and `FeedbackDelayNetwork::processSample()`'s injection code (`src/dsp/
+FeedbackDelayNetwork.cpp`: a unit-amplitude sample added identically into
+every line's write value, uniform, no per-line scaling at injection) together
+fix `‖s₀‖₂ = √N` for a network at rest before the impulse — `√8 ≈
+2.8284271` for the ADR-005 `N = 8` fixture. This value does not affect the
+algebraic equivalence above (both sides carry the same symbolic `‖s₀‖₂`),
+but is the concrete number the implementation must use to compute an actual
+`silenceBoundSamples_`.
+
+**Numeric sanity check against already-recorded measurements.** Converting
+`T_silence(decay)·f_s` to samples with `‖s₀‖₂ = √8`, `ε = 1e-20`,
+`m_min = 1297`, `m_max = 3889` (48kHz, ADR-005 fixture): at `T60_zero = 4s`
+(NS-8's own fixture), the bound evaluates to ≈3,924,678 samples against
+NS-8's measured 1,177,358 — a valid, conservative (never-violated,
+not-tight) upper bound, consistent with `docs/testing.md`'s own framing of
+these bounds elsewhere. At `T60_zero = 1.093397417s` (DS-10's Decay=0.5
+default fixture), the bound evaluates to ≈1,072,808 samples against DS-10's
+measured 321,914 — the **same** ≈3.3x margin as the `T60=4s` case, which is
+the expected consequence of `T_silence(decay)` being exactly linear in
+`T60_zero(decay)` and is itself a small additional consistency check, not
+new evidence about tightness.
+
+**New scope caveat surfaced by this verification, not previously named: the
+formula bounds only the FDN's own internal state, not the whole
+`DiffusionStereoPath` "DSP core" §2's hybrid mechanism actually wraps.**
+ADR-003's `ρ = maxᵢgᵢ` is defined purely from the FDN's own `Γ`; it says
+nothing about the input- and output-diffusion allpass sections' own memory.
+`docs/testing.md`'s DS-10 correction round already establishes those two
+diffusion cascades have their own fixed, `Decay`-independent settling drains
+(measured there at the `T60_zero = 4s` fixture: input-cascade ≈87,841 /
+80,207 samples, output-cascade ≈92,494 / 85,025 samples, at 48kHz/44.1kHz
+respectively — fixed because both cascades' allpass coefficient `q` is a
+constant, uncoupled from the FDN's `Decay` control), chained **additively,
+not maxed**, with the FDN's own drain, "because each stage's own zero-input
+clock starts only once the stage before it has itself fully drained." The
+same chaining rule applies here: a correct `silenceBoundSamples_` for the
+actual wrapped `DiffusionStereoPath` is `inputCascadeDrainSamples +
+T_silence(decay)·f_s + outputCascadeDrainSamples`, not `T_silence(decay)·f_s`
+alone — using the FDN-only figure would let the wrapper stop driving the DSP
+core with zero input before the diffusion sections' own state has actually
+reached `ε`, defeating the mechanism's own bit-exact-silence premise. The
+two cascade-drain constants are so far measured at only one fixture point
+(`T60_zero = 4s`); their claimed `Decay`-independence is well-motivated by
+the fixed-`q` topology but has not been independently re-confirmed at a
+second `Decay` value. **This is named as a further bounded,
+documentation-only follow-up, not decided or verified here**, and the
+implementation plan must not code `silenceBoundSamples_` as
+`T_silence(decay)·f_s` alone without it.
+
 ## Remaining decisions and later evidence
 
 Using this project's established phrasing pattern (see ADR-007's "Remaining
@@ -457,10 +542,17 @@ depends on this ADR, the owner must resolve —
   implementation plan must design and test as a first-class feature; §2
   states the bounded-tail-time and bit-exact-passthrough requirements it
   must still satisfy. **The design note's `T_silence(decay)` closed form
-  is an unverified candidate**, not decided — a bounded
-  documentation-only verification task (cross-checking it against
-  `docs/phases/phase1-pt-plan.md`'s closed forms) must land before the
-  implementation plan codes against it.
+  is now verified (2026-09-19)** as an exact reduction of ADR-003's own
+  proven bound — see "Verification note" above for the algebra, the
+  `‖s₀‖₂ = √N` convention, the seconds-vs-samples unit correction, and the
+  numeric cross-checks against NS-8/DS-10's recorded measurements. That
+  verification also surfaced a real, previously-unnamed scope gap: the
+  formula bounds only the FDN's own state, not the whole
+  `DiffusionStereoPath` the mechanism actually wraps, so a further bounded
+  documentation-only task (confirming the diffusion cascades' fixed drain
+  constants and the additive chaining rule at a second `Decay` value) must
+  still land before the implementation plan codes `silenceBoundSamples_`
+  against this formula alone.
 - **Explicitly deferred (2026-09-19), not decided:** whether a host-exposed
   "kill the wet tail instantly on bypass" affordance should exist, as a
   distinct, user-selectable behavior from the hybrid default in §2. The
