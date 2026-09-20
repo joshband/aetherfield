@@ -8,7 +8,12 @@
 # maintained as two hand-edited lists."
 set -euo pipefail
 
-CMAKE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' cmake/DspSources.cmake | sort -u)
+cd "$(git rev-parse --show-toplevel)"
+
+CMAKE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' cmake/DspSources.cmake | sort -u) || {
+    echo "FAIL: no DSP sources found in cmake/DspSources.cmake"
+    exit 1
+}
 
 XCODE_PROJECT="platform/apple/Aetherfield.xcodeproj/project.pbxproj"
 if [[ ! -f "$XCODE_PROJECT" ]]; then
@@ -16,7 +21,10 @@ if [[ ! -f "$XCODE_PROJECT" ]]; then
     exit 0
 fi
 
-XCODE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' "$XCODE_PROJECT" | sort -u)
+XCODE_LIST=$(grep -oE 'src/dsp/[A-Za-z0-9_]+\.cpp' "$XCODE_PROJECT" | sort -u) || {
+    echo "FAIL: no DSP sources found in $XCODE_PROJECT"
+    exit 1
+}
 
 if [[ "$CMAKE_LIST" != "$XCODE_LIST" ]]; then
     echo "FAIL: cmake/DspSources.cmake and $XCODE_PROJECT disagree on the DSP source list."
