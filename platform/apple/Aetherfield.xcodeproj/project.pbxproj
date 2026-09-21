@@ -11,6 +11,7 @@
 		10EA729573683A601F8B798D /* AetherfieldAudioUnitFactory.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7C8F7AC8725793A3EF188531 /* AetherfieldAudioUnitFactory.mm */; };
 		178751A1AAD4EA37B2F9B6ED /* GainProcessor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A5288C9A2006160A2E9DCB62 /* GainProcessor.cpp */; };
 		278307A4CC50E81C54B531A9 /* AetherfieldAUExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 524BD4A66A9403766D2C3738 /* AetherfieldAUExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		36B6A3E63B4AAD96C9F96BEA /* PhysicalAcceptanceTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1699705093ED39199E69ECD0 /* PhysicalAcceptanceTests.mm */; };
 		3D561ED98AD961B951F19A82 /* AetherfieldAudioUnit.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7071010A5E190AEBB0A57986 /* AetherfieldAudioUnit.mm */; };
 		3F898EC87454BE2A64B7522A /* ComponentInstantiationTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F60FE0F194B1CC22EE1F7FD /* ComponentInstantiationTests.mm */; };
 		41EC38FF43527C1FD551B118 /* DelayLine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 06D6CCCBAD4C34D59948EC89 /* DelayLine.cpp */; };
@@ -62,16 +63,19 @@
 		06D6CCCBAD4C34D59948EC89 /* DelayLine.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DelayLine.cpp; sourceTree = "<group>"; };
 		0B19F1DCAEEAF2D835061292 /* AetherfieldHarnessTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AetherfieldHarnessTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0EFD5630D708FA5AC671DEB6 /* SchroederAllpass.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SchroederAllpass.cpp; sourceTree = "<group>"; };
+		1699705093ED39199E69ECD0 /* PhysicalAcceptanceTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PhysicalAcceptanceTests.mm; sourceTree = "<group>"; };
 		1AADC5CC31D5DF03F1EED13B /* ParameterBridge.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParameterBridge.cpp; sourceTree = "<group>"; };
 		2BEA7780F4A0CB045D139389 /* AetherfieldHost.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AetherfieldHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3BBACEA85801F967435CB0D8 /* TailSilenceBound.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TailSilenceBound.cpp; sourceTree = "<group>"; };
 		4030CBA8EEDDDDA9D1D71E95 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		42253EA05AF86F52D1685BB0 /* ParameterAutomation.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParameterAutomation.cpp; sourceTree = "<group>"; };
 		524BD4A66A9403766D2C3738 /* AetherfieldAUExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AetherfieldAUExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5635F1CD47204A98E15D1F92 /* AetherfieldHost.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AetherfieldHost.entitlements; sourceTree = "<group>"; };
 		7071010A5E190AEBB0A57986 /* AetherfieldAudioUnit.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AetherfieldAudioUnit.mm; sourceTree = "<group>"; };
 		7C8F7AC8725793A3EF188531 /* AetherfieldAudioUnitFactory.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AetherfieldAudioUnitFactory.mm; sourceTree = "<group>"; };
 		8A11718656B2B296F3A3431D /* AetherfieldAudioUnit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AetherfieldAudioUnit.h; sourceTree = "<group>"; };
 		8F60FE0F194B1CC22EE1F7FD /* ComponentInstantiationTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ComponentInstantiationTests.mm; sourceTree = "<group>"; };
+		94B83A0B53353563D3DD2AD8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A5288C9A2006160A2E9DCB62 /* GainProcessor.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GainProcessor.cpp; sourceTree = "<group>"; };
 		A6CF260DE45E599105691A88 /* FeedbackDelayNetwork.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FeedbackDelayNetwork.cpp; sourceTree = "<group>"; };
 		BECA571BEC2EE6511B880105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -116,6 +120,7 @@
 			isa = PBXGroup;
 			children = (
 				8F60FE0F194B1CC22EE1F7FD /* ComponentInstantiationTests.mm */,
+				1699705093ED39199E69ECD0 /* PhysicalAcceptanceTests.mm */,
 			);
 			path = AetherfieldHarnessTests;
 			sourceTree = "<group>";
@@ -148,6 +153,8 @@
 		5A19A601F776E9F64125D508 /* AetherfieldHost */ = {
 			isa = PBXGroup;
 			children = (
+				5635F1CD47204A98E15D1F92 /* AetherfieldHost.entitlements */,
+				94B83A0B53353563D3DD2AD8 /* Info.plist */,
 				E664802BCB64604FA112A2D2 /* main.m */,
 			);
 			path = AetherfieldHost;
@@ -256,6 +263,10 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					5235613E5E57A99A218CEEE7 = {
+						DevelopmentTeam = W2VVZU52J6;
+						ProvisioningStyle = Automatic;
+					};
 					DDE8EB0AF5FA24F319146385 = {
 						DevelopmentTeam = W2VVZU52J6;
 						ProvisioningStyle = Automatic;
@@ -293,6 +304,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3F898EC87454BE2A64B7522A /* ComponentInstantiationTests.mm in Sources */,
+				36B6A3E63B4AAD96C9F96BEA /* PhysicalAcceptanceTests.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -342,11 +354,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AetherfieldHost/AetherfieldHost.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = W2VVZU52J6;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AetherfieldHost/Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -365,11 +379,13 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = AetherfieldHost/AetherfieldHost.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = W2VVZU52J6;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AetherfieldHost/Info.plist;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -433,6 +449,8 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = W2VVZU52J6;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -569,6 +587,8 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = W2VVZU52J6;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (

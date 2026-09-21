@@ -6,15 +6,22 @@
 // require CFBundleExecutable to exist) but fails to install anywhere,
 // device or simulator, with "is missing its bundle executable" -- see
 // docs/testing.md's 2026-09-20 correction note and simulator-install
-// finding. This is the minimal fix: a delegate with no behavior, run
-// without a scene manifest (legacy window-based lifecycle), so a real
-// executable links.
+// finding. This is the minimal fix: delegates with no behavior, using the
+// modern scene lifecycle solely so a real executable links and the host can
+// launch without the legacy-lifecycle warning.
 #import <UIKit/UIKit.h>
 
 @interface AetherfieldHostAppDelegate : UIResponder <UIApplicationDelegate>
 @end
 
 @implementation AetherfieldHostAppDelegate
+@end
+
+@interface AetherfieldHostSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@property(strong, nonatomic) UIWindow *window;
+@end
+
+@implementation AetherfieldHostSceneDelegate
 @end
 
 int main(int argc, char *argv[]) {

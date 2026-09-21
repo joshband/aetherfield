@@ -86,6 +86,7 @@ targets:
                 description: "Aetherfield ambient reverb (AUv3 skeleton over src/dsp/DiffusionStereoPath; not yet auval/host/device verified)"
                 version: 1
                 factoryFunction: AetherfieldAudioUnitFactory
+                sandboxSafe: true
                 tags:
                   - Effects
     # NOTE: a top-level `frameworks:` key (as this plan's own template
@@ -111,17 +112,25 @@ targets:
     # UIApplicationDelegate solely so a real executable links.
     sources:
       - path: AetherfieldHost
+    # AetherfieldHost remains behavior-free, but iOS now requires apps to
+    # adopt UIScene lifecycle configuration. There is deliberately no
+    # storyboard: the empty scene delegate only supplies its required window.
+    info:
+      path: AetherfieldHost/Info.plist
+      properties:
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIApplicationSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: AetherfieldHostSceneDelegate
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost
-      # AetherfieldHost has no custom Info.plist content beyond what is
-      # set here -- it exists only so AetherfieldAUExtension has a
-      # container app to embed in, per Apple's AUv3 packaging
-      # requirement. Without either an `info:` key or this setting,
-      # Xcode has no Info.plist for the app target at all and the build
-      # fails at ValidateEmbeddedBinary with "Build input file cannot be
-      # found ... AetherfieldHost.app/Info.plist". GENERATE_INFOPLIST_FILE
-      # synthesizes a minimal one purely from build settings, with no
-      # physical plist file needed for a target with no real content.
+      CODE_SIGN_ENTITLEMENTS: AetherfieldHost/AetherfieldHost.entitlements
+      # The `info:` block above makes XcodeGen write the host's generated
+      # Info.plist. This container exists only so AetherfieldAUExtension can
+      # be embedded; the generated plist supplies its required scene setup
+      # without adding a storyboard or other UI content.
       GENERATE_INFOPLIST_FILE: true
       DEVELOPMENT_TEAM: W2VVZU52J6
       CODE_SIGN_STYLE: Automatic
@@ -172,6 +181,8 @@ targets:
       CLANG_CXX_LANGUAGE_STANDARD: "c++20"
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost.AetherfieldHarnessTests
       GENERATE_INFOPLIST_FILE: true
+      DEVELOPMENT_TEAM: W2VVZU52J6
+      CODE_SIGN_STYLE: Automatic
       TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AetherfieldHost.app/AetherfieldHost"
       BUNDLE_LOADER: "$(TEST_HOST)"
     dependencies:

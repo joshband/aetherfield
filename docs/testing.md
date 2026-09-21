@@ -2200,6 +2200,187 @@ succeeded. This guards the exact cached-block lifecycle defect and its
 reconfiguration variant; it remains one instance/two blocks at 48 kHz stereo,
 not HT-1/HT-3 or physical-device coverage.
 
+**Host UIScene lifecycle repair (2026-09-21):** the empty `AetherfieldHost`
+container had still launched through UIKit's legacy no-scene lifecycle. A
+focused hosted XCTest reproduced UIKit's `UIScene lifecycle will soon be
+required` warning. The owner then authorized a deliberately minimal repair:
+`platform/apple/project.yml` now asks XcodeGen to generate
+`AetherfieldHost/Info.plist` with one application-role scene configuration,
+and `AetherfieldHost/main.m` supplies its named
+`AetherfieldHostSceneDelegate` with only an empty `UIWindow *window` property.
+There is no storyboard, root controller, or other UI behavior.
+
+After `xcodegen generate` (2.46.0), direct inspection of the built host
+plist confirmed `UIApplicationSceneManifest` with
+`UIApplicationSupportsMultipleScenes = false` and the sole delegate class.
+The same focused hosted XCTest was rerun:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -derivedDataPath /private/tmp/aetherfield-uiscene-green \
+  test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testDiscoverAndInstantiateAetherfieldAudioUnit
+```
+
+It exited 0. The `.xcresult` reports one passing test, zero failures, and no
+runtime warnings on iPhone 17 Pro Simulator (iOS 26.4, arm64). This removes
+the observed legacy-lifecycle warning for this focused Simulator launch; it is
+not physical-device, commercial-host, or HT-1/HT-3 acceptance evidence.
+
+**First physical-device harness attempt (2026-09-21):** after a physical
+destination became available, the same focused test was built, signed, and
+run on Josh's iPhone (iPhone 16 Pro Max, arm64, iOS 27.0 build 24A437):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS,id=00008140-001A6D9C21BB001C' \
+  -derivedDataPath /private/tmp/aetherfield-uiscene-device \
+  test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testDiscoverAndInstantiateAetherfieldAudioUnit
+```
+
+The build and code signing completed, and the hosted XCTest launched on the
+device, but the command exited 65: `AVAudioUnitComponentManager` returned zero
+matching components (`matches.count == 0`). The `.xcresult` records 0 passed,
+1 failed, and no runtime warnings. This is a failed physical-device discovery
+prerequisite, not an HT-1/HT-3 pass and not a diagnosis or authorization for a
+follow-on repair. Xcode's post-failure `devicectl diagnose` collection also
+failed; its partial diagnostic archive is retained inside the `.xcresult`.
+
+**Physical-device discovery review (2026-09-21):** a temporary harness probe
+waited a full 15 seconds for the public registration-change notification while
+polling the exact component description. It received repeated notifications
+but never found the component, ruling out a simple fresh-install query race;
+the probe was removed rather than retained as a timing workaround. A separate
+one-variable attempt to make the component display name mechanically match
+the manufacturer/description convention also failed and was reverted. The
+remaining device-only log clue is `IPCAUClient: bundle display name is nil`:
+the extension already had `CFBundleDisplayName`, but the host did not. A
+one-variable host-display-name candidate was generated and rerun after the
+device reconnected; installation and XCTest launch again succeeded, but the
+exact component remained absent and the device logged `IPCAUClient: can't
+connect to server (-66748)`. Xcode's iPhoneOS SDK defines `-66748` as
+`kAudioComponentErr_NotPermitted`. The candidate was reverted because it did
+not repair discovery. This establishes a permission/service-connection failure
+on the physical path, not its root cause; no further speculative repair was
+retained.
+
+The failed rerun used the same project, scheme, destination, and focused test
+as above, with `-derivedDataPath
+/private/tmp/aetherfield-device-host-display-name-rerun`; its result bundle is
+`Test-AetherfieldHarness-2026.09.21_13-14-43--0400.xcresult` under that path.
+
+**Permission/service root-cause repair (2026-09-21):** the device-only
+`kAudioComponentErr_NotPermitted` clue was traced to two missing Audio Unit
+security declarations, using the installed iPhoneOS SDK's
+`AUAudioUnitImplementation.h`/`AudioComponent.h` and Xcode's own Audio Unit
+host template as references. The AU registration omitted `sandboxSafe`, which
+means the registered description does not receive
+`kAudioComponentFlag_SandboxSafe`; the container app also had no
+`inter-app-audio` entitlement, which the host template supplies for an Audio
+Unit host. A focused regression assertion was added for the sandbox-safe flag.
+
+The first one-variable repair (`sandboxSafe: true`) produced a fresh signed
+device run. The prior `IPCAUClient: can't connect to server (-66748)` line did
+not recur, and the component still returned zero matches; the remaining log
+was the already-known host `bundle display name is nil`. This is evidence that
+the sandbox declaration addressed the NotPermitted boundary, but it is not a
+device discovery pass.
+
+The second, permission-specific repair adds
+`platform/apple/AetherfieldHost/AetherfieldHost.entitlements` with
+`inter-app-audio = true` and wires it through `CODE_SIGN_ENTITLEMENTS`. The
+Simulator test build succeeds and the generated AU plist contains
+`sandboxSafe = true`. The first physical-device XCTest with this entitlement
+does not launch: Xcode rejects the currently managed profile before signing:
+`iOS Team Provisioning Profile: com.aetherfield.placeholder.AetherfieldHost`
+does not include the Inter-App Audio capability/entitlement. This is the
+current external signing blocker, not a test result and not a physical-device
+discovery pass. The App ID/profile capability must be refreshed before the
+same focused device command can be rerun.
+
+**Inter-App Audio profile refresh and physical-device discovery pass
+(2026-09-21):** with the owner's authorization, the same focused command was
+rerun using `-allowProvisioningUpdates` after Xcode refreshed the managed
+profile. Xcode selected profile `20d27be8-13cb-4997-9da4-ca0015208434`, built
+and signed the host/extension/test bundle, installed it on Josh's iPhone 16
+Pro Max (iOS 27.0, build 24A437), and launched the XCTest:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \\
+  -scheme AetherfieldHarness \\
+  -destination 'platform=iOS,id=00008140-001A6D9C21BB001C' \\
+  -derivedDataPath /private/tmp/aetherfield-inter-app-audio-device-refresh \\
+  -allowProvisioningUpdates test \\
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testDiscoverAndInstantiateAetherfieldAudioUnit
+```
+
+Result: **TEST SUCCEEDED**, one test, zero failures. The device discovered
+`name=Reverb manufacturerName=Aetherfield version=1` and instantiated
+`class=AUAudioUnit_XH` with the expected component and manufacturer names. The
+previous `IPCAUClient: can't connect to server (-66748)` / NotPermitted failure
+did not recur. The run still logs `IPCAUClient: bundle display name is nil`
+from the host; discovery and instantiation passed, but that warning remains a
+separate cleanup item. This is physical-device discovery/instantiation
+evidence only, not HT-1/HT-3 acceptance: no render, repetition, lifecycle
+stress, commercial host, or matrix coverage was run. Result bundle:
+`/private/tmp/aetherfield-inter-app-audio-device-refresh/Logs/Test/Test-AetherfieldHarness-2026.09.21_13-30-05--0400.xcresult`.
+
+**Bounded HT-1/HT-3 physical evidence (2026-09-21):** added the separate
+`platform/apple/AetherfieldHarnessTests/PhysicalAcceptanceTests.mm` harness.
+Its first HT-3 run failed because the harness executed each partition list
+only once and consumed only part of the input; that helper defect was fixed
+before interpreting any AU behavior. The corrected combined device run
+passed 6 tests with zero failures on Josh's iPhone 16 Pro Max (iOS 27.0,
+build 24A437). It includes the existing four focused tests, the bounded HT-1
+smoke (20 same-instance allocation/render/deallocation cycles and 20 fresh
+instantiate/render/destroy cycles at each 44.1 kHz and 48 kHz), and HT-3
+float-bit-exact one-shot versus partitioned rendering over 131,072 frames at
+both rates for `{1,13,64,512,3}`, `{7,29,3,211,5}`, and
+`{0,1,13,64,512,977,1024,3,0}`. Result bundle:
+`/tmp/aetherfield-physical-acceptance-final/Logs/Test/Test-AetherfieldHarness-2026-09-21_13-44-41--0400.xcresult`.
+
+This is bounded evidence, not HT-1/HT-3 closure. The full HT-1 100-cycle
+contract, controlled-fault persistence/resource-growth checks, HT-3's 4096
+and observed-host-maximum coverage, raw-PCM retention, and explicit capacity
+rejection probe remain open. The non-blocking host warning
+`IPCAUClient: bundle display name is nil` remains separately recorded; the
+prior `-66748` NotPermitted discovery failure did not recur. No broader
+physical-device acceptance or commercial-host pass is claimed.
+
+**Expanded lifecycle and 4096-frame diagnostic (2026-09-21):** the physical
+harness was extended to 100 same-instance one-second allocation/render/
+deallocation cycles and 100 fresh instantiate/render/destroy cycles at each
+44.1 kHz and 48 kHz. The HT-1 test passed on the connected iPhone 16 Pro Max
+(iOS 27.0, build 24A437). The same run added a `{4096}` HT-3 partition while
+retaining the prior fixed, ragged and zero-frame sequences. The `{4096}` case
+failed bit-exact comparison at the first sample after the first block
+(`firstLeft=4096`, `firstRight=4096`) at both rates; the focused rerun recorded
+the same result. A subsequent source-level review found that the harness's
+`renderBlock:` helper declared `AudioBufferList output = {0}` (storage for one
+`AudioBuffer`) and then wrote `mBuffers[1]`, an out-of-bounds stack write at
+every callback. The helper now allocates the two-buffer shape explicitly.
+Therefore the prior 4096 result is no longer admissible as an AU-boundary
+finding until the corrected harness reruns; no production repair was applied.
+The existing `{1,13,64,512,3}`, `{7,29,3,211,5}` and
+`{0,1,13,64,512,977,1024,3,0}` cases were not changed and remain the prior
+bounded evidence set. Result bundle:
+`/tmp/aetherfield-physical-acceptance-ht3-debug/Logs/Test/Test-AetherfieldHarness-2026.09.21_13-54-32--0400.xcresult`.
+HT-3 remains open pending a corrected-harness rerun and any subsequent
+root-cause investigation/authorization. The harness does not issue the separate
+over-capacity rejection probe because the current AU callback has no explicit
+pre-write capacity rejection and such a call would be unsafe.
+
+**HT-3 harness-boundary correction (2026-09-21):** the two-buffer output-list
+storage defect above was corrected in `PhysicalAcceptanceTests.mm`. The
+simulator-SDK build of the corrected harness succeeds, but the rerun is
+blocked until CoreDevice/CoreSimulator restores a runnable device or
+simulator destination. No 4096-frame AU-boundary conclusion is currently
+claimed.
+
 #### (b) Three build warnings: resolved, re-verified by rebuild, install unaffected
 
 Baseline directly inspected (`PlistBuddy`) before fixing, not assumed:

@@ -103,6 +103,11 @@
   }
 
   AVAudioUnitComponent *component = matches.firstObject;
+  XCTAssertTrue(
+      (component.audioComponentDescription.componentFlags &
+       kAudioComponentFlag_SandboxSafe) != 0,
+      @"Aetherfield AU registration must be sandbox-safe for the host audio "
+       "service to permit the component");
   NSLog(@"[AetherfieldHarness] discovered component: name=%@ manufacturerName=%@ "
         @"version=%ld",
         component.name, component.manufacturerName, (long)component.version);

@@ -394,6 +394,50 @@ resolution; no ADR or roadmap edit is authorized by drafting this plan.
   re-confirmed unaffected — see `testing.md`'s "(b) Three build warnings"
   section for the exact fix and the discarded `UIRequiresFullScreen`
   attempt (deprecated as of iOS 26.0, this project's own floor).
+  **Host UIScene repair and first physical-device result (2026-09-21):** the
+  empty host's focused Simulator XCTest had emitted UIKit's legacy
+  no-scene-lifecycle warning. With owner approval, a single generated
+  `UIApplicationSceneManifest` and an otherwise empty scene-delegate
+  `UIWindow` property replaced that lifecycle; no storyboard or app UI was
+  added. The same focused harness then passed on Simulator with no runtime
+  warnings. On the subsequently connected iPhone 16 Pro Max (iOS 27.0,
+  build 24A437), the signed host/test bundle built and launched, but its
+  discovery assertion **failed**: `AVAudioUnitComponentManager` returned zero
+  Aetherfield matches. This is a failed physical-device discovery prerequisite,
+  not HT-1/HT-3 evidence; no diagnosis or repair is authorized by it. Exact
+  command and `.xcresult` outcome are recorded in `testing.md`'s "Host UIScene
+  lifecycle repair" section.
+  **Follow-up review:** a 15-second registration-notification/poll probe still
+  found no matching component, so this is not established as an immediate-query
+  race. A failed, reverted metadata-convention experiment did not change that
+  result. After reconnection, the missing-host-`CFBundleDisplayName` candidate
+  was installed and tested too; discovery still returned zero matches and the
+  device logged `IPCAUClient: can't connect to server (-66748)`, which the
+  iPhoneOS SDK names `kAudioComponentErr_NotPermitted`. It was reverted. This
+  is evidence of a permission/service-connection failure, not a root cause or
+  an authorization for another speculative repair.
+- [ ] **Permission/service root-cause repair:** the AU registration was missing
+  `sandboxSafe`, and the host app was missing the `inter-app-audio` entitlement.
+  The installed SDK headers and Xcode Audio Unit host template establish these
+  as security declarations rather than display-name guesses. A regression
+  assertion now requires `kAudioComponentFlag_SandboxSafe`, and `sandboxSafe:
+  true` is present in the source-of-truth registration. The first signed
+  device rerun after that change no longer logged `-66748`, but still found no
+  component and logged the host display-name warning. Adding the host's
+  `inter-app-audio` entitlement is the next one-variable repair, but the
+  current managed provisioning profile rejects it because the App ID/profile
+  does not include the Inter-App Audio capability. Refresh that capability and
+  profile before rerunning the focused physical-device XCTest. Until then,
+  device discovery remains failed/unverified; no HT-1/HT-3 pass is claimed.
+- [x] **Focused physical-device discovery/instantiation retest:** after
+  `-allowProvisioningUpdates` refreshed the managed profile to include
+  Inter-App Audio, the focused XCTest passed on the iPhone 16 Pro Max
+  (iOS 27.0, build 24A437): one test, zero failures; the component was
+  discovered and instantiated as `AUAudioUnit_XH`. The prior `-66748`
+  NotPermitted failure did not recur. This closes only the focused discovery /
+  instantiation prerequisite, not HT-1/HT-3. The host still logs
+  `bundle display name is nil`; retain that warning as a separate cleanup
+  item unless separately authorized.
 - [ ] Determine `auval` applicability before invoking it. The current project
   supplies an **iOS-only artifact**; macOS `auval` cannot be assumed to load it.
   Record `blocked: compatible macOS validation artifact absent` for this
@@ -406,6 +450,38 @@ resolution; no ADR or roadmap edit is authorized by drafting this plan.
 **Gate:** portable/build successes remain baseline evidence only. iOS
 discovery/instantiation is measured explicitly; macOS `auval` unavailability
 does not masquerade as either an iOS failure or an iOS pass.
+
+**Bounded HT-1/HT-3 physical evidence (2026-09-21):** a separate
+`platform/apple/AetherfieldHarnessTests/PhysicalAcceptanceTests.mm` harness
+was added after the Inter-App Audio profile refresh. Its first HT-3 attempt
+exposed and corrected a harness partition-loop defect before any product
+conclusion was drawn. The corrected focused device run passed 6 tests with
+zero failures: the four existing focused tests, a bounded HT-1 smoke with 20
+same-instance cycles and 20 fresh instantiate/render/destroy cycles at each
+of 44.1 kHz and 48 kHz, and HT-3 float-bit-exact one-shot versus partitioned
+rendering over 131,072 frames at both rates, including all three required
+partition sequences and zero-frame handling. Result bundle:
+`/tmp/aetherfield-physical-acceptance-final/Logs/Test/Test-AetherfieldHarness-2026.09.21_13-44-41--0400.xcresult`.
+
+This is bounded evidence, not closure: the full HT-1 100-cycle contract,
+one-second cycles, controlled-fault persistence, resource-growth method, and
+HT-3's 4096/observed-host-maximum coverage, raw-PCM retention, and explicit
+capacity-rejection probe remain open.
+
+**Expanded HT-1 result and HT-3 diagnostic (2026-09-21):** the same physical
+harness was extended to the plan's 100 same-instance one-second cycles and
+100 fresh instantiate/render/destroy cycles per rate. HT-1's expanded test
+passed on the connected iPhone 16 Pro Max (iOS 27.0, build 24A437). Adding the
+required `{4096}` HT-3 partition produced a reproducible bit-exact failure at
+sample 4096 on both 44.1 and 48 kHz; the prior fixed, ragged and zero-frame
+sequences were retained. A later source-level review found an underallocated
+two-buffer `AudioBufferList` in the harness helper, so that result is no
+longer admissible as an AU-boundary finding. The helper was corrected and its
+simulator-SDK build passed; a device/simulator rerun is blocked by the current
+CoreDevice/CoreSimulator destination loss. No production repair or HT-3
+closure is inferred. The over-capacity rejection probe remains unrun because
+the current callback does not explicitly reject a frame count above its
+allocated scratch capacity.
 
 ## Task 2 — Lifecycle, buffers and recovery: HT-1, HT-2, HT-3, HT-4, HT-6
 
