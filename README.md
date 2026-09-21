@@ -1,68 +1,74 @@
 # Aetherfield
 
-A greenfield ambient/textural AUv3 audio effect for iOS/iPadOS. The durable product and engineering charter is [AETHERFIELD_SPEC.md](AETHERFIELD_SPEC.md).
+An experimental ambient reverb for iOS and iPadOS, built around a portable
+C++20 audio-DSP core and a native AUv3 integration path.
 
-**Start here:** [Current state and task-specific reading guide](docs/start-here.md).
-For decisions, use the [ADR index](docs/decisions/index.md); each record has a
-short review summary, machine-readable metadata, and its complete original reasoning.
+Aetherfield is focused on spacious, slowly evolving sound: a fixed late-reverb
+network, diffusion, stereo output taps, smooth parameter transitions, and
+conservative realtime behavior. The project is being developed as an evidence-
+driven engineering prototype, so the repository distinguishes measured
+evaluation work from product features that are still deferred.
 
-**Implemented and measured:** the portable C++ host loop, `DelayLine`, fixed
-`FeedbackDelayNetwork`, Mix/Decay/Damp `ParameterAutomation`,
-`SchroederAllpass`, and the ADR-006 `DiffusionStereoPath` evaluation baseline
-(input/output diffusion, normalized FDN injection, stereo taps, Mix, aggregate
-fault recovery, and owner-authorized control forwarding). Six host CTest suites
-cover these increments. DS-B Tasks 1–4 and DS-1…DS-13 are closed; the DS-B
-Sonic acceptance component is closed after three owner listening rounds,
-DS-13, and Sol review. This is evidence for the fixed evaluation baseline, not
-authorization for a product signal path, AUv3 wrapper, UI, modulation, Freeze,
-Bloom, Texture, or a final product line count. AUv3 and UI are deferred.
-See the current-state guide for evidence and the owner-gated next decision.
+## What is here
 
-## Build, test, render, inspect
+- Portable C++ DSP with a fixed feedback-delay network, damping, decay and Mix
+  automation, diffusion, stereo rendering, and wrapper-level fault recovery.
+- Deterministic CMake/CTest verification and offline WAV renderers for impulse,
+  stereo, listening-batch, and bootstrap-loop experiments.
+- A minimal native AUv3 wrapper with parameter bridging, lifecycle handling,
+  and a hybrid bypass implementation under active host/device acceptance.
+- Documented architecture decisions, measurement contracts, and reproducible
+  evidence in [`docs/`](docs/).
 
-Requires CMake 3.25+, a C++20 compiler and a native build tool. No third-party dependencies are downloaded. Run from the repository root:
+## Current status
+
+The portable DSP and stereo evaluation baseline are implemented and measured.
+The Release baseline currently passes **8/8 CTest suites**, including the AUv3
+wrapper and hybrid-bypass mechanism checks.
+
+The AUv3 path is in acceptance work, not product-release status. Simulator and
+physical-device harness evidence exists, while the full host/device acceptance
+matrix, commercial-host validation, state restore, UI, modulation, Freeze,
+Bloom, Texture, and final product tuning remain open or deferred. See the
+[current-state guide](docs/start-here.md) for the exact boundary.
+
+## Build and test
+
+Requirements: CMake 3.25+, a C++20 compiler, and a native build tool. The
+portable build has no third-party dependencies.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
+```
+
+Render a small deterministic bootstrap fixture:
+
+```sh
 mkdir -p artifacts
 ./build/aetherfield_render artifacts/phase0-gain.wav
 file artifacts/phase0-gain.wav
 ```
 
-The bootstrap host loop uses the separately installed Command Line Tools, as requested. Select them in the current shell:
+Render the current diffusion/stereo evaluation path:
 
 ```sh
-export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+./build/aetherfield_render_diffusion_stereo artifacts/diffusion-stereo.wav
 ```
 
-The Xcode license issue encountered in Phase 0 is resolved: Xcode 27.0 (27A266a) was verified on 2026-09-16. Selecting Command Line Tools does not change the system's Xcode selection or validate iOS builds. Other hosts with a configured compiler should omit it. The commands above use a single-configuration build; multi-configuration generators require their corresponding configuration options and executable paths.
+Generated build products and render artifacts are ignored by Git. The renderers
+produce engineering evidence and listening material; they are not a claim of
+finished product sound quality.
 
-The renderer writes a fixed 16-frame, 48 kHz, mono, signed 16-bit PCM fixture at gain 0.5. It is a structural/sample correctness artifact, not a musical audition. It requires an existing output directory and replaces the named output file. Build products and generated artifacts are ignored by Git.
+## Read next
 
-A second tool, `aetherfield_render_reverb`, renders a single deterministic impulse response through the now-implemented `FeedbackDelayNetwork`/`ParameterAutomation` pipeline, for a first observational listen (testing.md's Sonic acceptance gate):
+- [Current state and task routing](docs/start-here.md)
+- [Verification evidence](docs/testing.md)
+- [Architecture](docs/architecture.md)
+- [Decision records](docs/decisions/index.md)
+- [Roadmap and authorization boundaries](docs/roadmap.md)
+- [Product charter](AETHERFIELD_SPEC.md)
 
-```sh
-./build/aetherfield_render_reverb artifacts/s2-pt-impulse.wav
-```
-
-This is explicitly an **S2/PT observation, not an acceptance** (ADR-002): it
-predates the implemented DS-B evaluation path, and its fixture values are
-stated and non-tuned, not product defaults. DS-B's separate Sonic acceptance
-component is closed in [testing.md](docs/testing.md); neither result authorizes
-a product signal path.
-
-See [testing.md](docs/testing.md) for decoded-sample inspection and actual verification evidence.
-
-## Durable project context
-
-- [Architecture](docs/architecture.md): current boundaries and Mermaid diagram.
-- [DSP design](docs/dsp-design.md): implemented gain, delay, fixed network,
-  automation, and DS-B evaluation-path contracts, with product scope deferred.
-- [Decision index](docs/decisions/index.md): individual ADRs, status, dependencies, and implementation/review state. [Legacy links](docs/decisions.md) remain available.
-- [Roadmap](docs/roadmap.md): Phase 1 scope, agent routing and deferred recommendations.
-- [Agent log](docs/agent-log.md): per-milestone tool/role/model/effort provenance and measured metrics. Consult it when attribution or historical verification matters.
-- [Field Notes site](docs/site/index.html): a visual summary of the above (status, architecture, ADRs, roadmap, testing evidence, agent log) as a single local HTML file — open it directly in a browser. It is the canonical source for the published copy at https://claude.ai/artifact/KzdPDSvRqQCKJYysPuHnkT; edit the local file and republish to that same URL, never the reverse. One caveat: the two Mermaid diagrams on the Architecture page only render on the published copy (they depend on a runtime the hosting platform injects) — opened as a local file they show as plain text, which is expected, not a bug.
-
-The source layout is deliberately small: `src/dsp/`, `tests/`, `tools/render/`, `tools/render_reverb/`, and `docs/site/` (the documentation website's canonical source). Git is local; no remote or distribution license has been selected.
+The repository is an active engineering prototype. Product scope, licensing,
+identifiers, and distribution decisions have not been finalized.
