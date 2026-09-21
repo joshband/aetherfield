@@ -43,17 +43,23 @@ Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic test
   design; PB-1 through PB-8 pass under `aetherfield_wrapper_tests`. This
   is a portable, host-independent mechanism check only — no AUv3 host has
   run this code; see `phase1-wrapper-skeleton-plan.md`.
-- **AUv3 wrapper skeleton (`src/auv3/`, `platform/apple/`):** a minimal
+- **AUv3 wrapper and merged hybrid bypass implementation (`src/auv3/`,
+  `src/wrapper/`, `src/dsp/`, `platform/apple/`; `145a69f`):** a minimal
   `AUAudioUnit` implementing ADR-010's lifecycle mapping, ADR-008's
   parameter bridge and §7 reset flag, and ADR-009's decided bus/dry-
-  passthrough behavior. **Compiles under Xcode only; not yet run under
-  `auval`, any host, or any device.** HT-1 through HT-12 remain unrun.
-  See `phase1-wrapper-skeleton-plan.md`.
+  passthrough behavior, now extended with the merged `T_silence`-bounded
+  hybrid bypass path. The clean portable Release tree reports 8/8 CTest suites
+  passed; the extension has an unsigned Release build only. `auval`, host, and
+  device evidence remain absent; HT-1 through HT-12 remain unrun. See
+  `phase1-hybrid-bypass-plan.md` and `testing.md`.
 
 The DS-B-era baseline (2026-09-18) recorded **6/6 suites passed**, including
-DS-13 and the control-thread API tests. As of 2026-09-20, the
-`aetherfield_wrapper_tests` suite (PB-1…PB-8) is added, bringing the current
-Release configure/build/CTest baseline to **7/7 suites passed**. Read
+DS-13 and the control-thread API tests. The last recorded Release
+configure/build/CTest result (2026-09-20) was **7/7 suites passed**, including
+`aetherfield_wrapper_tests` (PB-1…PB-8). Hybrid Task 4 subsequently recorded
+**8/8 suites passed** from `build/hybrid-bypass-reconcile`, including
+`aetherfield_hybrid_bypass_tests`; its Xcode evidence is unsigned compilation
+only. Read
 [testing.md](testing.md) for commands, diagnostics, scope limits, renderer
 evidence, the standalone DS-A measurements, DS-B Task 4's full measured
 record, and all three Sonic acceptance listening rounds plus Sol's review.
@@ -136,6 +142,146 @@ not authorize or complete full diffusion/stereo integration. Its primitive
 response, energy, allocation and partition evidence is recorded in
 `testing.md`; it is distinct from the partial full-chain DS-B evidence and
 does not close that plan's remaining gaps.
+
+## Current focus (2026-09-20 handoff)
+
+ADR-009's hybrid bypass implementation is merged at `145a69f` (implementation
+commit `b2d6d65`). This supersedes this document's earlier planning-only
+handoff: the control-thread bound/read-back work, portable controller, and
+AUv3 integration now exist in the merged source. Task 4 evidence is recorded:
+a clean Release configure/build/CTest sequence exited 0 with 8/8 suites
+passed, and the DSP source-list drift check exited 0 with seven files matched.
+The ordinary signed Xcode Release build exited 65 because no development team
+is configured; its unsigned counterpart exited 0. This is compilation evidence
+only, not host/device validation.
+
+Known limits remain unchanged: Xcode compilation is not host, `auval`, or
+device validation; HT-1 through HT-12 and kill-tail UX remain deferred. No
+subsequent implementation work is authorized by this reconciliation.
+
+The owner has authorized **planning only** for two separately bounded follow-on
+tracks: [host/device acceptance](phases/phase1-host-device-acceptance-plan.md)
+under ADR-012, and [versioned state/atomic restore](phases/phase1-state-restore-plan.md)
+under ADR-011. Neither plan authorizes implementation or host/device execution.
+The host/device plan keeps HT-7 blocked pending the state-restore prerequisite;
+the state-restore plan names its unresolved ownership and publication-safety
+decisions before an implementation checkpoint can be authorized.
+
+**Host/device acceptance Task 0 discovery and signing unblock (2026-09-20):**
+the owner picked this track as the next focus at an interactive check-in.
+Confirmed: HEAD is exactly `145a69f` with no intervening commits (baseline
+unchanged); ADR-010's rolling floor was already re-verified today with no
+drift (iOS/iPadOS 26+ holds); the owner has general physical access to the
+full oldest/newest iPhone/iPad matrix and at least one licensed AU host
+(AUM and/or Cubasis 3) on target devices; Apple Developer Program enrollment
+is complete (Team ID `W2VVZU52J6`). With explicit owner go-ahead,
+`platform/apple/project.yml` now carries `DEVELOPMENT_TEAM`/
+`CODE_SIGN_STYLE: Automatic`, and **both `AetherfieldAUExtension` and
+AetherfieldHost now build and sign successfully** (`testing.md`, "Signed
+Release build unblocked"), closing the prior exit-65 signing blocker. This
+is still compile-only evidence: no provisioning profile exists locally yet,
+no device install has been attempted, and HT-1 through HT-12 remain
+entirely unrun. Concrete device/OS/host-app identities for the four matrix
+rows still need to be recorded at actual session time. See the plan's
+Task 0 checklist for exact per-item status.
+
+**Deferred-device follow-up, same day:** with the physical-device leg
+explicitly deferred, a Simulator build/install attempt found that
+`AetherfieldHost` (the empty container app) had **no Mach-O executable at
+all** — `sources: []` in `project.yml` meant nothing ever linked a binary,
+so the earlier "builds and signs cleanly" result only meant `codesign`
+didn't error on an empty bundle, not that it was installable anywhere,
+device or simulator. This was the exact "container needing code to launch
+... blocks this step pending bounded repair" condition Task 1 had already
+named. With owner authorization, a minimal fix was applied — a bare,
+behavior-free `main.m`/`UIApplicationDelegate` under the new
+`platform/apple/AetherfieldHost/` — and verified: both builds now link a
+real executable, and **the container now installs successfully on
+Simulator**, with the embedded extension independently visible to the OS
+plugin registry (`pluginkit -m`). This is registration evidence, not
+HT-1's full "discovers, instantiates and renders" (no host had queried
+`AVAudioUnitComponentManager` or instantiated the `AUAudioUnit` yet), and
+physical-device install remains unattempted. See `testing.md`'s "Bounded
+repair applied and verified" section and the plan's Task 1 status for
+exact commands/output.
+
+That last gap was closed the same day, owner-requested: a minimal XCTest
+harness (`AetherfieldHarnessTests`, hosted in `AetherfieldHost`) now
+actually queries `AVAudioUnitComponentManager` and instantiates the
+`AUAudioUnit` out-of-process on the simulator — passed, with the runtime
+log showing real discovery (`name=Reverb manufacturerName=Aetherfield`)
+and instantiation as `AUAudioUnit_XH` (Apple's genuine out-of-process XPC
+proxy class). Still not HT-1 itself: no render call, single instance,
+Simulator only. See `testing.md`'s "AVAudioUnitComponentManager/AUAudioUnit
+instantiation harness" section.
+
+**Two follow-ons, same day, dispatched as parallel file-scope-isolated
+subagents (not worktree-isolated — too much of the above was still
+uncommitted for a worktree to see it):** (a) a render attempt — format
+negotiation and `allocateRenderResourcesAndReturnError:` both succeed, but
+the actual `renderBlock` call **fails** with `kAudioUnitErr_RenderTimeout`
+(`-66745`), a genuine unresolved problem, not progress toward HT-1/HT-3;
+(b) the three build warnings named above are now resolved and
+re-verified by rebuild on both device and simulator (0 warnings), with
+install/`pluginkit` registration re-confirmed unaffected. Both results
+were independently re-verified together (not just trusted from each
+subagent's own report) by rebuilding with both changes present: 0
+warnings, discovery/instantiation still passes, the render failure
+reproduces identically. See `testing.md`'s "Two follow-ons dispatched in
+parallel" section for full detail, and the plan's Task 1 status for
+per-item state.
+
+**Subsequent AVAudioEngine render-context spike, same day:** owner-approved,
+Simulator-only `AVAudioEngine` manual/offline test setup and its one 512-frame
+render request both returned success (targeted XCTest: 1 executed, 0 failures),
+where the raw XCTest-thread `renderBlock` call returns `-66745`. This makes an
+engine-managed graph the stronger direction for the next harness iteration,
+but it does **not** establish a working AU render callback or explain the
+timeout: the same run logged the out-of-process plug-in connection interrupted
+and invalidated, and there is no callback instrumentation or sample-value
+oracle. The original direct-call failure remains reproducible and unchanged;
+HT-1/HT-3 remain unrun. See `testing.md`'s "(c) AVAudioEngine offline-render
+experiment" and the host/device plan's Task 1 status.
+
+**AVAudioEngine oracle refinement, same day:** the prior status-only test was
+replaced with a meaningful 4,096-frame impulse test that requires a delayed wet
+output (default Mix is wet-only; the FDN's 27 ms minimum delay means ordinary
+passthrough cannot pass). It **fails**: the engine reports all frames rendered
+but `latePeak=0`, and the plug-in connection is again interrupted. This is a
+reproducible end-to-end engine-render failure, still not a localized root
+cause. Preserve the red diagnostic; the next bounded investigation is the
+extension/XPC lifecycle boundary, not HT-1/HT-3 expansion or a speculative
+render repair.
+
+**Crash-report confirmation (2026-09-21):** that lifecycle investigation is
+now complete. The fresh Simulator crash report records `EXC_BAD_ACCESS`/
+SIGSEGV at address zero on the out-of-process audio render server, symbolicated
+to `AetherfieldAudioUnit.mm:514` — the first dereference of the
+closure-captured `inputBufferList`. `internalRenderBlock` captures pointers
+whose storage is allocated only later by
+`allocateRenderResourcesAndReturnError:`, so a host that caches the render
+block before allocation leaves a permanently null closure capture. The XPC
+interruption and zero output are consequences of that confirmed extension
+crash, not output routing or DSP behavior. The raw direct-render timeout
+remains separately unresolved. A lifecycle-safe repair needs explicit new
+implementation authorization.
+
+**Lifecycle repair and verification (2026-09-21):** authorized implementation
+replaced allocation-time raw-pointer capture with AU-lifetime atomic slots that
+the cached render block loads per callback; allocation publishes fully formed
+resources and teardown withdraws them before release. The existing Simulator
+engine impulse oracle is now green (`latePeak=0.014125` at 48 kHz and
+`0.014429` at 44.1 kHz after 4,096 frames, without XPC interruption) and
+repeats `{1,13,64,512,3}` across 34 requests at both rates; the direct
+512-frame render now returns `status=0`. This resolves the reproduced lifecycle
+crash/timeout in the Simulator harness only; it does not close physical-device
+HT-1/HT-3 acceptance.
+
+**Cached-block reallocation regression (same day):** the direct harness now
+caches `renderBlock` before allocation and uses the unchanged closure before
+and after deallocation/reallocation; both 512-frame calls return `status=0`.
+This protects the fixed lifecycle boundary across reconfiguration, still only
+on the Simulator and not as HT-1/HT-3 acceptance.
 
 ## Lean resume loop
 

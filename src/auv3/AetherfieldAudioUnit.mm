@@ -87,26 +87,14 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // caller must already own -- it is NOT an out-parameter the callee
     // allocates -- so a buffer with real backing storage must exist
     // before -internalRenderBlock's block can pull input at all.
-    // -internalRenderBlock extracts this object's raw
-    // `mutableAudioBufferList` pointer once, before constructing the
-    // block, and captures only that C pointer by value (never the
-    // AVAudioPCMBuffer object itself) into the block, matching this
-    // file's existing pattern of capturing raw pointers for
-    // render-thread use.
-    //
-    // ASSUMPTION, unverified by this task (out of scope -- no host/device
-    // test has run): unlike _path/_bridge/_resetRequest, this buffer is
-    // NOT kept alive across a deallocateRenderResources/reallocate cycle
-    // -- it is nil'd in -deallocateRenderResources and only reallocated
-    // by the next -allocateRenderResourcesAndReturnError:. The raw
-    // AudioBufferList* captured into -internalRenderBlock's returned
-    // block therefore becomes stale across that cycle. This relies on
-    // the standard AUv3 host contract that a host re-fetches
-    // -internalRenderBlock after any reconfiguration (deallocate/
-    // reallocate) rather than reusing a block obtained before it; if a
-    // host ever violated that contract, this pointer would dangle. Needs
-    // confirming on first real host/device test (see ADR-012's HT-1/HT-2).
+    // The returned render block does not capture this allocation-owned
+    // pointer by value: hosts may cache -internalRenderBlock before
+    // allocation. It instead loads the current pointer through the
+    // AU-lifetime atomic slot below. Allocation publishes the slot only
+    // after all scratch storage exists; deallocation clears it before
+    // releasing storage.
     AVAudioPCMBuffer* _inputPCMBuffer;
+    std::atomic<AudioBufferList*> _inputBufferList;
 
     // Mono downmix scratch buffer, sized to maximumFramesToRender and
     // allocated once in -allocateRenderResourcesAndReturnError: (off the
@@ -121,6 +109,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // render block only ever writes into existing capacity, never
     // resizes.
     std::vector<float> _monoScratch;
+    std::atomic<float*> _monoScratchData;
 }
 @end
 
@@ -142,6 +131,8 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     _lastDamp = 0.0F;
     _lastMix = 1.0F;
     _bypassed = false;
+    _inputBufferList.store(nullptr, std::memory_order_relaxed);
+    _monoScratchData.store(nullptr, std::memory_order_relaxed);
 
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000.0 channels:2];
     _inputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:outError];
@@ -303,6 +294,8 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
 // (ADR-003 (d) rule 7's transactional guarantee, restated at the AU
 // boundary by ADR-010).
 - (BOOL)allocateRenderResourcesAndReturnError:(NSError **)outError {
+    _inputBufferList.store(nullptr, std::memory_order_release);
+    _monoScratchData.store(nullptr, std::memory_order_release);
     if (![super allocateRenderResourcesAndReturnError:outError]) return NO;
 
     // ADR-010 (b): {48kHz, 44.1kHz} only. Anything else must be rejected
@@ -378,6 +371,9 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // see this buffer's ivar comment for why the render block must never
     // resize it.
     _monoScratch.assign(self.maximumFramesToRender, 0.0F);
+    _monoScratchData.store(_monoScratch.data(), std::memory_order_release);
+    _inputBufferList.store(_inputPCMBuffer.mutableAudioBufferList,
+                           std::memory_order_release);
 
     return YES;
 }
@@ -387,6 +383,8 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // across this cycle (not destroyed and reconstructed), so
     // nonFiniteCount() survives exactly as DS-B Task 3 requires, with no
     // need to relocate the counter into wrapper-owned state.
+    _inputBufferList.store(nullptr, std::memory_order_release);
+    _monoScratchData.store(nullptr, std::memory_order_release);
     _inputPCMBuffer = nil;
     _monoScratch.clear();
     _monoScratch.shrink_to_fit();
@@ -422,36 +420,19 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
 }
 
 - (AUInternalRenderBlock)internalRenderBlock {
-    // Captured by value into the block: raw pointers into state this
-    // object owns for its own lifetime, matching Apple's own documented
-    // pattern for internalRenderBlock (the block must not touch `self`
-    // or any Objective-C object on the render thread).
+    // Captured by value into the block: raw pointers into AU-lifetime C++
+    // state. The block must not touch `self` or Objective-C objects on the
+    // render thread.
     DiffusionStereoPath *path = _path.get();
     ParameterBridge *bridge = _bridge.get();
     ResetRequest *resetRequest = _resetRequest.get();
     HybridBypassController *hybridBypass = _hybridBypass.get();
     std::atomic<bool> *bypassed = &_bypassed;
-    // AURenderPullInputBlock's `inputData` parameter is a caller-owned
-    // AudioBufferList* the callee fills in, not an out-parameter the
-    // callee allocates -- so the block needs real backing storage,
-    // provided by _inputPCMBuffer (allocated once in
-    // -allocateRenderResourcesAndReturnError:, see its ivar comment
-    // above). Only the raw C AudioBufferList* is captured here, matching
-    // this file's existing pattern of capturing raw pointers rather than
-    // Objective-C objects for render-thread use.
-    //
-    // ASSUMPTION, unverified (see _inputPCMBuffer's ivar comment): this
-    // raw pointer is only valid until the next
-    // deallocateRenderResources/reallocate cycle, since _inputPCMBuffer
-    // (unlike _path/_bridge/_resetRequest) is NOT kept alive across one.
-    // Relies on the host re-fetching -internalRenderBlock after any
-    // reconfiguration rather than reusing a block obtained beforehand.
-    AudioBufferList *inputBufferList = _inputPCMBuffer.mutableAudioBufferList;
-    // Mono downmix scratch: raw pointer into _monoScratch, sized once in
-    // -allocateRenderResourcesAndReturnError: (see its ivar comment) --
-    // the render block below only ever writes into existing capacity, up
-    // to frameCount elements, and never resizes.
-    float *monoScratch = _monoScratch.data();
+    std::atomic<AudioBufferList*> *inputBufferListSlot = &_inputBufferList;
+    std::atomic<float*> *monoScratchDataSlot = &_monoScratchData;
+    // The block captures only pointers to AU-lifetime atomic slots, never
+    // Objective-C objects or allocation-lifetime resource pointers. This
+    // permits a host to fetch/cache the block before resource allocation.
 
     return ^AUAudioUnitStatus(AudioUnitRenderActionFlags *actionFlags,
                                const AudioTimeStamp *timestamp,
@@ -506,6 +487,13 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         // directly, not to anything reachable through this block.
 
         if (frameCount == 0) return noErr;
+
+        AudioBufferList *inputBufferList =
+            inputBufferListSlot->load(std::memory_order_acquire);
+        float *monoScratch = monoScratchDataSlot->load(std::memory_order_acquire);
+        if (inputBufferList == nullptr || monoScratch == nullptr) {
+            return kAudioUnitErr_Uninitialized;
+        }
 
         // Tell the pull block exactly how many bytes of our preallocated
         // buffer are being requested this callback (frameCount is

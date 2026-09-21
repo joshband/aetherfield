@@ -18,6 +18,17 @@
 # minus one" floor, re-verified 2026-09-20 (see ADR-010's "Re-verification
 # note" -- no drift found; iOS 27/iPadOS 27 remains current, so the floor
 # remains iOS/iPadOS 26+).
+#
+# DEVELOPMENT_TEAM/CODE_SIGN_STYLE (added 2026-09-20, host/device
+# acceptance Task 0/1): the owner's Apple Developer Program team ID,
+# read from the local keychain's sole valid codesigning identity
+# ("Apple Development: joshband@gmail.com", cert OU field), not invented.
+# CODE_SIGN_STYLE Automatic matches this project having no provisioning
+# profile registered yet -- Xcode/xcodebuild manages App ID registration
+# and profile creation itself rather than requiring one pre-supplied.
+# This is signing configuration only; it does not change source, DSP
+# behavior, or bundle identifiers, which remain the explicit placeholders
+# named above pending their own separate decision.
 name: Aetherfield
 options:
   bundleIdPrefix: com.aetherfield.placeholder
@@ -36,6 +47,8 @@ targets:
       HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../src"]
       CLANG_CXX_LANGUAGE_STANDARD: "c++20"
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost.AetherfieldAUExtension
+      DEVELOPMENT_TEAM: W2VVZU52J6
+      CODE_SIGN_STYLE: Automatic
     # xcodegen's `info:` key GENERATES the Info.plist at this path on
     # every `xcodegen generate` run -- it does not preserve a hand-edited
     # file there (confirmed: an earlier hand-authored Info.plist at this
@@ -89,11 +102,19 @@ targets:
     type: application
     platform: iOS
     deploymentTarget: "26.0"
-    sources: []
+    # sources was `[]` until 2026-09-20: an app target with no source
+    # files links no Mach-O binary at all. `xcodebuild build` and
+    # `codesign` do not catch this (codesign signs the bundle even with
+    # no CFBundleExecutable present); only an actual install attempt does
+    # -- see docs/testing.md's 2026-09-20 correction note. AetherfieldHost
+    # still has no real UI; main.m is a bare, behavior-free
+    # UIApplicationDelegate solely so a real executable links.
+    sources:
+      - path: AetherfieldHost
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost
-      # AetherfieldHost has no source files and no custom Info.plist
-      # content -- it exists only so AetherfieldAUExtension has a
+      # AetherfieldHost has no custom Info.plist content beyond what is
+      # set here -- it exists only so AetherfieldAUExtension has a
       # container app to embed in, per Apple's AUv3 packaging
       # requirement. Without either an `info:` key or this setting,
       # Xcode has no Info.plist for the app target at all and the build
@@ -102,6 +123,66 @@ targets:
       # synthesizes a minimal one purely from build settings, with no
       # physical plist file needed for a target with no real content.
       GENERATE_INFOPLIST_FILE: true
+      DEVELOPMENT_TEAM: W2VVZU52J6
+      CODE_SIGN_STYLE: Automatic
+      # Three warnings chased 2026-09-20 (docs/testing.md "Signed Release
+      # build unblocked" / "Bounded repair applied and verified"):
+      #
+      # 1. CFBundleVersion/CFBundleShortVersionString were entirely absent
+      #    from AetherfieldHost's generated Info.plist (PlistBuddy: "Does
+      #    Not Exist"), while AetherfieldAUExtension's are "1"/"1.0" --
+      #    inspected directly, not assumed. CURRENT_PROJECT_VERSION/
+      #    MARKETING_VERSION below match the extension's actual values,
+      #    not an invented scheme.
+      # 2 & 3. Both warnings' own text says "unless the app requires full
+      #    screen." UIRequiresFullScreen was tried first as the single
+      #    more-honest fix (AetherfieldHost has no UI and will never have
+      #    one), but a rebuild showed Apple deprecates that exact key
+      #    starting iOS 26.0 -- this project's own deployment floor
+      #    (ADR-010) -- "will be ignored in a future release." Not usable
+      #    as a durable fix here. Reverted to the orientation+launch-screen
+      #    pair instead: INFOPLIST_KEY_UISupportedInterfaceOrientations
+      #    declares all four orientations (Xcode's own default set,
+      #    imposing no real constraint since this app never renders
+      #    anything to rotate), and INFOPLIST_KEY_UILaunchScreen_Generation
+      #    asks Xcode to synthesize an empty UILaunchScreen dict --
+      #    supported since iOS 14+, no physical storyboard file needed.
+      CURRENT_PROJECT_VERSION: "1"
+      MARKETING_VERSION: "1.0"
+      INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
     dependencies:
       - target: AetherfieldAUExtension
         embed: true
+  # Minimal AVAudioUnitComponentManager/AUAudioUnit instantiation harness
+  # (2026-09-20), one level beyond `pluginkit -m`'s registration-only
+  # confirmation -- see docs/testing.md "Bounded repair applied and
+  # verified" and AetherfieldHarnessTests/ComponentInstantiationTests.mm's
+  # own header comment. Evidence-gathering only; not a shipping target.
+  # Hosted inside AetherfieldHost (TEST_HOST/BUNDLE_LOADER) so
+  # `xcodebuild test` builds and installs the real container+extension
+  # before running, rather than depending on a prior manual install.
+  AetherfieldHarnessTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "26.0"
+    sources:
+      - path: AetherfieldHarnessTests
+    settings:
+      CLANG_CXX_LANGUAGE_STANDARD: "c++20"
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHost.AetherfieldHarnessTests
+      GENERATE_INFOPLIST_FILE: true
+      TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AetherfieldHost.app/AetherfieldHost"
+      BUNDLE_LOADER: "$(TEST_HOST)"
+    dependencies:
+      - target: AetherfieldHost
+      - sdk: AVFoundation.framework
+      - sdk: AudioToolbox.framework
+schemes:
+  AetherfieldHarness:
+    build:
+      targets:
+        AetherfieldHarnessTests: [test]
+    test:
+      targets:
+        - AetherfieldHarnessTests

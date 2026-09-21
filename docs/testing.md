@@ -1642,6 +1642,615 @@ host, any simulator, or any device. HT-1 through HT-12
 ([ADR-012](decisions/ADR-012-host-device-acceptance-catalog.md)) remain
 entirely unrun; `src/dsp/` was not touched by this task.
 
+### Hybrid bypass implementation — Task 4 evidence (2026-09-20)
+
+`145a69f` (implementation commit `b2d6d65`) merges Tasks 1–3 of
+[phase1-hybrid-bypass-plan.md](phases/phase1-hybrid-bypass-plan.md): the
+control-thread controls/bound interface, `TailSilenceBound`, portable
+`HybridBypassController` and `aetherfield_hybrid_bypass_tests`, plus AUv3
+render integration.
+
+Current-session portable verification (all commands exit 0):
+
+```sh
+cmake -S . -B build/hybrid-bypass-reconcile -DCMAKE_BUILD_TYPE=Release
+cmake --build build/hybrid-bypass-reconcile --parallel
+ctest --test-dir build/hybrid-bypass-reconcile --output-on-failure
+scripts/check_dsp_source_drift.sh
+```
+
+CTest reported **8/8 tests passed**, including
+`aetherfield_hybrid_bypass_tests`; the drift check reported that the portable
+and Apple source lists match **7 files**.
+
+The ordinary signed build command below exited **65** because no development
+team is configured (local Xcode/CoreSimulator warnings were also emitted):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj -target AetherfieldAUExtension -configuration Release build
+```
+
+The following unsigned compilation command exited **0** with
+`** BUILD SUCCEEDED **`:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj -target AetherfieldAUExtension -configuration Release CODE_SIGNING_ALLOWED=NO build
+```
+
+This is unsigned compilation evidence only. Do not treat it as `auval`, host,
+simulator, or device validation: HT-1 through HT-12 and kill-tail UX remain
+deferred.
+
+### Signed Release build unblocked (2026-09-20)
+
+Host/device acceptance Task 0 discovery found an already-valid local Apple
+Development signing identity (Team ID `W2VVZU52J6`, `joshband@gmail.com`)
+in the keychain. `platform/apple/project.yml` was edited to add
+`DEVELOPMENT_TEAM: W2VVZU52J6` and `CODE_SIGN_STYLE: Automatic` to both
+`AetherfieldAUExtension` and `AetherfieldHost`, `xcodegen generate` was
+re-run (xcodegen 2.46.0, matching the pinned version), and the exact
+previously-exit-65 command was re-run with provisioning updates allowed:
+
+```sh
+xcodegen generate   # inside platform/apple/
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -target AetherfieldAUExtension -configuration Release \
+  -allowProvisioningUpdates build
+```
+
+**Exited 0, `** BUILD SUCCEEDED **`.** Verified as an actual signed
+artifact, not just log text, via:
+
+```sh
+codesign -dvv platform/apple/build/Release-iphoneos/AetherfieldAUExtension.appex
+```
+
+which reported `Authority=Apple Development: joshband@gmail.com (Q8RAXYZQK4)`
+and `TeamIdentifier=W2VVZU52J6` on the produced `.appex`. This closes the
+prior exit-65 signing blocker for local compilation only. **It is still not
+host, simulator, `auval`, or device evidence** — no container app has been
+installed anywhere, and HT-1 through HT-12 remain entirely unrun. Whether
+this same signing configuration also lets the paired `AetherfieldHost`
+container build/install cleanly, and whether a real device/simulator
+actually discovers and instantiates the extension, is unverified by this
+result and is Task 1's remaining work, not this one's.
+`platform/apple/build/` is a local Xcode build product directory, added to
+`.gitignore` rather than committed.
+
+The paired container target also builds and signs cleanly with the same
+configuration:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -target AetherfieldHost -configuration Release \
+  -allowProvisioningUpdates build
+```
+
+**Exited 0, `** BUILD SUCCEEDED **`.** `codesign -dvv` on the resulting
+`AetherfieldHost.app` reports the same `TeamIdentifier=W2VVZU52J6` and
+`Apple Development: joshband@gmail.com` authority chain. Two warnings were
+emitted and are unresolved, both plausibly relevant to actual device
+install/launch though neither is confirmed blocking by this compile-only
+result: "All interface orientations must be supported unless the app
+requires full screen" and "A launch configuration or launch storyboard or
+xib must be provided unless the app requires full screen." `AetherfieldHost`
+has no UI content by design (it exists only to embed the extension per
+Apple's AUv3 packaging requirement); whether these warnings actually block
+installation/App Store validation, or only launching the host app's own UI
+(which this project has no plan to ship), is unverified here and belongs to
+Task 1's structural-reachability work, not this signing-only result.
+
+There was a third warning present in this same build's log, not called out
+above: "The CFBundleVersion of an app extension ('1') must match that of
+its containing parent app (null)" — omitted from the original write-up
+above by oversight, not because it was judged less relevant; see the
+correction note immediately below for why it matters.
+
+### Correction note — "builds and signs cleanly" overstated (2026-09-20)
+
+A same-day simulator build/install attempt (below) found that
+`AetherfieldHost.app` **has no Mach-O executable at all** — `xcodebuild
+build` exiting 0 and `codesign -dvv` reporting a clean signature (as
+recorded above) did not mean a valid, launchable app bundle, because
+`codesign` does not require the bundle's declared `CFBundleExecutable` to
+actually exist to sign successfully. Direct inspection confirms this for
+the *device* build already recorded above, not only the simulator one:
+
+```sh
+find platform/apple/build -name AetherfieldHost -type f   # no output — the binary was never produced
+codesign -dvv platform/apple/build/Release-iphoneos/AetherfieldHost.app
+```
+
+reports `Executable=.../AetherfieldHost.app/Info.plist` — `codesign` fell
+back to signing the Info.plist itself as the nearest thing to an
+executable, and `Format=bundle` with no Mach-O load commands, because
+`AetherfieldHost`'s `project.yml` target has `sources: []`. The missing
+CFBundleVersion-match warning above was the first hint of this; it was not
+connected to a root cause at the time it was recorded. **"Exited 0" /
+"signs cleanly" above should be read as "the compile and codesign build
+phases did not error," not "produced an installable app."** This is
+exactly the gap `phase1-host-device-acceptance-plan.md` Task 1 already
+named in advance: "A container needing code to launch or register the
+extension blocks this step pending bounded repair." No source has been
+added to fix it yet; see the plan's Task 1 status for the open question of
+whether to apply that bounded repair now.
+
+### iOS Simulator build and install attempt (2026-09-20)
+
+Deferring the physical-device leg of Task 1, the same `AetherfieldHost`
+target was built for the Simulator SDK (a distinct, real evidence tier the
+plan's own Architecture section already anticipates as "simulator checks,"
+separately labelled from device evidence, not a substitute for it) against
+an existing local simulator (iPhone 17 Pro, iOS 26.4, UDID
+`E246B10C-8B46-414B-BE28-715817C66609`):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -target AetherfieldHost -configuration Release \
+  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -allowProvisioningUpdates build
+```
+
+**Exited 0**, `Signing Identity: "Sign to Run Locally"` (simulator's normal
+ad-hoc signing, distinct from the device build's real Apple Development
+identity — expected, not a new finding). Booting the simulator and
+attempting install surfaced the actual defect:
+
+```sh
+xcrun simctl boot E246B10C-8B46-414B-BE28-715817C66609
+xcrun simctl install E246B10C-8B46-414B-BE28-715817C66609 \
+  platform/apple/build/Release-iphonesimulator/AetherfieldHost.app
+```
+
+**Failed** (exit 1): `App installation failed: Unable to Install
+"AetherfieldHost" ... AetherfieldHost.app is missing its bundle
+executable. Please check your build settings to make sure that a bundle
+executable is produced at the path
+"AetherfieldHost.app/AetherfieldHost".` This is the same root cause as the
+correction note above, now confirmed as an actual OS-level install
+rejection rather than only a structural inference from `codesign` output —
+the Simulator's installer performs a check the earlier signed-build
+verification did not. No physical device is required to reproduce this;
+it is not a device-specific defect. `AetherfieldAUExtension` itself was
+not independently tested for standalone install (an app extension cannot
+be installed without its container), so its own compiled correctness is
+unaffected by this finding.
+
+### Bounded repair applied and verified (2026-09-20)
+
+With explicit owner authorization to apply this specific fix, a minimal
+source stub was added: `platform/apple/AetherfieldHost/main.m`, a bare
+`UIResponder<UIApplicationDelegate>` subclass with no overridden methods,
+run via plain `UIApplicationMain` (no scene manifest — legacy
+window-based lifecycle; `AetherfieldHost` has no UI and none is added).
+`project.yml`'s `AetherfieldHost.sources` changed from `[]` to
+`[{path: AetherfieldHost}]`. This is the entire change — no scene
+delegate, storyboard, or UI content was added.
+
+After `xcodegen generate`, both builds were repeated clean
+(`rm -rf platform/apple/build` before the simulator one):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -target AetherfieldHost -configuration Release \
+  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -allowProvisioningUpdates build
+```
+
+Exited 0. `find platform/apple/build -name AetherfieldHost -type f` now
+finds a real binary (previously none), and `codesign -dvv` now reports
+`Executable=.../AetherfieldHost.app/AetherfieldHost` with
+`Format=app bundle with Mach-O universal (x86_64 arm64)` (previously
+`Format=bundle`, `Executable=.../Info.plist`). Reinstall to the same
+simulator:
+
+```sh
+xcrun simctl install E246B10C-8B46-414B-BE28-715817C66609 \
+  platform/apple/build/Release-iphonesimulator/AetherfieldHost.app
+```
+
+**Exited 0 — install succeeded.** `xcrun simctl listapps` confirms
+`com.aetherfield.placeholder.AetherfieldHost` is registered on the
+simulator. Further, the embedded extension is independently discoverable
+at the OS plugin-registration level:
+
+```sh
+xcrun simctl spawn E246B10C-8B46-414B-BE28-715817C66609 pluginkit -m
+```
+
+reports `com.aetherfield.placeholder.AetherfieldHost.AetherfieldAUExtension
+(1.0)`. This is genuine new evidence — the extension is registered with
+the system, not merely compiled — but it is **not** the same as HT-1's
+"discovers, instantiates and renders": `pluginkit` confirms registration
+only; no host (real or harness) has queried
+`AVAudioUnitComponentManager`, instantiated the `AUAudioUnit`, or rendered
+through it, on simulator or device. That remains unrun.
+
+The device-signed build was also re-run with the same fix and confirmed
+consistent: exit 0, a real Mach-O now present
+(`Format=app bundle with Mach-O thin (arm64)`, previously `Format=bundle`),
+`TeamIdentifier=W2VVZU52J6` unchanged. The CFBundleVersion-mismatch
+warning (extension `'1'` vs. container `null`) persists on both builds;
+the orientation/launch-storyboard warnings persist on the device build but
+were not observed on this simulator build run. None of these three
+warnings has been investigated further or confirmed non-blocking; they are
+carried forward, not resolved by this fix.
+
+The portable Release configure/build/CTest sequence was re-run from a
+clean `build/host-device-verify` directory after these Apple-side-only
+changes, to confirm no unintended effect on the DSP core: **8/8 suites
+passed** (unchanged from the prior 8/8 baseline).
+
+### AVAudioUnitComponentManager/AUAudioUnit instantiation harness (2026-09-20)
+
+Requested explicitly by the owner as the next step past `pluginkit -m`'s
+registration-only confirmation: a minimal XCTest harness that exercises
+the actual host-facing discovery/instantiation path a real AU host (AUM,
+Cubasis, Logic) uses, rather than only OS plugin registration. This is
+evidence-gathering only, not a shipping target — see the header comment
+in `platform/apple/AetherfieldHarnessTests/ComponentInstantiationTests.mm`.
+
+**Design:** a new `bundle.unit-test` target, `AetherfieldHarnessTests`,
+hosted inside `AetherfieldHost` via `TEST_HOST`/`BUNDLE_LOADER` (so
+`xcodebuild test` builds and installs the real container+extension
+itself, rather than depending on a prior manual install), with its own
+explicit `AVFoundation.framework`/`AudioToolbox.framework` link
+dependencies (required separately from the host's, which links neither).
+A new `AetherfieldHarness` scheme wires the test target to a `test`
+action. The single test method:
+
+1. Builds an `AudioComponentDescription` matching this project's own
+   registered identifiers (`aufx`/`Aeth`/`Josh`, from `project.yml`'s
+   `AudioComponents` entry — explicit placeholders, not a product
+   commitment).
+2. Queries `[AVAudioUnitComponentManager sharedAudioUnitComponentManager]
+   componentsMatchingDescription:]`, asserting at least one match.
+3. Calls `[AUAudioUnit instantiateWithComponentDescription:options:
+   completionHandler:]` with `kAudioComponentInstantiation_LoadOutOfProcess`
+   (the correct option for an app-extension-based AUv3, not an in-process
+   shortcut), waiting on an `XCTestExpectation`.
+4. Asserts no instantiation error and a non-nil `AUAudioUnit`.
+
+It does **not** allocate render resources, render audio, exercise
+parameters, or touch lifecycle beyond instantiate/implicit dealloc — HT-1,
+HT-9, HT-11 and the rest remain separate, unrun categories.
+
+Two build-fix iterations were needed and are recorded for completeness:
+`AVAudioUnitComponent.hasCustomView` is unavailable on iOS (macOS-only
+API; removed from the log line) and the test target needed its own
+explicit framework dependencies (inherited none from `TEST_HOST`).
+
+**Run command:**
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  test
+```
+
+**Exited 0, `** TEST SUCCEEDED **`.** The actual runtime log, not just the
+pass marker:
+
+```
+[AetherfieldHarness] discovered component: name=Reverb manufacturerName=Aetherfield version=1
+[AetherfieldHarness] instantiated: class=AUAudioUnit_XH audioUnitName=Reverb manufacturerName=Aetherfield componentName=Aetherfield: Reverb
+Test Case '-[AetherfieldComponentInstantiationTests testDiscoverAndInstantiateAetherfieldAudioUnit]' passed (0.348 seconds).
+```
+
+`AUAudioUnit_XH` is Apple's real out-of-process XPC proxy class for a
+host-instantiated app-extension AU — confirms this went through the
+actual extension-hosting mechanism a commercial host uses, not an
+in-process stand-in. `componentName=Aetherfield: Reverb` and
+`manufacturerName=Aetherfield` match `project.yml`'s registration exactly.
+
+**What this is not:** still Simulator, not physical device; still no
+render call (`allocateRenderResourcesAndReturnError:` was never invoked by
+this test); still one process, one instantiation, one run — no repetition,
+no concurrent instances, no automation, no bypass, no reset. This closes
+none of HT-1 through HT-12; it is meaningfully closer evidence than
+`pluginkit` alone, not a substitute for any of them.
+
+### Two follow-ons dispatched in parallel (2026-09-20): render extension and warning cleanup
+
+Owner-requested, dispatched as two file-scope-isolated parallel subagents
+(not isolated git worktrees — a large amount of the work recorded above
+was still uncommitted at dispatch time, and a worktree branches from a
+commit, not the dirty working tree, so isolation would have stranded both
+tasks on a stale base missing `AetherfieldHost`'s fix and the harness
+target entirely). Task (a) was scoped to
+`AetherfieldHarnessTests/ComponentInstantiationTests.mm` only; task (b) to
+`project.yml`/`xcodegen generate` only; neither touched the other's files,
+`src/`, or any `docs/*.md`. Each used its own Simulator UDID and its own
+`-derivedDataPath` to avoid build/install contention. Both findings below
+were independently re-verified after the fact by rebuilding and
+re-running with *both* changes present together (not just trusting each
+subagent's own isolated report):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -derivedDataPath <isolated path> \
+  test
+```
+
+Combined result: **0 warnings**, `testDiscoverAndInstantiateAetherfieldAudioUnit`
+still **passed**, `testAllocateAndRenderOneBlock` **failed** the same way
+independently reproduced — confirming both changes compose cleanly and
+neither result was fork-specific noise.
+
+#### (a) Render extension: format negotiation and allocation succeed; the render call itself fails
+
+A second test method, `testAllocateAndRenderOneBlock`, was added
+alongside the existing discovery/instantiation test (which is otherwise
+byte-for-byte unchanged and still passes independently). It negotiates a
+48 kHz/stereo `AVAudioFormat` — this project's only measured rate
+(ADR-005/ADR-010) and ADR-009's decided stereo-in/stereo-out bus — sets it
+on `inputBusses[0]`/`outputBusses[0]`, sets `maximumFramesToRender = 512`
+(drawn from the already-tested fixed partition `{1,13,64,512,3}`, not
+invented), calls `allocateRenderResourcesAndReturnError:`, then calls the
+AU's `renderBlock` once with a manufactured silent input, then
+`deallocateRenderResources`.
+
+Runtime log:
+
+```
+[AetherfieldHarness] allocateRenderResourcesAndReturnError: succeeded=1 error=(null)
+[AetherfieldHarness] render call returned status=-66745 (noErr=0)
+[AetherfieldHarness] output buffer[0]: nonNil=1 byteSize=2048 (expected 2048)
+[AetherfieldHarness] output buffer[1]: nonNil=1 byteSize=2048 (expected 2048)
+[AetherfieldHarness] output buffers plausibly shaped=1
+[AetherfieldHarness] deallocateRenderResources called
+```
+
+**Format negotiation and resource allocation both succeeded** (`YES`, no
+error). **The render call itself failed**: OSStatus `-66745`, confirmed
+against the iOS 27 SDK header (`AudioToolbox/AUComponent.h:855`) as
+`kAudioUnitErr_RenderTimeout` — Apple's own doc comment: "The audio unit
+did not satisfy the render request in time." The gap between the
+allocation-success log and the render-failure log was ~2.4ms, too fast to
+be a real multi-second timeout elapsing — this reads as an immediate
+rejection rather than an actual wait-and-expire, though the XPC internals
+were not investigated further to confirm why; that reading is an
+interpretation, not a verified root cause. The output buffers were still
+plausibly shaped (non-nil, correct byte size for 512 frames × stereo ×
+4 bytes) despite the error status, but no claim is made about actual
+sample values — there is no reference signal here to compare against.
+
+**Working theory, not confirmed:** calling `renderBlock` directly from an
+XCTest method's own thread is likely not a valid real-time render context
+for an out-of-process AUv3 extension. A render-capable harness probably
+needs to drive the call through a proper audio engine (e.g.
+`AVAudioEngine`) or a real-time-priority context, not a raw direct call
+from an arbitrary thread. This was correctly left out of scope for this
+pass rather than guessed at further.
+
+**This is a real, reportable limitation, not evidence of a working
+render path.** It does not advance HT-1/HT-3 evidence — no repetition, no
+partition sweep, no reference-signal check, no physical device, single
+instance, and now also: no successful render at all. It does newly show
+that allocation/format-negotiation succeed, which the prior
+instantiation-only test did not exercise.
+
+#### (c) AVAudioEngine offline-render experiment avoids the timeout, but does not yet prove extension callback execution
+
+With owner approval, a third, separately named XCTest probe was added to
+`AetherfieldHarnessTests/ComponentInstantiationTests.mm`. It instantiates the
+same component as an out-of-process `AVAudioUnit`, attaches it between an
+`AVAudioPlayerNode` and the engine's main mixer, enables
+`AVAudioEngineManualRenderingModeOffline` at the existing 48 kHz/stereo/512
+frame point, schedules one silent source buffer, and asks the engine to render
+one offline buffer. This is intentionally separate from the direct
+`AUAudioUnit.renderBlock` test, which remains a reproducible failure rather
+than being replaced or weakened.
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -derivedDataPath /private/tmp/aetherfield-avengine-probe \
+  test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testAVAudioEngineOfflineRenderOneBlock
+```
+
+The command exited 0. The selected test passed (1 executed, 0 failures), with
+these harness observations:
+
+```
+[AetherfieldHarness] AVAudioEngine offline mode enabled=1 error=(null)
+[AetherfieldHarness] AVAudioEngine started=1 error=(null)
+[AetherfieldHarness] AVAudioEngine offline render status=0 error=(null) renderedFrames=512
+```
+
+This is meaningful but deliberately narrow: the engine-managed offline render
+request completed where the raw XCTest-thread `renderBlock` request returned
+`-66745`. It supports the context-sensitivity theory enough to make an engine
+graph the better next harness direction; it does **not** establish the theory
+as root cause or a working AU render path. During the same interval, Simulator
+logging reported the out-of-process plug-in connection "interrupted while in
+use" and then invalidated. The probe has no callback-level instrumentation and
+its silent source/output have no sample-value oracle, so it cannot prove that
+the extension's `internalRenderBlock` actually processed the frames rather
+than that the engine completed graph scheduling around a disconnected node.
+The plan's separately authorized controlled-host/diagnostic design remains the
+next gate before such a claim. The command also emitted an Xcode DVT
+test-host-resolution assertion and Simulator UIKit/CoreAnimation diagnostics;
+they are retained as environment/tool diagnostics, not misreported as a clean
+warning-free build result.
+
+**Oracle refinement (same day):** the initial one-block probe above was then
+replaced with the named test
+`testAVAudioEngineOfflineRenderObservesDelayedWetOutput`. It supplies a
+one-sample left-channel impulse and makes eight 512-frame offline render
+requests (4,096 frames total). The extension's default Mix is wet-only, and
+its configured minimum FDN delay is 27 ms (1,296 frames at 48 kHz), so a
+non-zero sample after source frame 0 is a concrete, end-to-end observable of a
+delayed effect response; simple source passthrough cannot satisfy it.
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -derivedDataPath /private/tmp/aetherfield-avengine-oracle \
+  test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testAVAudioEngineOfflineRenderObservesDelayedWetOutput
+```
+
+The test **failed** its deliberately meaningful oracle. The engine completed
+all requested frames, but the measured late peak was exactly zero:
+
+```
+[AetherfieldHarness] AVAudioEngine offline mode enabled=1 error=(null)
+[AetherfieldHarness] AVAudioEngine started=1 error=(null)
+[AetherfieldHarness] AVAudioEngine offline renderedFrames=4096 latePeak=0
+... Connection to plugin interrupted while in use.
+XCTAssertGreaterThan failed: latePeak 0.000000 is not greater than 0.000000
+```
+
+This supersedes any reading of the earlier one-block status-only pass as
+render-path progress. The engine can schedule/render its graph bookkeeping,
+but this experiment has **no observable delayed AU output**, while the
+out-of-process plug-in connection is interrupted. It still does not identify
+whether the callback was never entered, entered before an XPC/lifecycle
+failure, or produced output subsequently discarded by the graph. It does,
+however, rule out treating the AVAudioEngine route as a working replacement
+for the raw `renderBlock` call. The failing assertion is intentionally kept as
+the reproducible diagnostic, not weakened into a status-only pass.
+
+**Crash-report confirmation (2026-09-21):** the next bounded diagnostic step
+found the extension's actual Simulator crash artifact after a fresh reproduction:
+`AetherfieldAUExtension-2026-09-21-114143.ips`. It is not a graph-routing
+guess: the report records `EXC_BAD_ACCESS` / `SIGSEGV`,
+`KERN_INVALID_ADDRESS at 0x0000000000000000`, on the
+`AUOOPRenderingServer-*` thread. Its symbolicated top frame is
+`__43-[AetherfieldAudioUnit internalRenderBlock]_block_invoke`, source
+`AetherfieldAudioUnit.mm:514` — the first dereference of the captured
+`inputBufferList` (`inputBufferList->mNumberBuffers`).
+
+This confirms the lifecycle defect: `internalRenderBlock` snapshots
+`_inputPCMBuffer.mutableAudioBufferList` and `_monoScratch.data()` into the
+returned block, but both are allocated later in
+`allocateRenderResourcesAndReturnError:`. A host may fetch/cache the render
+block before rendering; if it does so before allocation, the callback captures
+null pointers permanently for that block and crashes on its first render. The
+host-side "connection interrupted"/zero-output observations are the direct
+consequence of that extension crash, not an output-routing or DSP-tail result.
+The raw XCTest-thread `renderBlock` timeout is a separate, still-unresolved
+host-context issue. No repair was attempted or authorized by this diagnostic.
+
+**Lifecycle repair and red-to-green verification (2026-09-21):** owner-approved
+implementation changed only `src/auv3/AetherfieldAudioUnit.mm`. The returned
+block now captures AU-lifetime atomic slots, loads the current input-buffer and
+mono-scratch pointers at each non-empty callback, and returns
+`kAudioUnitErr_Uninitialized` if either resource is absent. Allocation publishes
+both slots only after backing storage exists; deallocation clears them before
+releasing storage. This preserves the AUv3 lifecycle requirement that rendering
+has stopped before teardown while avoiding the former cached-null capture.
+
+The existing engine oracle supplied the red phase: its targeted command failed
+with `renderedFrames=4096 latePeak=0` and an interrupted plug-in connection.
+After the repair, the same test command exited 0 with
+`renderedFrames=4096 latePeak=0.014125`; no interruption was logged. The
+separate direct-render test was also rerun and exited 0 with `status=0`, so the
+previous `kAudioUnitErr_RenderTimeout` was caused by the extension crash, not
+established as an independent XCTest-thread constraint. These are Simulator
+harness results only, not HT-1/HT-3 or physical-device acceptance.
+
+**Ragged-block extension (2026-09-21):** the engine impulse oracle now repeats
+`{1,13,64,512,3}` rather than issuing fixed 512-frame requests, at both 48 kHz
+and 44.1 kHz. Manual rendering and the render buffer remain sized for the
+sequence maximum (512); the last request is capped at the 4,096-frame total.
+The delayed-wet-output assertion is unchanged. Focused Simulator runs exited 0:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -derivedDataPath /private/tmp/aetherfield-avengine-ragged-48k-regression \
+  test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testAVAudioEngineOfflineRenderObservesDelayedWetOutputAt48kHz
+```
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS Simulator,id=E246B10C-8B46-414B-BE28-715817C66609' \
+  -derivedDataPath /private/tmp/aetherfield-avengine-ragged-44100 \
+  test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldComponentInstantiationTests/testAVAudioEngineOfflineRenderObservesDelayedWetOutputAt44100Hz
+```
+
+The 48 kHz log reports `renderedFrames=4096 requests=34`
+`sequence={1,13,64,512,3}` and `latePeak=0.014125`; the 44.1 kHz log reports
+the same frame/request sequence and `latePeak=0.014429`. Each XCTest command
+executed 1 test with 0 failures. This is real out-of-process Simulator
+rendering across varying callback sizes at both required rates, but is not
+HT-1/HT-3 or physical-device acceptance.
+
+**Cached-block reallocation regression (2026-09-21):** the direct harness test
+is now `testCachedRenderBlockSurvivesResourceReallocation`. It obtains the
+out-of-process AU's `renderBlock` before `allocateRenderResources...`, retains
+that same closure through a successful 512-frame render, deallocates and
+reallocates resources, then invokes the unchanged closure again. The focused
+Simulator command exited 0: both calls returned `status=0`, and reallocation
+succeeded. This guards the exact cached-block lifecycle defect and its
+reconfiguration variant; it remains one instance/two blocks at 48 kHz stereo,
+not HT-1/HT-3 or physical-device coverage.
+
+#### (b) Three build warnings: resolved, re-verified by rebuild, install unaffected
+
+Baseline directly inspected (`PlistBuddy`) before fixing, not assumed:
+`AetherfieldAUExtension`'s `CFBundleVersion`/`CFBundleShortVersionString`
+were `1`/`1.0`; `AetherfieldHost` had neither key at all ("Does Not
+Exist"), matching the mismatch warning's text exactly.
+
+**Fix 1 (CFBundleVersion mismatch):** added `CURRENT_PROJECT_VERSION: "1"`
+and `MARKETING_VERSION: "1.0"` to `AetherfieldHost`'s settings in
+`project.yml`, matching the extension's actual observed values rather
+than an invented scheme.
+
+**Fix 2/3 (orientation + launch-storyboard):** both warnings' own text
+says "unless the app requires full screen." The more honest single fix —
+`INFOPLIST_KEY_UIRequiresFullScreen: YES`, since `AetherfieldHost` has no
+UI and never will — was tried first, but surfaced a *new* warning on
+rebuild: `UIRequiresFullScreen` is deprecated starting **iOS 26.0**, this
+project's own deployment floor (ADR-010), "will be ignored in a future
+release." Not usable as a durable fix. Reverted to the conventional pair:
+`INFOPLIST_KEY_UISupportedInterfaceOrientations` (all four orientations,
+Xcode's own default set) and `INFOPLIST_KEY_UILaunchScreen_Generation: YES`
+(synthesizes an empty `UILaunchScreen` dict — no storyboard file needed,
+supported since iOS 14+).
+
+Rebuilt both configurations from clean, isolated `-derivedDataPath`s to
+confirm the actual before/after warning state rather than trusting the
+settings alone:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -target AetherfieldHost -configuration Release -allowProvisioningUpdates \
+  -derivedDataPath <isolated path> build          # device: exit 0, 0 warnings
+
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -target AetherfieldHost -configuration Release \
+  -sdk iphonesimulator \
+  -destination 'platform=iOS Simulator,id=112B34C4-7540-4828-B08E-AB8B8DC2A84D' \
+  -derivedDataPath <isolated path> build           # simulator: exit 0, 0 warnings
+```
+
+All three warnings gone on both builds; the discarded `UIRequiresFullScreen`
+attempt's deprecation warning is not present in the final state. Install
+and registration were re-verified after the fix, not assumed safe from a
+clean build alone (per this project's own prior lesson —
+"builds cleanly" previously masked the missing-executable defect above):
+`xcrun simctl install` on the dedicated simulator exited 0, and
+`pluginkit -m` still reports
+`com.aetherfield.placeholder.AetherfieldHost.AetherfieldAUExtension(1.0)`
+registered. Post-fix `CFBundleVersion`/`CFBundleShortVersionString` were
+inspected again directly: both bundles now `1`/`1.0`, matching.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.
