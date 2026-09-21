@@ -145,6 +145,13 @@ does not close that plan's remaining gaps.
 
 ## Current focus (2026-09-20 handoff)
 
+**Repository provenance (2026-09-21):** this checkout now tracks the public
+GitHub remote [`joshband/aetherfield`](https://github.com/joshband/aetherfield)
+as `origin`. The current committed host/harness evidence baseline is
+`f8267ad` (`Add two-rate AUv3 render harness evidence`). This publication
+record is repository provenance only; it changes no implementation or
+host/device acceptance status.
+
 ADR-009's hybrid bypass implementation is merged at `145a69f` (implementation
 commit `b2d6d65`). This supersedes this document's earlier planning-only
 handoff: the control-thread bound/read-back work, portable controller, and
