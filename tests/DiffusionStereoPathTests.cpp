@@ -3217,6 +3217,18 @@ int testSetMixToZeroBypassesToDryExactly() {
     return 0;
 }
 
+int testLiveStateSilenceBoundIsFiniteAndMonotonic() {
+    DiffusionStereoPath path;
+    if (!path.prepare(validConfig(48000.0))) return fail("HB-bound fixture preparation failed");
+    const std::size_t defaultBound = path.silenceBoundSamples(1.0F);
+    if (defaultBound == 0) return fail("HB-bound default live-state envelope produced no bound");
+    if (!path.setDecay(1.0)) return fail("HB-bound Decay=1 update rejected");
+    const std::size_t longBound = path.silenceBoundSamples(1.0F);
+    if (longBound <= defaultBound) return fail("HB-bound Decay=1 did not exceed the default live-state bound");
+    if (path.silenceBoundSamples(0.0F) != 0) return fail("HB-bound zero envelope was not recognized as silent");
+    return 0;
+}
+
 int main() {
     if (testUnpreparedLifecycle() != 0) return 1;
     if (testPreparationAtBothFixtureRates() != 0) return 1;
@@ -3270,6 +3282,7 @@ int main() {
     if (testControlSettersRejectNonFiniteAfterPreparation() != 0) return 1;
     if (testControlSettersAcceptValidNormalizedValues() != 0) return 1;
     if (testSetMixToZeroBypassesToDryExactly() != 0) return 1;
+    if (testLiveStateSilenceBoundIsFiniteAndMonotonic() != 0) return 1;
     std::cout << "DiffusionStereoPath control-thread API (setDecay/setDamp/setMix) tests passed\n";
     return 0;
 }

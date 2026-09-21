@@ -3,6 +3,7 @@
 #include "dsp/FeedbackDelayNetwork.h"
 #include "dsp/ParameterAutomation.h"
 #include "dsp/SchroederAllpass.h"
+#include "dsp/TailSilenceBound.h"
 
 #include <algorithm>
 #include <cmath>
@@ -78,6 +79,7 @@ struct DiffusionStereoPath::State {
     FeedbackDelayNetwork network;
     ParameterAutomation automation;
     float coefficient = 0.0F;
+    double sampleRate = 0.0;
 };
 
 namespace {
@@ -101,6 +103,7 @@ bool DiffusionStereoPath::prepare(const DiffusionStereoConfig& config) {
 
     auto candidate = std::make_unique<State>();
     candidate->coefficient = static_cast<float>(config.allpassCoefficient);
+    candidate->sampleRate = config.sampleRate;
     for (std::size_t index = 0; index < candidate->input.size(); ++index) {
         if (!candidate->input[index].prepare(config.sampleRate, config.inputDelaySeconds[index], candidate->coefficient)) {
             return false;
@@ -193,6 +196,33 @@ bool DiffusionStereoPath::setDamp(double normalized) noexcept {
 
 bool DiffusionStereoPath::setMix(double normalized) noexcept {
     return state_ && state_->automation.setMix(normalized);
+}
+
+ParameterAutomation::NormalizedControls DiffusionStereoPath::controls() const noexcept {
+    return state_ ? state_->automation.getAll() : ParameterAutomation::NormalizedControls {};
+}
+
+std::size_t DiffusionStereoPath::silenceBoundSamples(float inputEnvelope) const noexcept {
+    if (!state_) return 0;
+    const auto controlsNow = state_->automation.getAll();
+    TailSilenceBoundInput input;
+    input.sampleRate = state_->sampleRate;
+    input.t60Min = state_->automation.t60Min();
+    input.t60Max = state_->automation.t60Max();
+    input.decay = controlsNow.decay;
+    input.inputEnvelope = inputEnvelope;
+    input.allpassCoefficient = state_->coefficient;
+    input.lineCount = state_->network.lineCount();
+    input.minFdnDelay = state_->network.delaySamples(0);
+    input.maxFdnDelay = state_->network.delaySamples(input.lineCount - 1);
+    for (std::size_t index = 0; index < input.inputDelays.size(); ++index) {
+        input.inputDelays[index] = state_->input[index].delaySamples();
+    }
+    for (std::size_t index = 0; index < input.leftOutputDelays.size(); ++index) {
+        input.leftOutputDelays[index] = state_->leftOutput[index].delaySamples();
+        input.rightOutputDelays[index] = state_->rightOutput[index].delaySamples();
+    }
+    return calculateTailSilenceBoundSamples(input);
 }
 
 StereoSample DiffusionStereoPath::processSample(float mono) noexcept {

@@ -33,12 +33,16 @@ target_compile_definitions(aetherfield_dsp_diffusion_stereo_tests PRIVATE AETHER
 
 add_library(aetherfield_wrapper STATIC
     src/wrapper/ParameterBridge.cpp
+    src/wrapper/HybridBypassController.cpp
 )
 target_include_directories(aetherfield_wrapper PUBLIC src)
 target_link_libraries(aetherfield_wrapper PUBLIC aetherfield_dsp)
 
 add_executable(aetherfield_wrapper_tests tests/ParameterBridgeTests.cpp)
 target_link_libraries(aetherfield_wrapper_tests PRIVATE aetherfield_wrapper)
+
+add_executable(aetherfield_hybrid_bypass_tests tests/HybridBypassControllerTests.cpp)
+target_link_libraries(aetherfield_hybrid_bypass_tests PRIVATE aetherfield_wrapper)
 
 add_executable(aetherfield_render tools/render/main.cpp)
 target_link_libraries(aetherfield_render PRIVATE aetherfield_dsp)
@@ -53,7 +57,7 @@ add_executable(aetherfield_render_listening_batch tools/render_listening_batch/m
 target_link_libraries(aetherfield_render_listening_batch PRIVATE aetherfield_dsp)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-    foreach(target aetherfield_dsp aetherfield_dsp_tests aetherfield_dsp_delay_tests aetherfield_dsp_fdn_tests aetherfield_dsp_param_tests aetherfield_dsp_allpass_tests aetherfield_dsp_diffusion_stereo_tests aetherfield_wrapper aetherfield_wrapper_tests aetherfield_render aetherfield_render_reverb aetherfield_render_diffusion_stereo aetherfield_render_listening_batch)
+    foreach(target aetherfield_dsp aetherfield_dsp_tests aetherfield_dsp_delay_tests aetherfield_dsp_fdn_tests aetherfield_dsp_param_tests aetherfield_dsp_allpass_tests aetherfield_dsp_diffusion_stereo_tests aetherfield_wrapper aetherfield_wrapper_tests aetherfield_hybrid_bypass_tests aetherfield_render aetherfield_render_reverb aetherfield_render_diffusion_stereo aetherfield_render_listening_batch)
         target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endforeach()
 endif()
@@ -66,3 +70,4 @@ add_test(NAME aetherfield_dsp_param_tests COMMAND aetherfield_dsp_param_tests)
 add_test(NAME aetherfield_dsp_allpass_tests COMMAND aetherfield_dsp_allpass_tests)
 add_test(NAME aetherfield_dsp_diffusion_stereo_tests COMMAND aetherfield_dsp_diffusion_stereo_tests)
 add_test(NAME aetherfield_wrapper_tests COMMAND aetherfield_wrapper_tests)
+add_test(NAME aetherfield_hybrid_bypass_tests COMMAND aetherfield_hybrid_bypass_tests)

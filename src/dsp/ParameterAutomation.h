@@ -90,6 +90,16 @@ public:
     };
     MixGains advance(FeedbackDelayNetwork& network) noexcept;
 
+    // Returns the last accepted normalized targets. This is control-thread
+    // only: callers must obey the same serialized single-writer discipline as
+    // setDecay()/setDamp()/setMix(), and must never call it from rendering.
+    struct NormalizedControls {
+        double decay;
+        double damp;
+        double mix;
+    };
+    NormalizedControls getAll() const noexcept;
+
     // Snaps every smoother to its current target and cancels any in-
     // flight ramp (ADR-004 (c) point 5). Does not touch `network` itself
     // - the caller is expected to reset() the network separately, exactly

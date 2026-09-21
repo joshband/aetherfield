@@ -12,7 +12,9 @@
 		278307A4CC50E81C54B531A9 /* AetherfieldAUExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 524BD4A66A9403766D2C3738 /* AetherfieldAUExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3D561ED98AD961B951F19A82 /* AetherfieldAudioUnit.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7071010A5E190AEBB0A57986 /* AetherfieldAudioUnit.mm */; };
 		41EC38FF43527C1FD551B118 /* DelayLine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 06D6CCCBAD4C34D59948EC89 /* DelayLine.cpp */; };
+		4C58702F05EBD6286A48592D /* HybridBypassController.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C3C436A00E4136C976BAD09C /* HybridBypassController.cpp */; };
 		709ED9793B4BFA767B805B89 /* SchroederAllpass.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0EFD5630D708FA5AC671DEB6 /* SchroederAllpass.cpp */; };
+		88DF75FFCD3B588D8B16FDC2 /* TailSilenceBound.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3BBACEA85801F967435CB0D8 /* TailSilenceBound.cpp */; };
 		C58EB812D257554C88934D0B /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7935C97300DFD2963F71E50 /* AudioToolbox.framework */; };
 		E90343283F5CF3008718CFBA /* FeedbackDelayNetwork.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A6CF260DE45E599105691A88 /* FeedbackDelayNetwork.cpp */; };
 		EB46B1BFC41D4ADE33463D27 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4030CBA8EEDDDDA9D1D71E95 /* AVFoundation.framework */; };
@@ -50,6 +52,7 @@
 		0EFD5630D708FA5AC671DEB6 /* SchroederAllpass.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = SchroederAllpass.cpp; sourceTree = "<group>"; };
 		1AADC5CC31D5DF03F1EED13B /* ParameterBridge.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParameterBridge.cpp; sourceTree = "<group>"; };
 		2BEA7780F4A0CB045D139389 /* AetherfieldHost.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AetherfieldHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3BBACEA85801F967435CB0D8 /* TailSilenceBound.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = TailSilenceBound.cpp; sourceTree = "<group>"; };
 		4030CBA8EEDDDDA9D1D71E95 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		42253EA05AF86F52D1685BB0 /* ParameterAutomation.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParameterAutomation.cpp; sourceTree = "<group>"; };
 		524BD4A66A9403766D2C3738 /* AetherfieldAUExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AetherfieldAUExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,6 +62,7 @@
 		A5288C9A2006160A2E9DCB62 /* GainProcessor.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = GainProcessor.cpp; sourceTree = "<group>"; };
 		A6CF260DE45E599105691A88 /* FeedbackDelayNetwork.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FeedbackDelayNetwork.cpp; sourceTree = "<group>"; };
 		BECA571BEC2EE6511B880105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C3C436A00E4136C976BAD09C /* HybridBypassController.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = HybridBypassController.cpp; sourceTree = "<group>"; };
 		D7935C97300DFD2963F71E50 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
 		F622EFADC14CAE2CE4296CB0 /* DiffusionStereoPath.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DiffusionStereoPath.cpp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -94,6 +98,7 @@
 				A5288C9A2006160A2E9DCB62 /* GainProcessor.cpp */,
 				42253EA05AF86F52D1685BB0 /* ParameterAutomation.cpp */,
 				0EFD5630D708FA5AC671DEB6 /* SchroederAllpass.cpp */,
+				3BBACEA85801F967435CB0D8 /* TailSilenceBound.cpp */,
 			);
 			name = dsp;
 			path = ../../src/dsp;
@@ -134,6 +139,7 @@
 		CBF3CE7D5C361FEF2CE5783F /* wrapper */ = {
 			isa = PBXGroup;
 			children = (
+				C3C436A00E4136C976BAD09C /* HybridBypassController.cpp */,
 				1AADC5CC31D5DF03F1EED13B /* ParameterBridge.cpp */,
 			);
 			name = wrapper;
@@ -222,9 +228,11 @@
 				EED8153AC86E2CAA714D8E99 /* DiffusionStereoPath.cpp in Sources */,
 				E90343283F5CF3008718CFBA /* FeedbackDelayNetwork.cpp in Sources */,
 				178751A1AAD4EA37B2F9B6ED /* GainProcessor.cpp in Sources */,
+				4C58702F05EBD6286A48592D /* HybridBypassController.cpp in Sources */,
 				F5611A362CEC756757140153 /* ParameterAutomation.cpp in Sources */,
 				EFE61A7CC28332676E4C99AF /* ParameterBridge.cpp in Sources */,
 				709ED9793B4BFA767B805B89 /* SchroederAllpass.cpp in Sources */,
+				88DF75FFCD3B588D8B16FDC2 /* TailSilenceBound.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

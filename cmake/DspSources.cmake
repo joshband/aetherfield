@@ -7,6 +7,7 @@ set(AETHERFIELD_DSP_SOURCES
     src/dsp/DelayLine.cpp
     src/dsp/FeedbackDelayNetwork.cpp
     src/dsp/ParameterAutomation.cpp
+    src/dsp/TailSilenceBound.cpp
     src/dsp/SchroederAllpass.cpp
     src/dsp/DiffusionStereoPath.cpp
 )

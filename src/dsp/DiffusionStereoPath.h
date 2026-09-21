@@ -1,6 +1,7 @@
 #pragma once
 
 #include "dsp/FeedbackDelayNetwork.h"
+#include "dsp/ParameterAutomation.h"
 
 #include <array>
 #include <cstddef>
@@ -84,6 +85,8 @@ public:
     bool setDecay(double normalized) noexcept;
     bool setDamp(double normalized) noexcept;
     bool setMix(double normalized) noexcept;
+    ParameterAutomation::NormalizedControls controls() const noexcept;
+    std::size_t silenceBoundSamples(float inputEnvelope) const noexcept;
 
     // Runs one mono input sample through the input allpass cascade, normalized
     // FDN injection, pre-step even/odd taps, output allpass cascades and Mix.

@@ -9,16 +9,19 @@
 
 #include "dsp/DiffusionStereoPath.h"
 #include "wrapper/ParameterBridge.h"
+#include "wrapper/HybridBypassController.h"
 #include "wrapper/ResetRequest.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <memory>
-#include <vector>
 
 using aetherfield::dsp::DiffusionStereoConfig;
 using aetherfield::dsp::DiffusionStereoPath;
 using aetherfield::wrapper::HostParameterEvent;
+using aetherfield::wrapper::HybridBypassAction;
+using aetherfield::wrapper::HybridBypassController;
 using aetherfield::wrapper::Parameter;
 using aetherfield::wrapper::ParameterBridge;
 using aetherfield::wrapper::ResetRequest;
@@ -41,6 +44,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     std::unique_ptr<DiffusionStereoPath> _path;
     std::unique_ptr<ParameterBridge> _bridge;
     std::unique_ptr<ResetRequest> _resetRequest;
+    std::unique_ptr<HybridBypassController> _hybridBypass;
 
     // The last normalized value this AUParameter was set to, for
     // implementorValueProvider to read back. Not a substitute for
@@ -133,6 +137,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     _path = std::make_unique<DiffusionStereoPath>();
     _bridge = std::make_unique<ParameterBridge>();
     _resetRequest = std::make_unique<ResetRequest>();
+    _hybridBypass = std::make_unique<HybridBypassController>();
     _lastDecay = 0.5F; // matches DiffusionStereoPath/ParameterAutomation's own prepare()-time default
     _lastDamp = 0.0F;
     _lastMix = 1.0F;
@@ -180,7 +185,16 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         // strictly serial, so it is never concurrent with itself.
         AetherfieldAudioUnit *strongSelf = weakSelf;
         if (strongSelf != nil && strongSelf->_path != nullptr) {
+            const auto before = strongSelf->_path->controls();
             strongSelf->_bridge->drain(*strongSelf->_path);
+            const auto after = strongSelf->_path->controls();
+            float envelope = 0.0F;
+            const bool bypassJustEngaged = strongSelf->_hybridBypass->consumeBypassEnvelope(envelope);
+            if (bypassJustEngaged || before.decay != after.decay || before.damp != after.damp) {
+                if (!bypassJustEngaged) envelope = strongSelf->_hybridBypass->currentBypassEnvelope();
+                const std::size_t bound = envelope == 0.0F ? 1 : strongSelf->_path->silenceBoundSamples(envelope);
+                strongSelf->_hybridBypass->publishSilenceBound(bound);
+            }
         }
     });
     dispatch_activate(_bridgeControllerTimer);
@@ -415,6 +429,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     DiffusionStereoPath *path = _path.get();
     ParameterBridge *bridge = _bridge.get();
     ResetRequest *resetRequest = _resetRequest.get();
+    HybridBypassController *hybridBypass = _hybridBypass.get();
     std::atomic<bool> *bypassed = &_bypassed;
     // AURenderPullInputBlock's `inputData` parameter is a caller-owned
     // AudioBufferList* the callee fills in, not an out-parameter the
@@ -452,12 +467,14 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         // explicit request past an empty callback.
         if (resetRequest->consumeIfPending()) {
             path->reset();
+            hybridBypass->resetForHostReset(bypassed->load(std::memory_order_relaxed));
         }
 
         // ADR-008 section 3: scan the host event list exactly once,
         // collapsing to at most one HostParameterEvent per parameter,
         // then hand off to the portable, unit-tested coalescing logic.
-        std::vector<HostParameterEvent> events;
+        std::array<HostParameterEvent, aetherfield::wrapper::kParameterCount> events {};
+        std::array<bool, aetherfield::wrapper::kParameterCount> seen {};
         for (const AURenderEvent *event = realtimeEventListHead; event != nullptr; event = event->head.next) {
             if (event->head.eventType != AURenderEventParameter) continue;
             Parameter parameter;
@@ -470,9 +487,16 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
             // rampDurationSampleFrames is read (implicitly, by iterating
             // the event) and discarded -- ADR-008 section 4: "not
             // honored, not stored, not forwarded."
-            events.push_back({parameter, event->parameter.value});
+            const std::size_t index = static_cast<std::size_t>(parameter);
+            events[index] = {parameter, event->parameter.value};
+            seen[index] = true;
         }
-        aetherfield::wrapper::applyHostEvents(*bridge, events.data(), events.size());
+        std::array<HostParameterEvent, aetherfield::wrapper::kParameterCount> compacted {};
+        std::size_t compactedCount = 0;
+        for (std::size_t index = 0; index < seen.size(); ++index) {
+            if (seen[index]) compacted[compactedCount++] = events[index];
+        }
+        aetherfield::wrapper::applyHostEvents(*bridge, compacted.data(), compactedCount);
 
         // Offline/deterministic-adjacent note: this dispatch is always
         // the "online" path (a real internalRenderBlock invocation from
@@ -514,7 +538,15 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         // T_silence-bounded hybrid mechanism (see Non-goals). Reading
         // the atomic snapshot, never self.shouldBypassEffect, keeps this
         // check render-thread-safe.
-        if (bypassed->load(std::memory_order_relaxed)) {
+        const bool bypassedNow = bypassed->load(std::memory_order_relaxed);
+        const HybridBypassAction bypassAction = hybridBypass->beginBlock(bypassedNow, frameCount);
+        if (bypassedNow) {
+            if (bypassAction == HybridBypassAction::DrainWithZeros
+                || bypassAction == HybridBypassAction::DrainWithZerosThenReset) {
+                std::fill_n(monoScratch, frameCount, 0.0F);
+                path->process(monoScratch, outputLeft, outputRight, frameCount);
+                if (bypassAction == HybridBypassAction::DrainWithZerosThenReset) path->reset();
+            }
             std::copy_n(inputLeft, frameCount, outputLeft);
             std::copy_n(inputRight, frameCount, outputRight);
             return noErr;
@@ -527,6 +559,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         // thread; see monoScratch's capture-site comment above.
         for (AVAudioFrameCount i = 0; i < frameCount; ++i) {
             monoScratch[i] = 0.5F * (inputLeft[i] + inputRight[i]);
+            hybridBypass->noteLiveInput(monoScratch[i]);
         }
         path->process(monoScratch, outputLeft, outputRight, frameCount);
 
