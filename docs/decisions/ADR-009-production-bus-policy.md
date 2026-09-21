@@ -568,6 +568,80 @@ not a real one. Named here as a latent test-code limitation, not a defect in
 any currently-recorded evidence (the test has never actually been run at
 that fixture), and not something this documentation-only task fixes.
 
+## Amendment — live-state envelope for hybrid bypass (2026-09-20)
+
+The 2026-09-19 design note used `||s0||2 = sqrt(N)`, a convention verified
+for one full-scale impulse injected into a resting FDN. That is not a valid
+upper bound when a host engages bypass after arbitrary prior live input: both
+the FDN and the input/output allpass cascades can already contain energy.
+Consequently, the prior `sqrt(N)` timer is not authorized as an implementation
+bound for live bypass.
+
+**Decided replacement.** The wrapper records a render-thread-owned,
+monotonic input envelope `P`: the maximum finite `abs(mono)` sample actually
+sent to `DiffusionStereoPath` since its most recent render-thread reset. The
+value is atomically published to the non-render bridge-controller queue when
+bypass engages. If no finite live sample has been processed since reset,
+`P = 0` and the path may be reset/stopped immediately. A non-finite input
+continues through the existing DS-B fault/recovery contract; it is never used
+as an envelope value.
+
+For a nonzero `P`, let `L = (1 + 2q)^4`, where `q` is the stored float
+allpass coefficient widened to real arithmetic, and let
+`rho = gamma0^m_min`. The normalized uniform FDN injection has 2-norm at
+most `U = P * L`, so the conservative live-state bound is:
+
+```
+S = U / (1 - rho)
+```
+
+This replaces `sqrt(N)` wherever the timer needs an upper bound on the
+currently possible FDN state. It covers an arbitrarily long history of
+finite live input bounded by the recorded `P`; it is deliberately looser
+than the unit-impulse measurement. The FDN zero-input term is therefore the
+same ADR-003 contraction bound with `S` substituted for the special-case
+impulse state:
+
+```
+T_fdn = (m_max / f_s) * ln(epsilon / S) / ln(rho)
+```
+
+with `epsilon = 1e-20`, rounded upward to samples and saturated on every
+conversion. The helper must reject invalid/non-finite intermediate values;
+the wrapper treats rejection as an infinite bound (continue draining), never
+as silence.
+
+The whole path remains additive, because the FDN cannot start its zero-input
+clock until the input cascade drains and the output cascades cannot start
+their own clocks until the FDN is zero:
+
+```
+D_input(P) + ceil(T_fdn * f_s) + D_output(S)
+```
+
+For each allpass stage `j`, use the already-recorded recurrence bound
+`stateBound = A * (1 + 2q)^j / (1 - q)` and the smallest integer `k >= 1`
+such that `q^k * stateBound < epsilon`; its drain is `(k + 1) * delay_j`.
+`D_input(P)` sums all four input stages with `A = P`; `D_output(S)` is the
+larger summed two-stage output branch with `A = S`. Compute `k` with
+logarithms/ceilings, not an unbounded render-thread or bridge-timer loop.
+
+**Publication/lifecycle.** Bypass engagement first enters `Running` with the
+previously published conservative/infinite bound. The render thread latches
+and publishes `P`; the bridge-controller queue computes and release-publishes
+the new bound; the render thread acquire-consumes that generation and restarts
+its elapsed counter. Thus an asynchronous bridge turn can only prolong
+draining, never stop a tail early. Decay or Damp updates while bypassed also
+cause recomputation and an elapsed-counter restart. `P` resets only at the
+same render-thread locations that reset the DSP path (host reset and hybrid
+tail expiration), so its history cannot be lost while it still bounds state.
+
+This amendment remains wrapper policy: it does not add bypass state to
+`DiffusionStereoPath`, change parameter smoothing, or add a host-visible kill
+tail control. It supersedes the design note's `sqrt(N)` implementation
+instruction while retaining its zero-input, Running/Stopped, and exact-dry
+passthrough requirements.
+
 ## Remaining decisions and later evidence
 
 Using this project's established phrasing pattern (see ADR-007's "Remaining

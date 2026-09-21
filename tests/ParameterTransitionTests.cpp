@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <vector>
 
 namespace {
@@ -578,6 +579,33 @@ int testDampInvariantUnderDecayAndRate() {
     return 0;
 }
 
+int testNormalizedControlsReadBack() {
+    Fixture fx;
+    if (!fx.prepare()) return fail("PT-10 fixture preparation failed");
+
+    const auto defaults = fx.automation.getAll();
+    if (defaults.decay != 0.5 || defaults.damp != 0.0 || defaults.mix != 1.0) {
+        return fail("PT-10 default normalized controls did not match the prepared defaults");
+    }
+
+    if (!fx.automation.setDecay(1.5) || !fx.automation.setDamp(0.25) || !fx.automation.setMix(-1.0)) {
+        return fail("PT-10 finite control updates were unexpectedly rejected");
+    }
+    const auto clamped = fx.automation.getAll();
+    if (clamped.decay != 1.0 || clamped.damp != 0.25 || clamped.mix != 0.0) {
+        return fail("PT-10 read-back did not return the accepted clamped control triple");
+    }
+
+    if (fx.automation.setDecay(std::numeric_limits<double>::quiet_NaN())) {
+        return fail("PT-10 non-finite Decay was unexpectedly accepted");
+    }
+    const auto retained = fx.automation.getAll();
+    if (retained.decay != clamped.decay || retained.damp != clamped.damp || retained.mix != clamped.mix) {
+        return fail("PT-10 rejected control update changed the read-back triple");
+    }
+    return 0;
+}
+
 int main() {
     if (int result = testEndpointExactness(); result != 0) return result;
     if (int result = testInvariantUnderEveryReachableSet(); result != 0) return result;
@@ -588,5 +616,6 @@ int main() {
     if (int result = testSignalTransitionMetrics(); result != 0) return result;
     if (int result = testNoAllocationOrBlocking(); result != 0) return result;
     if (int result = testDampInvariantUnderDecayAndRate(); result != 0) return result;
+    if (int result = testNormalizedControlsReadBack(); result != 0) return result;
     return 0;
 }

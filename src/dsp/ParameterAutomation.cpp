@@ -240,6 +240,10 @@ ParameterAutomation::MixGains ParameterAutomation::advance(FeedbackDelayNetwork&
     return MixGains{dryRamp_.current, wetRamp_.current};
 }
 
+ParameterAutomation::NormalizedControls ParameterAutomation::getAll() const noexcept {
+    return {lastDecay_, lastDamp_, lastMix_};
+}
+
 void ParameterAutomation::reset() noexcept {
     for (std::size_t i = 0; i < lineCount_; ++i) {
         gainRamps_[i].current = gainRamps_[i].target;
