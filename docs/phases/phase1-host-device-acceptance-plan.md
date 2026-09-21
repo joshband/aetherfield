@@ -717,10 +717,14 @@ not silently enter the shipping build.
    judgment of real automation/bypass recordings. Missing numeric budgets do
    not block recording measurements and never authorize invented thresholds.
 
-## Planning checkpoint (2026-09-20)
+## Checkpoint (2026-09-21)
 
-Created this plan only. All execution checkboxes remain open. Source and
-decision inspection are planning evidence, not a test pass. No host/device
-test, build, install, source edit, ADR edit, roadmap edit or commit was made
-by the planning task. The immediate next step is review of this document and
-resolution/authorization of Task 0, not product implementation.
+The corrected HT-3 harness remains blocked by unavailable Apple runtime
+services: CoreSimulatorService refused connection and CoreDeviceService timed
+out during destination discovery. No HT-3 rerun or new acceptance conclusion
+was claimed. Independently, Task 1's portable Release baseline passed 8/8
+CTest suites and the DSP source-drift check matched 7 files; the separate
+unsigned AU Debug compile exited 0. The next smallest action is to restore a
+runnable destination and rerun the focused corrected `{4096}` case. Task 0's
+device/OS/host matrix and execution authorization remain incomplete, and all
+broader acceptance gates remain open.

@@ -2432,6 +2432,62 @@ clean build alone (per this project's own prior lesson —
 registered. Post-fix `CFBundleVersion`/`CFBundleShortVersionString` were
 inspected again directly: both bundles now `1`/`1.0`, matching.
 
+### Task 1 portable baseline and blocked HT-3 rerun (2026-09-21)
+
+The independent Task 1 baseline passed:
+
+```sh
+cmake -S . -B build/host-device-baseline -DCMAKE_BUILD_TYPE=Release
+cmake --build build/host-device-baseline --parallel
+ctest --test-dir build/host-device-baseline --output-on-failure
+bash scripts/check_dsp_source_drift.sh
+```
+
+Configure/build exited 0; CTest discovered and passed **8/8** suites,
+including `aetherfield_hybrid_bypass_tests`; source drift exited 0 with
+**7 files matched**.
+
+The separate unsigned AU compile also exited 0 (`BUILD SUCCEEDED`):
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldAUExtension -configuration Debug \
+  -destination 'generic/platform=iOS' \
+  -derivedDataPath /private/tmp/aetherfield-unsigned-baseline \
+  CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY='' CODE_SIGNING_REQUIRED=NO \
+  clean build
+```
+
+This is compilation evidence only. The corrected HT-3 `{4096}` rerun remains
+blocked: `xcrun simctl list devices available` reported CoreSimulatorService
+connection refusal, and `xcrun devicectl list devices` timed out waiting for
+CoreDeviceService. No new HT-3 conclusion is claimed; resume by restoring a
+runnable destination and rerunning the focused corrected case.
+
+A subsequent recovery check found no registered CoreSimulator/CoreDevice
+launchd service, and `open -a Simulator` reported that the Simulator
+application is unavailable on this machine. The runtime blocker therefore
+remains external to the repository; no source or signing workaround was
+attempted.
+
+The follow-up harness build check reached the same boundary: both a normal
+Simulator-scheme build and an explicit `generic/platform=iOS Simulator`
+build failed before compilation because Xcode reported no supported scheme
+destinations / no matching generic Simulator destination. This is not a
+harness compile failure and does not change the prior corrected-harness
+status.
+
+**Runtime recovery diagnosis (2026-09-21):** the Xcode installation initially
+contained the iOS 27 Simulator SDK but no runtime or `Simulator.app`. The
+missing iOS 27.0 Simulator runtime was installed with
+`xcodebuild -downloadPlatform iOS` (8.05 GB, completed successfully). CoreSim
+still fails while mounting the runtime: its log reports a missing
+personalization manifest and an unresponsive `simdiskimaged` service. A
+user-scoped CoreSimulator/CoreDevice restart did not resolve it; the
+system-owned `simdiskimaged` kickstart was denied by macOS. A reboot is now the
+smallest remaining environment repair. No repository source or signing state
+was changed.
+
 ## PLANNED validation gates after Phase 1
 
 These gates describe future work. None is an executed reverb test, and none changes the Phase 0 reference WAV.

@@ -290,6 +290,15 @@ and after deallocation/reallocation; both 512-frame calls return `status=0`.
 This protects the fixed lifecycle boundary across reconfiguration, still only
 on the Simulator and not as HT-1/HT-3 acceptance.
 
+**Current checkpoint (2026-09-21):** the corrected HT-3 `{4096}` harness is
+ready, but CoreSimulatorService refused connection and CoreDeviceService timed
+out during destination discovery, so no rerun was claimed. The independent
+Task 1 baseline is green: Release CTest **8/8**, DSP source drift **7 files**,
+and the separate unsigned AU Debug compile succeeded. Resume by restoring a
+runnable destination and rerunning corrected HT-3; do not broaden acceptance
+until that result is recorded. Task 0's concrete four-device/host matrix and
+execution authorization remain open.
+
 ## Lean resume loop
 
 At a milestone boundary, start a fresh session (or clear the prior context),
