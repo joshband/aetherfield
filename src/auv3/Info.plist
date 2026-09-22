@@ -28,7 +28,7 @@
 			<array>
 				<dict>
 					<key>description</key>
-					<string>Aetherfield ambient reverb (AUv3 skeleton over src/dsp/DiffusionStereoPath; not yet auval/host/device verified)</string>
+					<string>Aetherfield ambient reverb (AUv3 macOS)</string>
 					<key>factoryFunction</key>
 					<string>AetherfieldAudioUnitFactory</string>
 					<key>manufacturer</key>

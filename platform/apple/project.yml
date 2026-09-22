@@ -99,6 +99,63 @@ targets:
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
+  AetherfieldAUExtensionMacOS:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "12.0"
+    sources:
+      - path: ../../src/dsp
+        excludes: ["*.h"]
+      - path: ../../src/wrapper
+        excludes: ["*.h"]
+      - path: ../../src/auv3
+    settings:
+      HEADER_SEARCH_PATHS: ["$(SRCROOT)/../../src"]
+      CLANG_CXX_LANGUAGE_STANDARD: "c++20"
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHostMacOS.AetherfieldAUExtensionMacOS
+      DEVELOPMENT_TEAM: W2VVZU52J6
+      CODE_SIGN_STYLE: Automatic
+    info:
+      path: ../../src/auv3/Info.plist
+      properties:
+        CFBundleDisplayName: Aetherfield
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.AudioUnit
+          NSExtensionPrincipalClass: AetherfieldAudioUnitFactory
+          NSExtensionAttributes:
+            AudioComponents:
+              - type: aufx
+                subtype: Aeth
+                manufacturer: Josh
+                name: "Aetherfield: Reverb"
+                description: "Aetherfield ambient reverb (AUv3 macOS)"
+                version: 1
+                factoryFunction: AetherfieldAudioUnitFactory
+                sandboxSafe: true
+                tags:
+                  - Effects
+    dependencies:
+      - sdk: AudioToolbox.framework
+      - sdk: AVFoundation.framework
+  AetherfieldHostMacOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "12.0"
+    sources:
+      - path: AetherfieldHost
+    info:
+      path: AetherfieldHost/Info.plist
+      properties: {}
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHostMacOS
+      GENERATE_INFOPLIST_FILE: true
+      DEVELOPMENT_TEAM: W2VVZU52J6
+      CODE_SIGN_STYLE: Automatic
+      CURRENT_PROJECT_VERSION: "1"
+      MARKETING_VERSION: "1.0"
+    dependencies:
+      - target: AetherfieldAUExtensionMacOS
+        embed: true
   AetherfieldHost:
     type: application
     platform: iOS
