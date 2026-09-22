@@ -374,23 +374,25 @@ on both sample-rate and channel-count validation failures (commit 43b2acc).
 - Full test: 0.423 seconds, 1 executed, 0 failures
 - Commits: 43b2acc (AU fix), df702af (documentation)
 
-**HT-10 (Offline Determinism) — Infrastructure issues identified**
+**HT-10 (Offline Determinism) — macOS AU bundle type fixed**
+- Root cause identified and fixed: xcodegen was generating `.appex` bundles (iOS app-extension format)
+- macOS AU plugins require `.component` bundles, not `.appex`
+- Fix applied (commit 698aedd): Changed target type from `app-extension` to `bundle`, added WRAPPER_EXTENSION: component
+- macOS AU Extension now builds as proper `.component` bundle with:
+  - Correct bundle structure (Contents/MacOS, Contents/Info.plist, Contents/PkgInfo)
+  - Valid code signature (BNDL package type)
+  - AudioComponent definition in Info.plist (type: aufx, name: "Aetherfield: Reverb")
+- AU installed at ~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component
 - REAPER MCP bridge: ✅ Installed and running (`reaper_mcp_server.lua` active)
-- macOS AU Extension: ⚠️ Plugin discovery issue
-  - AU binary built and signed correctly
-  - Info.plist AudioComponent definition required manual `type: aufx` field addition
-  - REAPER fails to enumerate/load the AU despite valid configuration
-  - Root cause: xcodegen build configuration not generating Info.plist fields correctly
-  - Next: Either fix xcodegen config or rebuild using different approach
-- Deferred to next session: Investigation/resolution of macOS AU registration issue
+
+**Next session: HT-10 execution ready**
+1. Load MCP bridge in REAPER (if not auto-loaded): Actions → Load ReaScript → select reaper_mcp_server.lua
+2. Rescan AU in REAPER: Actions → Rescan Audio Units
+3. Verify AU discovery via MCP: Call `fx_list_installed`, confirm "Aetherfield: Reverb" appears
+4. Run HT-10 render procedure (see HT10_REAPER_MCP_SETUP.md for exact MCP sequence)
 
 HT-1 (discovery/instantiation), HT-3 (render call), HT-2 (rate negotiation)
-now complete. HT-10 awaits AU discovery fix; HT-4/5/6/8/9/11/12 deferred.
-
-**Recommended next steps:**
-1. Fix xcodegen macOS AU Info.plist generation (or use iOS simulator AU with workaround)
-2. Complete HT-10 offline determinism test once AU is discoverable in REAPER
-3. Proceed with remaining golden-path or deferred tasks per roadmap
+complete. HT-10 ready for execution; HT-4/5/6/8/9/11/12 deferred.
 
 **Follow-up investigation, same day, now complete as far as this project's
 own source can take it:** the identical leading-zero-frame scenario was
