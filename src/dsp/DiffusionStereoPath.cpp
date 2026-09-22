@@ -198,6 +198,10 @@ bool DiffusionStereoPath::setMix(double normalized) noexcept {
     return state_ && state_->automation.setMix(normalized);
 }
 
+bool DiffusionStereoPath::setAll(double decay, double damp, double mix) noexcept {
+    return state_ && state_->automation.setAll(decay, damp, mix);
+}
+
 ParameterAutomation::NormalizedControls DiffusionStereoPath::controls() const noexcept {
     return state_ ? state_->automation.getAll() : ParameterAutomation::NormalizedControls {};
 }

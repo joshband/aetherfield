@@ -33,6 +33,7 @@ target_compile_definitions(aetherfield_dsp_diffusion_stereo_tests PRIVATE AETHER
 
 add_library(aetherfield_wrapper STATIC
     src/wrapper/ParameterBridge.cpp
+    src/wrapper/StateSchema.cpp
     src/wrapper/HybridBypassController.cpp
 )
 target_include_directories(aetherfield_wrapper PUBLIC src)

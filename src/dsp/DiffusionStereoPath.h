@@ -85,6 +85,11 @@ public:
     bool setDecay(double normalized) noexcept;
     bool setDamp(double normalized) noexcept;
     bool setMix(double normalized) noexcept;
+    // Atomic 3-parameter publish (ADR-011 §4): sets all three targets
+    // together in one generation increment. See ParameterAutomation::setAll()
+    // for the full contract. Control-thread only, never concurrent with itself
+    // or individual setters.
+    bool setAll(double decay, double damp, double mix) noexcept;
     ParameterAutomation::NormalizedControls controls() const noexcept;
     std::size_t silenceBoundSamples(float inputEnvelope) const noexcept;
 

@@ -26,13 +26,24 @@ struct MailboxCell {
     std::atomic<std::uint64_t> generation {0};
 };
 
+// StateRestore tuple for ADR-011 §4's atomic 3-parameter application.
+// The Bridge Controller applies a complete tuple atomically via setAll(),
+// never split across three separate parameter writes.
+struct RestoreTuple {
+    double decay;
+    double damp;
+    double mix;
+};
+
 // ADR-008's Bridge Controller state: six fixed mailbox cells (Host x 3,
-// UI x 3) and the single-writer drain-and-apply step. writeHost()/writeUi()
-// are wait-free and callable from any thread, including the render thread
-// (for Host, per ADR-008 section 1's render-thread intake). drain() must
+// UI x 3), a three-slot StateRestore buffer for atomic pre-render/live
+// restores (ADR-011 §4), and the single-writer drain-and-apply step.
+// writeHost()/writeUi() are wait-free and callable from any thread,
+// including the render thread (for Host, per ADR-008 section 1's render-
+// thread intake). writeRestore() is control-thread only. drain() must
 // never be called concurrently with itself -- it is the one Bridge
 // Controller task ADR-008 section 1 requires -- and is the only thing in
-// this class allowed to call DiffusionStereoPath::setDecay/setDamp/setMix.
+// this class allowed to call DiffusionStereoPath::setDecay/setDamp/setMix/setAll.
 class ParameterBridge {
 public:
     ParameterBridge() noexcept;
@@ -46,20 +57,41 @@ public:
     void writeHost(Parameter parameter, float normalizedValue) noexcept;
     void writeUi(Parameter parameter, float normalizedValue) noexcept;
 
-    // The Bridge Controller's drain-and-apply step (ADR-008 sections 1,
-    // 2, 5): for each parameter with a pending value from either role,
-    // applies at most one call to the corresponding DiffusionStereoPath
-    // setter, using the fixed scan order Host-then-UI so a same-drain UI
-    // write always wins over a same-drain Host write (ADR-008 section 2).
+    // StateRestore producer (ADR-011 §4): control-thread only, never
+    // concurrent with itself or with Host/UI writes. Publishes a complete
+    // control triple into the next available slot, then wait-free publishes
+    // the slot index and generation. drain() will observe this and apply it
+    // as one atomic setAll() call between Host and UI mailbox drains.
+    void writeRestore(const RestoreTuple& tuple) noexcept;
+
+    // The Bridge Controller's drain-and-apply step (ADR-008 sections 1, 2,
+    // 5; ADR-011 §4 item 2): applies pending Host updates first, then a
+    // pending StateRestore tuple if present (via setAll()), then pending UI
+    // updates last. This reproduces the original Host-then-StateRestore-then-UI
+    // order, ensuring a restore still overrides stale Host values from an
+    // earlier pass, and a same-pass UI touch still wins over a restore.
     // Must never run concurrently with itself. Returns the number of
     // parameters actually applied (0..3), for test/diagnostic use only.
     std::size_t drain(aetherfield::dsp::DiffusionStereoPath& path) noexcept;
+
+    // Drains a pending StateRestore tuple if one exists (used by drain()
+    // internally, but also testable independently). Returns true if a
+    // restore was applied, false otherwise.
+    bool drainRestore(aetherfield::dsp::DiffusionStereoPath& path) noexcept;
 
 private:
     std::array<MailboxCell, kParameterCount> hostCells_;
     std::array<MailboxCell, kParameterCount> uiCells_;
     std::array<std::uint64_t, kParameterCount> consumedHostGeneration_ {};
     std::array<std::uint64_t, kParameterCount> consumedUiGeneration_ {};
+
+    // StateRestore triple-buffer (ADR-011 §4): three preallocated tuple
+    // slots, a slot index (next = (lastPublishedIndex + 1) % 3), and a
+    // generation counter for the reader (drain) to detect new publishes.
+    std::array<RestoreTuple, 3> restoreTuples_ {};
+    std::atomic<std::uint32_t> restoreSlotIndex_ {0};
+    std::atomic<std::uint64_t> restoreGeneration_ {0};
+    std::uint64_t consumedRestoreGeneration_ = 0;
 };
 
 // ADR-008 section 3's render-thread-side intake coalescing, factored out

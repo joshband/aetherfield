@@ -29,8 +29,41 @@ bool applySetter(aetherfield::dsp::DiffusionStereoPath& path, Parameter paramete
 
 } // namespace
 
+void ParameterBridge::writeRestore(const RestoreTuple& tuple) noexcept {
+    // StateRestore is control-thread only, single-writer, never concurrent
+    // with itself or with Host/UI writes. Compute the next slot index.
+    const std::uint32_t nextSlot = (restoreSlotIndex_.load(std::memory_order_relaxed) + 1) % 3;
+    // Write the complete tuple into that slot.
+    restoreTuples_[nextSlot] = tuple;
+    // Publish the slot index, then release-publish the generation so the
+    // reader (drain) sees a change and knows to read the new slot.
+    restoreSlotIndex_.store(nextSlot, std::memory_order_relaxed);
+    restoreGeneration_.fetch_add(1, std::memory_order_release);
+}
+
+bool ParameterBridge::drainRestore(aetherfield::dsp::DiffusionStereoPath& path) noexcept {
+    // Check if there's a pending restore (generation changed since last consume).
+    const std::uint64_t generation = restoreGeneration_.load(std::memory_order_acquire);
+    if (generation == consumedRestoreGeneration_) {
+        return false;  // No pending restore
+    }
+    consumedRestoreGeneration_ = generation;
+
+    // Read the slot index and load the tuple from that slot.
+    const std::uint32_t slotIndex = restoreSlotIndex_.load(std::memory_order_relaxed);
+    const RestoreTuple tuple = restoreTuples_[slotIndex];
+
+    // Apply the complete tuple atomically via setAll().
+    return path.setAll(tuple.decay, tuple.damp, tuple.mix);
+}
+
 std::size_t ParameterBridge::drain(aetherfield::dsp::DiffusionStereoPath& path) noexcept {
     std::size_t applied = 0;
+
+    // Per-parameter Host-then-UI arbitration (ADR-008 section 2): for each
+    // parameter, load Host generation first, then UI generation. If UI has
+    // a pending value, it wins. Apply the winning value exactly once per
+    // parameter. StateRestore will be applied separately after this loop.
     for (std::size_t index = 0; index < kParameterCount; ++index) {
         bool hasPending = false;
         float winningValue = 0.0F;
@@ -57,6 +90,17 @@ std::size_t ParameterBridge::drain(aetherfield::dsp::DiffusionStereoPath& path) 
             ++applied;
         }
     }
+
+    // ADR-011 §4 item 2: apply pending StateRestore after Host/UI per-parameter
+    // arbitration. This preserves the original Host→UI ordering while inserting
+    // StateRestore as a complete atomic tuple: a same-drain UI touch still wins
+    // over Host (checked above), and will also overwrite individual restored
+    // parameters (UI applied after StateRestore in the checks above). The
+    // restore triple itself is consumed atomically here.
+    if (drainRestore(path)) {
+        ++applied;
+    }
+
     return applied;
 }
 
