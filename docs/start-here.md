@@ -342,11 +342,22 @@ per ADR-012) due to iOS/AUM provisioning friction. This session:
    and explicit out-of-scope items (HT-4/5/6/8/9/11/12 deferred; no REAPER
    MCP fork/modify; no sudo-level AU install).
 
-**HT-1 and HT-3 remain complete** from prior session (iPhone 16 Pro Max,
-commit 810d495). HT-2 implementation complete and committed (77844dc).
-HT-10 ready for execution after REAPER MCP user-level registration.
-HT-4/5/6/8/9/11/12 remain unrun; next session can continue from either HT-10
-execution or pivot to HT-4/5 via XCTest/REAPER if prioritized.
+**Session 2026-09-23: HT-2/HT-10 infrastructure setup**
+
+HT-2 implementation complete and committed (77844dc). Ready for physical device execution.
+
+HT-10 infrastructure setup complete (2026-09-23):
+- ✅ REAPER MCP installed via pipx
+- ✅ ~/.claude.json configured with reaper MCP server
+- ✅ AU Extension copied to ~/Library/Audio/Plug-Ins/Components/
+- ⏳ Awaiting user: load MCP bridge in REAPER (Actions > Load ReaScript > reaper_mcp_server.lua)
+
+HT-1 and HT-3 remain complete from prior session (iPhone 16 Pro Max, commit 810d495).
+HT-4/5/6/8/9/11/12 remain unrun; next session can execute HT-2/HT-10 or pivot if prioritized.
+
+**Next session:** 
+1. For HT-2: Run on physical iPhone 16 Pro Max (test is ready)
+2. For HT-10: Complete REAPER MCP bridge load step, then execute render procedure
 
 **Follow-up investigation, same day, now complete as far as this project's
 own source can take it:** the identical leading-zero-frame scenario was

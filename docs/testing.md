@@ -2793,3 +2793,50 @@ For all future tests: use named cases, print the failed condition, and return no
 - Task 0 full authorization: all device corners, AUM primary host, Release signed builds, execution scope per evidence contract
 
 No architectural revision, no further DSP core or wrapper implementation authorized by these results. HT-2/HT-4–6/HT-11–12 remain deferred pending full matrix or separate authorization.
+
+## Session 2026-09-23: HT-2/HT-10 infrastructure setup (golden-path preparation)
+
+**Session focus:** Complete HT-2 and HT-10 implementation and infrastructure setup for next-session execution.
+
+### Infrastructure completed
+
+**REAPER MCP setup (for HT-10):**
+- ✅ `xdarkzx-reaper-mcp` installed via pipx at `/Users/artbox/.local/bin/reaper-mcp`
+- ✅ ~/.claude.json updated with `mcpServers.reaper: { "command": "reaper-mcp" }`
+- ✅ AU Extension copied to `~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.appex`
+
+**HT-2 (Rate negotiation) test implementation:**
+- ✅ `testHT2RateNegotiationRejectsUnsupportedRateAndPreservesPriorOutput` implemented in `platform/apple/AetherfieldHarnessTests/PhysicalAcceptanceTests.mm` (commit 77844dc)
+- Tests both supported rates (48 kHz, 44.1 kHz)
+- Verifies NSError rejection (domain, code, description) for unsupported 96 kHz
+- Confirms bit-exact output recovery after rejected rate change
+- Ready for physical device execution on iPhone 16 Pro Max
+
+### Next session: User action required for HT-10
+
+To complete HT-10 execution:
+
+1. Start REAPER (if not already running)
+2. In REAPER: Actions → Load ReaScript → select `reaper_mcp_server.lua` from installed xdarkzx-reaper-mcp package
+   - Package location: `~/.local/pipx/venvs/xdarkzx-reaper-mcp/lib/python3.14/site-packages/reaper_mcp/`
+   - Or REAPER may have auto-loaded it; check Actions list for MCP bridge status
+3. In REAPER: Actions → Rescan Audio Units (to refresh plugin registry)
+4. Call MCP tool `fx_list_installed` to confirm AU is discoverable (should appear as "Aetherfield: Reverb")
+5. Run HT-10 render procedure (see HT10_REAPER_MCP_SETUP.md for exact MCP tool sequence)
+
+### Execution commands (for next session)
+
+**HT-2:** Run on physical iPhone 16 Pro Max via Xcode (existing harness scheme):
+```sh
+# Exact command from testing.md's prior HT-1/HT-3 runs — confirm in plan
+xcodebuild test -scheme AetherfieldHarness -destination 'generic/platform=iOS' \
+  -only-testing AetherfieldHarnessTests/AetherfieldPhysicalAcceptanceTests/testHT2RateNegotiationRejectsUnsupportedRateAndPreservesPriorOutput
+```
+
+**HT-10:** Execute via MCP once bridge is loaded and AU is discoverable.
+
+### Deferred
+
+- HT-4, HT-5, HT-6, HT-8, HT-9, HT-11, HT-12 remain unrun (out of golden-path scope)
+- Full device matrix coverage (1 of 4 corners tested in prior session)
+
