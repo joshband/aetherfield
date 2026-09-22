@@ -1,6 +1,0 @@
-Command line invocation:
-    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project platform/apple/Aetherfield.xcodeproj -scheme AetherfieldHost -configuration Release -destination id=null test -testPlan AetherfieldHarnessTests -only-testing AetherfieldHarnessTests/PhysicalAcceptanceTests/testHT3PartitionedRenderingBitExact
-
-2026-09-21 22:32:03.012 xcodebuild[64201:504540] Writing error result bundle to /var/folders/mp/ldfr4r412hs4yx79jv7zptjm0000gn/T/ResultBundle_2026-21-09_22-32-0003.xcresult
-xcodebuild: error: Scheme AetherfieldHost is not currently configured for the test action.
-
