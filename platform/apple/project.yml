@@ -120,21 +120,17 @@ targets:
       path: ../../src/auv3/Info.plist
       properties:
         CFBundleDisplayName: Aetherfield
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.AudioUnit
-          NSExtensionPrincipalClass: AetherfieldAudioUnitFactory
-          NSExtensionAttributes:
-            AudioComponents:
-              - type: aufx
-                subtype: Aeth
-                manufacturer: Josh
-                name: "Aetherfield: Reverb"
-                description: "Aetherfield ambient reverb (AUv3 macOS)"
-                version: 1
-                factoryFunction: AetherfieldAudioUnitFactory
-                sandboxSafe: true
-                tags:
-                  - Effects
+        AudioComponents:
+          - type: aufx
+            subtype: Aeth
+            manufacturer: Josh
+            name: "Aetherfield: Reverb"
+            description: "Aetherfield ambient reverb (AUv3 macOS)"
+            version: 1
+            factoryFunction: AetherfieldAudioUnitFactory
+            sandboxSafe: true
+            tags:
+              - Effects
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
