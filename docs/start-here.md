@@ -197,10 +197,19 @@ decisions before an implementation checkpoint can be authorized.
   (setAll → checkForNewTargets → reset) in `allocateRenderResourcesAndReturnError`,
   per ADR-011 Design note item 3. `DiffusionStereoPath::checkForNewTargets()`
   wrapper. Live restore via bridge drain available but untested.
+- **Checkpoint 4** (commit `d1f07d8`): AU fullState codec and integration. Resolves
+  SR-P4 (flat-dictionary format), SR-P6 (mismatch logging), SR-P8 (save captures
+  drained targets) with practical defaults documented in
+  `phase1-state-restore-checkpoint4-decisions.md`. Implements `getState()` to
+  return fullState dictionary with schemaVersion, normalized control values, and
+  fixture identity. Implements `setState()` to parse, validate via StateSchema,
+  and queue restore. Captures fixture identity at prepare time. All 8/8 CTest
+  suites pass; Xcode Release build succeeds (iPhone 26.0, unsigned).
 
-**Deferred:** fullState NSCoding codec (SR-P4), mismatch surfacing (SR-P6),
-parameter-tree synchronization (SR-P8), HT-7 host/device evidence. No UI,
-diagnostics, or round-trip save/load verified. All 8/8 CTest suites pass.
+**Deferred:** HT-7 host/device evidence for click-free restore, parameter-tree
+synchronization visibility, round-trip save/restore listening. SR-P1/SR-P2/SR-P3
+atomicity proofs remain documented in code, not formally proven. No UI notifications,
+factory presets, or bypass state persistence. All 8/8 CTest suites pass.
 
 **Host/device acceptance Task 0 discovery and signing unblock (2026-09-20):**
 the owner picked this track as the next focus at an interactive check-in.
