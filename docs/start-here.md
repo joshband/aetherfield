@@ -181,6 +181,19 @@ The host/device plan keeps HT-7 blocked pending the state-restore prerequisite;
 the state-restore plan names its unresolved ownership and publication-safety
 decisions before an implementation checkpoint can be authorized.
 
+**ADR-011 core obligations implemented (2026-09-22):** commit `65bf878`
+implements the two DSP-library obligations ADR-011 §1/§4 named and the
+2026-09-19 Design note finalized: `ParameterAutomation::getAll()` (read-back
+accessor, already existed; verified) and `ParameterAutomation::setAll(decay,
+damp, mix)` (atomic 3-parameter publish with whole-triple non-finite rejection,
+per-field clamping, and single-call `publish()` for atomicity). Both follow
+the Design note's recommendations: getAll lives on the core (single source of
+truth), and setAll uses whole-triple rejection (not per-field fallback) because
+atomicity is the entire purpose of the entry point. All 8/8 CTest suites pass.
+These obligations close ADR-011's core requirements only; wrapper-level state
+serialization, deserialization, and the publish/checkForNewTargets/reset snap
+sequencing remain implementation-plan-level work, not yet authorized.
+
 **Host/device acceptance Task 0 discovery and signing unblock (2026-09-20):**
 the owner picked this track as the next focus at an interactive check-in.
 Confirmed: HEAD is exactly `145a69f` with no intervening commits (baseline
