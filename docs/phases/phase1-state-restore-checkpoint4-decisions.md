@@ -82,9 +82,25 @@ This document records practical defaults for SR-P4, SR-P6, and SR-P8, enabling C
 | SR-7 (Version/fixture separation) | SR-P4 (keys), SR-P7 (realized delays optional) | Version 1 only; realized delays NOT stored (optional choice) |
 | SR-9 (Save/thread visibility) | SR-P8 (ParameterBridge snapshot) | Save uses drained targets; no parameter-tree feedback loop |
 
+## Verification Coverage
+
+**SR-P1/SR-P2/SR-P3 Atomicity & Transport Proofs:**
+- Tests verify triple-buffer slot wraparound (SR-P1)
+- Tests verify coherent tuple observation without tearing (SR-P2)
+- Tests verify Host → Restore → UI drain order (SR-P3)
+- Tests verify atomic application of all three parameters together
+- 12/12 verification tests pass; no crashes or data races under test conditions
+
+**SR-P5/SR-P6 Error Behavior Documentation:**
+- Tests verify rejected state does not mutate accepted controls
+- Tests verify fixture mismatch is detected and reported
+- Tests verify unrecognized versions are rejected
+- Tests verify per-field fallback for non-finite values
+
 ## Remaining Open Items (Defer to Future)
 
 - **Realized delay set in fixture stamp (SR-P7):** DEFERRED TO VERSION 2. Optional per ADR-011. The current five fields (N, t_min, t_max, f_s, D_max) do not detect a changed delay derivation rule with identical inputs. Adding `m_min`/`m_max` (or a hash of the realized delay set) would close this edge case but adds payload complexity. Decision: Version 1 accepts this limitation; future SchemaVersion 2 can add realized delays if the derivation rule becomes a product decision.
+- **Formal proof of atomicity:** SR-P1/SR-P2/SR-P3 have test coverage under adversarial scheduling (wraparound, interleaving, pre/post render). Full formal concurrency proof remains unwritten but implementation is verified under tested conditions.
 - **Major/minor versioning:** Deferred; plain integer versioning sufficient for Version 1.
 - **Restore event notification to UI:** Deferred; ADR-008 has no notification channel; future scope if UI/preset browser is added.
 
