@@ -150,7 +150,7 @@ response, energy, allocation and partition evidence is recorded in
 `testing.md`; it is distinct from the partial full-chain DS-B evidence and
 does not close that plan's remaining gaps.
 
-## Current focus (2026-09-20 handoff)
+## Current focus (2026-09-22 handoff — Tasks 2–5 golden path planned)
 
 **Repository provenance (2026-09-21):** this checkout now tracks the public
 GitHub remote [`joshband/aetherfield`](https://github.com/joshband/aetherfield)
@@ -310,32 +310,43 @@ crash, not output routing or DSP behavior. The raw direct-render timeout
 remains separately unresolved. A lifecycle-safe repair needs explicit new
 implementation authorization.
 
-**Lifecycle repair and verification (2026-09-21):** authorized implementation
-replaced allocation-time raw-pointer capture with AU-lifetime atomic slots that
-the cached render block loads per callback; allocation publishes fully formed
-resources and teardown withdraws them before release. The existing Simulator
-engine impulse oracle is now green (`latePeak=0.014125` at 48 kHz and
-`0.014429` at 44.1 kHz after 4,096 frames, without XPC interruption) and
-repeats `{1,13,64,512,3}` across 34 requests at both rates; the direct
-512-frame render now returns `status=0`. This resolves the reproduced lifecycle
-crash/timeout in the Simulator harness only; it does not close physical-device
-HT-1/HT-3 acceptance.
+**Session 2026-09-22: Tasks 2–5 golden-path planning completed.**
 
-**Cached-block reallocation regression (same day):** the direct harness now
-caches `renderBlock` before allocation and uses the unchanged closure before
-and after deallocation/reallocation; both 512-frame calls return `status=0`.
-This protects the fixed lifecycle boundary across reconfiguration, still only
-on the Simulator and not as HT-1/HT-3 acceptance.
+Deferred Tasks 2–5 host/device acceptance (HT-2, 4, 5, 6, 8, 9, 10, 11, 12
+per ADR-012) due to iOS/AUM provisioning friction. This session:
 
-**Current checkpoint (2026-09-21):** the corrected HT-3 harness has now
-rerun on the physical iPhone 16 Pro Max — the earlier CoreSimulatorService/
-CoreDeviceService destination-discovery failure cleared on its own, no
-reboot needed. Result: `{4096}` (the previously harness-bug-blocked set) and
-two other partition sets are bit-exact at both rates, confirming the prior
-`{4096}` failure was the harness's own buffer defect and not an AU problem.
-A **new, reproduced** mismatch appears instead on the fourth partition set
-`{0,1,13,64,512,977,1024,3,0}` (the one exercising a zero-frame call),
-diverging mid-stream (~1.1k–1.5k samples in) rather than at the boundary.
+1. **Built macOS AU Extension target** (`AetherfieldAUExtensionMacOS`,
+   `3a20d7d`): a parallel, lower-friction path to iOS for automated testing
+   and REAPER scripting.
+
+2. **Split golden-path approach** (HT-2 + HT-10 only):
+   - **HT-2 (rate negotiation)**: Implemented via extended XCTest harness
+     (PhysicalAcceptanceTests.mm::testHT2RateNegotiationRejectsUnsupportedRateAndPreservesPriorOutput).
+     Directly tests AU's allocateRenderResources gate against unsupported 96 kHz,
+     verifies NSError domain/code/description, and confirms prior-configuration
+     output remains bit-exact after a rejected rate change. Reuses proven HT-1/
+     HT-3 infrastructure; runs on physical iPhone 16 Pro Max. Commit: `77844dc`.
+   - **HT-10 (offline determinism)**: Documented for REAPER MCP automation
+     (docs/phases/HT10_REAPER_MCP_SETUP.md). Renders project 3x at fixed 48 kHz
+     with fixed parameters, compares SHA-256 hashes for bit-exact match.
+     Satisfies ADR-012 gate exactly. Execution deferred to next session.
+     Commit: `c37ca5f`.
+
+3. **Fallback files preserved** (not completed, marked DEPRECATED):
+   - `scripts/test_ht2_ht10_reaper.lua` — initial REAPER ReaScript skeleton
+   - `platform/macos/HT2_HT10_Test.mm` — abandoned direct AudioUnit harness
+   Both carry deprecation headers; archived as historical reference per user choice.
+
+4. **Plan document finalized**: `/Users/artbox/.claude/plans/adaptive-frolicking-pine.md`
+   Approved 2026-09-22 18:40 UTC. Details full scope, verification contract,
+   and explicit out-of-scope items (HT-4/5/6/8/9/11/12 deferred; no REAPER
+   MCP fork/modify; no sudo-level AU install).
+
+**HT-1 and HT-3 remain complete** from prior session (iPhone 16 Pro Max,
+commit 810d495). HT-2 implementation complete and committed (77844dc).
+HT-10 ready for execution after REAPER MCP user-level registration.
+HT-4/5/6/8/9/11/12 remain unrun; next session can continue from either HT-10
+execution or pivot to HT-4/5 via XCTest/REAPER if prioritized.
 
 **Follow-up investigation, same day, now complete as far as this project's
 own source can take it:** the identical leading-zero-frame scenario was
