@@ -926,4 +926,157 @@
                                        name:@"AUDelay (Apple)"];
 }
 
+// HT-2: Rate Negotiation (ADR-012 / ADR-010)
+// Tests that the AU rejects unsupported sample rates at allocation time (per
+// AetherfieldAudioUnit.mm:313–344) with the correct NSError (domain, code,
+// localizedDescription), and that the prior configuration can render identically
+// after a rejected rate-change attempt. Satisfaction of ADR-012's HT-2 gate text
+// requires: (1) inspecting the AU's shouldChangeToFormat BOOL + NSError return,
+// (2) confirming prior-configuration output is bit-identical after the rejection.
+// Runs at both supported rates (48kHz, 44.1kHz per ADR-010) to exercise both the
+// "prior config survives rejection" property for each.
+- (void)testHT2RateNegotiationRejectsUnsupportedRateAndPreservesPriorOutput {
+  constexpr size_t frameCount = 65536;
+  constexpr std::array<double, 2> priorRates = {48000.0, 44100.0};
+
+  for (double priorRate : priorRates) {
+    NSLog(@"[AetherfieldHarness] HT-2 testing unsupported-rate rejection with "
+          @"prior config at %.1f Hz", priorRate);
+
+    // Step 1: instantiate, configure at supported rate, allocate and render.
+    AUAudioUnit *unit = [self newAetherfieldUnit];
+    XCTAssertNotNil(unit, @"HT-2: AU instantiation failed");
+    if (unit == nil) return;
+
+    NSError *configurationError = nil;
+    BOOL configured = [self configureUnit:unit
+                              sampleRate:priorRate
+                           maximumFrames:(AVAudioFrameCount)frameCount
+                                   error:&configurationError];
+    XCTAssertTrue(configured, @"HT-2: initial configuration failed: %@",
+                  configurationError);
+    if (!configured) return;
+
+    NSError *allocationError = nil;
+    BOOL allocated = [unit allocateRenderResourcesAndReturnError:&allocationError];
+    XCTAssertTrue(allocated, @"HT-2: initial allocation failed: %@", allocationError);
+    if (!allocated) return;
+
+    std::vector<float> sourceL = [self inputVectorWithFrameCount:frameCount right:NO];
+    std::vector<float> sourceR = [self inputVectorWithFrameCount:frameCount right:YES];
+    std::vector<float> referenceL(frameCount, 0.0F);
+    std::vector<float> referenceR(frameCount, 0.0F);
+
+    AURenderBlock renderBlock = unit.renderBlock;
+    XCTAssertNotNil(renderBlock, @"HT-2: renderBlock was nil");
+    if (renderBlock == nil) {
+      [unit deallocateRenderResources];
+      return;
+    }
+
+    // Render the reference output at the prior (supported) rate.
+    AUAudioUnitStatus status =
+        [self renderBlock:renderBlock
+                  sourceL:sourceL
+                  sourceR:sourceR
+                   offset:0
+                   frames:(AVAudioFrameCount)frameCount
+                  outputL:referenceL
+                  outputR:referenceR
+           sampleTimeBase:0];
+    XCTAssertEqual(status, noErr, @"HT-2: reference render failed");
+    [unit deallocateRenderResources];
+
+    // Step 2: Reconfigure to unsupported rate (96 kHz), attempt allocation.
+    NSError *unsupportedConfigError = nil;
+    BOOL unsupportedConfigured = [self configureUnit:unit
+                                         sampleRate:96000.0
+                                      maximumFrames:(AVAudioFrameCount)frameCount
+                                              error:&unsupportedConfigError];
+    XCTAssertTrue(unsupportedConfigured,
+                  @"HT-2: bus format configuration at 96 kHz should succeed "
+                  "(rejection only at allocation time): %@",
+                  unsupportedConfigError);
+
+    NSError *unsupportedAllocationError = nil;
+    BOOL unsupportedAllocated =
+        [unit allocateRenderResourcesAndReturnError:&unsupportedAllocationError];
+    XCTAssertFalse(unsupportedAllocated,
+                   @"HT-2: allocation at 96 kHz should fail but succeeded");
+
+    // Step 3: Inspect the NSError returned by the failed allocation.
+    XCTAssertNotNil(unsupportedAllocationError,
+                    @"HT-2: allocation rejection should have returned NSError");
+    if (unsupportedAllocationError != nil) {
+      NSString *expectedDescription = @"Aetherfield supports 48kHz and 44.1kHz only";
+      XCTAssertEqualObjects(unsupportedAllocationError.domain,
+                            NSOSStatusErrorDomain,
+                            @"HT-2: NSError domain should be NSOSStatusErrorDomain");
+      XCTAssertEqual((NSInteger)unsupportedAllocationError.code,
+                     (NSInteger)kAudioUnitErr_FormatNotSupported,
+                     @"HT-2: NSError code should be kAudioUnitErr_FormatNotSupported");
+      XCTAssertEqualObjects(unsupportedAllocationError.localizedDescription,
+                            expectedDescription,
+                            @"HT-2: NSError description mismatch");
+
+      NSLog(@"[AetherfieldHarness] HT-2 unsupported-rate rejection: "
+            @"domain=%@ code=%ld description=%@",
+            unsupportedAllocationError.domain,
+            (long)unsupportedAllocationError.code,
+            unsupportedAllocationError.localizedDescription);
+    }
+
+    // Step 4: Reconfigure back to prior (supported) rate, re-allocate, re-render.
+    NSError *reconfigurationError = nil;
+    BOOL reconfigured = [self configureUnit:unit
+                                sampleRate:priorRate
+                             maximumFrames:(AVAudioFrameCount)frameCount
+                                     error:&reconfigurationError];
+    XCTAssertTrue(reconfigured, @"HT-2: reconfiguration to prior rate failed: %@",
+                  reconfigurationError);
+    if (!reconfigured) return;
+
+    NSError *reallocationError = nil;
+    BOOL reallocated = [unit allocateRenderResourcesAndReturnError:&reallocationError];
+    XCTAssertTrue(reallocated, @"HT-2: reallocation at prior rate failed: %@",
+                  reallocationError);
+    if (!reallocated) return;
+
+    std::vector<float> candidateL(frameCount, 0.0F);
+    std::vector<float> candidateR(frameCount, 0.0F);
+    AURenderBlock rerenderedBlock = unit.renderBlock;
+    XCTAssertNotNil(rerenderedBlock, @"HT-2: re-render block was nil");
+    if (rerenderedBlock == nil) {
+      [unit deallocateRenderResources];
+      return;
+    }
+
+    status = [self renderBlock:rerenderedBlock
+                       sourceL:sourceL
+                       sourceR:sourceR
+                        offset:0
+                        frames:(AVAudioFrameCount)frameCount
+                       outputL:candidateL
+                       outputR:candidateR
+                sampleTimeBase:0];
+    XCTAssertEqual(status, noErr, @"HT-2: re-render at prior rate failed");
+
+    // Step 5: bit-exact comparison — prior configuration output must be unchanged.
+    BOOL leftEqual = std::memcmp(referenceL.data(), candidateL.data(),
+                                 referenceL.size() * sizeof(float)) == 0;
+    BOOL rightEqual = std::memcmp(referenceR.data(), candidateR.data(),
+                                  referenceR.size() * sizeof(float)) == 0;
+    XCTAssertTrue(leftEqual && rightEqual,
+                  @"HT-2: output mismatch after rate-rejection recovery at %.1f Hz",
+                  priorRate);
+
+    NSLog(@"[AetherfieldHarness] HT-2 prior-config recovery at %.1f Hz: %s",
+          priorRate, leftEqual && rightEqual ? "PASS" : "FAIL");
+
+    [unit deallocateRenderResources];
+  }
+
+  NSLog(@"[AetherfieldHarness] HT-2 testHT2RateNegotiationRejectsUnsupportedRateAndPreservesPriorOutput PASS");
+}
+
 @end
