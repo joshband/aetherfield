@@ -374,14 +374,16 @@ on both sample-rate and channel-count validation failures (commit 43b2acc).
 - Full test: 0.423 seconds, 1 executed, 0 failures
 - Commits: 43b2acc (AU fix), df702af (documentation)
 
-**HT-10 (Offline Determinism) — macOS AU bundle type fixed**
-- Root cause identified and fixed: xcodegen was generating `.appex` bundles (iOS app-extension format)
-- macOS AU plugins require `.component` bundles, not `.appex`
-- Fix applied (commit 698aedd): Changed target type from `app-extension` to `bundle`, added WRAPPER_EXTENSION: component
-- macOS AU Extension now builds as proper `.component` bundle with:
-  - Correct bundle structure (Contents/MacOS, Contents/Info.plist, Contents/PkgInfo)
-  - Valid code signature (BNDL package type)
-  - AudioComponent definition in Info.plist (type: aufx, name: "Aetherfield: Reverb")
+**HT-10 (Offline Determinism) — macOS AU registration fixed**
+- Root cause 1: xcodegen was generating `.appex` (iOS app-extension), macOS needs `.component`
+- Root cause 2: Info.plist had AudioComponents nested in NSExtension (iOS AUv3 format), macOS requires top-level
+- Fixes applied (commits 698aedd, 320b760):
+  1. Changed target type from `app-extension` to `bundle`, added `WRAPPER_EXTENSION: component`
+  2. Moved AudioComponents from NSExtension to top-level in Info.plist (traditional macOS AU registration)
+- macOS AU Extension now builds as proper `.component` bundle matching system AU format:
+  - AudioComponents at top-level (like Acid V, not nested under NSExtension)
+  - Contents/MacOS/binary, Contents/Info.plist, Contents/PkgInfo (BNDL????)
+  - Valid code signature
 - AU installed at ~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component
 - REAPER MCP bridge: ✅ Installed and running (`reaper_mcp_server.lua` active)
 
