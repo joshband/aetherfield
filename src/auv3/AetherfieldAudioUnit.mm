@@ -324,6 +324,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
                                              code:kAudioUnitErr_FormatNotSupported
                                          userInfo:@{NSLocalizedDescriptionKey: @"Aetherfield supports 48kHz and 44.1kHz only"}];
         }
+        [self deallocateRenderResources];
         return NO;
     }
 
@@ -340,6 +341,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
                                              code:kAudioUnitErr_FormatNotSupported
                                          userInfo:@{NSLocalizedDescriptionKey: @"Aetherfield requires exactly 2 channels on both busses"}];
         }
+        [self deallocateRenderResources];
         return NO;
     }
 
@@ -363,6 +365,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
                                              code:kAudioUnitErr_FailedInitialization
                                          userInfo:@{NSLocalizedDescriptionKey: @"DiffusionStereoPath::prepare() failed"}];
         }
+        [self deallocateRenderResources];
         return NO;
     }
 
