@@ -181,18 +181,26 @@ The host/device plan keeps HT-7 blocked pending the state-restore prerequisite;
 the state-restore plan names its unresolved ownership and publication-safety
 decisions before an implementation checkpoint can be authorized.
 
-**ADR-011 core obligations implemented (2026-09-22):** commit `65bf878`
-implements the two DSP-library obligations ADR-011 §1/§4 named and the
-2026-09-19 Design note finalized: `ParameterAutomation::getAll()` (read-back
-accessor, already existed; verified) and `ParameterAutomation::setAll(decay,
-damp, mix)` (atomic 3-parameter publish with whole-triple non-finite rejection,
-per-field clamping, and single-call `publish()` for atomicity). Both follow
-the Design note's recommendations: getAll lives on the core (single source of
-truth), and setAll uses whole-triple rejection (not per-field fallback) because
-atomicity is the entire purpose of the entry point. All 8/8 CTest suites pass.
-These obligations close ADR-011's core requirements only; wrapper-level state
-serialization, deserialization, and the publish/checkForNewTargets/reset snap
-sequencing remain implementation-plan-level work, not yet authorized.
+**ADR-011 state-restore implementation (2026-09-22):**
+- **Checkpoint 1** (commit `65bf878`): `ParameterAutomation::getAll()` (read-back
+  accessor) and `setAll(decay, damp, mix)` (atomic 3-parameter publish).
+  Whole-triple non-finite rejection, per-field clamping, single-call `publish()`.
+  All 8/8 CTest suites pass.
+- **Checkpoint 2** (commit `40dafdc`): Portable restore transport and schema.
+  `StateSchema.{h,cpp}` implement ADR-011 §3 validation (per-field fallback,
+  carve-outs for version/fixture mismatch). `ParameterBridge` adds StateRestore
+  triple-buffer with Host→StateRestore→UI drain ordering (ADR-011 §4 item 2,
+  preserving per-parameter Host/UI arbitration). `DiffusionStereoPath::setAll()`
+  forwarding. Existing bridge tests (PB-1, PB-2) pass unchanged.
+- **Checkpoint 3** (commit `20f3ec4`): AU lifecycle integration. `AetherfieldAudioUnit`
+  queues restores via `queueStateRestore()` and executes pre-render snap sequence
+  (setAll → checkForNewTargets → reset) in `allocateRenderResourcesAndReturnError`,
+  per ADR-011 Design note item 3. `DiffusionStereoPath::checkForNewTargets()`
+  wrapper. Live restore via bridge drain available but untested.
+
+**Deferred:** fullState NSCoding codec (SR-P4), mismatch surfacing (SR-P6),
+parameter-tree synchronization (SR-P8), HT-7 host/device evidence. No UI,
+diagnostics, or round-trip save/load verified. All 8/8 CTest suites pass.
 
 **Host/device acceptance Task 0 discovery and signing unblock (2026-09-20):**
 the owner picked this track as the next focus at an interactive check-in.
