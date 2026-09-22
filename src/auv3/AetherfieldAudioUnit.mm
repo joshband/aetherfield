@@ -116,8 +116,14 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // queueStateRestore(). Control-thread only, never concurrent with
     // the bridge controller. Applied during allocateRenderResourcesAndReturnError
     // (pre-render snap) or drained immediately if already allocated (live restore).
-    std::atomic<bool> _hasPendingRestore {false};
-    aetherfield::wrapper::RestoreTuple _pendingRestore {0.5, 0.0, 1.0};
+    std::atomic<bool> _hasPendingRestore;
+    aetherfield::wrapper::RestoreTuple _pendingRestore;
+
+    // ADR-011 Checkpoint 4: fixture identity for serialization. Captured from
+    // the config at prepare time so getState() can build a FixtureStamp without
+    // running DSP methods. Control-thread reader (getState, setState);
+    // allocation-thread writer (allocateRenderResourcesAndReturnError).
+    aetherfield::wrapper::FixtureStamp _currentFixture;
 }
 @end
 
@@ -141,6 +147,9 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     _bypassed = false;
     _inputBufferList.store(nullptr, std::memory_order_relaxed);
     _monoScratchData.store(nullptr, std::memory_order_relaxed);
+    _hasPendingRestore.store(false, std::memory_order_relaxed);
+    _pendingRestore = {0.5, 0.0, 1.0};
+    _currentFixture = {0, 0.0, 0.0, 0.0, 0.0};
 
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000.0 channels:2];
     _inputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:outError];
@@ -357,6 +366,15 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         return NO;
     }
 
+    // ADR-011 Checkpoint 4: capture fixture identity for serialization.
+    _currentFixture = {
+        .lineCount = config.lineCount,
+        .minDelaySeconds = config.fdnMinDelaySeconds,
+        .maxDelaySeconds = config.fdnMaxDelaySeconds,
+        .sampleRate = config.sampleRate,
+        .dMaxDb = config.dMaxDb,
+    };
+
     // ADR-011 Design note item 3: pre-render snap sequence. If a restore is
     // pending, apply it before the first render callback. The prepare() call
     // has already happened (it's safe to call render-thread methods), and no
@@ -422,6 +440,125 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
 - (void)queueStateRestore:(double)decay damp:(double)damp mix:(double)mix {
     _pendingRestore = {decay, damp, mix};
     _hasPendingRestore.store(true, std::memory_order_release);
+}
+
+// ADR-011 Checkpoint 4: getState implementation. Returns the persisted state
+// payload as a flat NSDictionary with schemaVersion, normalized control values,
+// and fixture identity fields. Called off the render thread (host-controlled).
+- (NSDictionary *)getState {
+    // Capture the last-drained accepted parameter values (not pending restore).
+    // _lastDecay/Damp/Mix are atomics written by the bridge drain on every
+    // cycle (when values are published to DSP), but not by restore itself -- so
+    // getState always serializes what the user hears, never speculative pending
+    // changes. This matches SR-P8's decision: save captures drained targets.
+    const float decay = _lastDecay.load(std::memory_order_relaxed);
+    const float damp = _lastDamp.load(std::memory_order_relaxed);
+    const float mix = _lastMix.load(std::memory_order_relaxed);
+
+    // Build the flat state dictionary per SR-P4 format.
+    return @{
+        @"schemaVersion": @1,
+        @"decay": @(decay),
+        @"damp": @(damp),
+        @"mix": @(mix),
+        @"fixtureN": @(_currentFixture.lineCount),
+        @"fixtureT_min": @(_currentFixture.minDelaySeconds),
+        @"fixtureT_max": @(_currentFixture.maxDelaySeconds),
+        @"fixtureF_s": @(_currentFixture.sampleRate),
+        @"fixtureD_max": @(_currentFixture.dMaxDb),
+    };
+}
+
+// ADR-011 Checkpoint 4: setState implementation. Parses the fullState dictionary,
+// validates it against the current fixture, and queues a restore if valid.
+// Called off the render thread (host-controlled). Per SR-P8, queued restores
+// are applied on the next drain cycle (live) or pre-render snap (after dealloc/realloc).
+- (void)setState:(NSDictionary *)state {
+    // Convert Objective-C dictionary to a C++ StatePayload for validation.
+    aetherfield::wrapper::StatePayload payload;
+
+    // Extract schemaVersion (required; missing or wrong type = validation error).
+    NSNumber *versionObj = state[@"schemaVersion"];
+    if (versionObj == nil || ![versionObj isKindOfClass:[NSNumber class]]) {
+        NSLog(@"[Aetherfield] setState: missing or invalid schemaVersion");
+        return;
+    }
+    payload.schemaVersion = [versionObj unsignedIntValue];
+
+    // Extract controls (all optional per ADR-011 §3; missing → default value).
+    NSNumber *decayObj = state[@"decay"];
+    if (decayObj != nil && [decayObj isKindOfClass:[NSNumber class]]) {
+        payload.decayNormalized = [decayObj doubleValue];
+    }
+
+    NSNumber *dampObj = state[@"damp"];
+    if (dampObj != nil && [dampObj isKindOfClass:[NSNumber class]]) {
+        payload.dampNormalized = [dampObj doubleValue];
+    }
+
+    NSNumber *mixObj = state[@"mix"];
+    if (mixObj != nil && [mixObj isKindOfClass:[NSNumber class]]) {
+        payload.mixNormalized = [mixObj doubleValue];
+    }
+
+    // Extract fixture identity stamp (all required per ADR-011 §2).
+    NSNumber *nObj = state[@"fixtureN"];
+    if (nObj != nil && [nObj isKindOfClass:[NSNumber class]]) {
+        payload.fixtureLineCount = [nObj unsignedLongValue];
+    }
+
+    NSNumber *tMinObj = state[@"fixtureT_min"];
+    if (tMinObj != nil && [tMinObj isKindOfClass:[NSNumber class]]) {
+        payload.fixtureMinDelaySeconds = [tMinObj doubleValue];
+    }
+
+    NSNumber *tMaxObj = state[@"fixtureT_max"];
+    if (tMaxObj != nil && [tMaxObj isKindOfClass:[NSNumber class]]) {
+        payload.fixtureMaxDelaySeconds = [tMaxObj doubleValue];
+    }
+
+    NSNumber *fSObj = state[@"fixtureF_s"];
+    if (fSObj != nil && [fSObj isKindOfClass:[NSNumber class]]) {
+        payload.fixtureSampleRate = [fSObj doubleValue];
+    }
+
+    NSNumber *dMaxObj = state[@"fixtureD_max"];
+    if (dMaxObj != nil && [dMaxObj isKindOfClass:[NSNumber class]]) {
+        payload.fixtureDMaxDb = [dMaxObj doubleValue];
+    }
+
+    // Validate and handle the payload per ADR-011 §3.
+    auto result = aetherfield::wrapper::validateStatePayload(payload, _currentFixture);
+
+    if (!result.isValid()) {
+        // Hard reject (version mismatch, non-finite control). Per ADR-011,
+        // log the rejection but do not queue a restore; current state remains unchanged.
+        switch (result.status) {
+            case aetherfield::wrapper::StateRestoreResult::Status::MissingVersion:
+                NSLog(@"[Aetherfield] setState: missing or invalid schemaVersion");
+                break;
+            case aetherfield::wrapper::StateRestoreResult::Status::UnrecognizedVersion:
+                NSLog(@"[Aetherfield] setState: newer schemaVersion=%u not supported", payload.schemaVersion);
+                break;
+            case aetherfield::wrapper::StateRestoreResult::Status::InvalidControl:
+                NSLog(@"[Aetherfield] setState: non-finite control value in restored state");
+                break;
+            default:
+                NSLog(@"[Aetherfield] setState: validation failed (status=%d)", static_cast<int>(result.status));
+                break;
+        }
+        return;
+    }
+
+    // Valid payload (or FixtureMismatch, which is accepted per ADR-011).
+    if (result.hasMismatch()) {
+        // Log mismatch per SR-P6 decision (no new notification channel).
+        NSLog(@"[Aetherfield] Loaded state from incompatible fixture (loaded N=%zu, current N=%zu); normalized values preserved",
+              result.savedFixture.lineCount, result.currentFixture.lineCount);
+    }
+
+    // Queue the validated, normalized restore tuple (with clamping applied).
+    [self queueStateRestore:result.decay damp:result.damp mix:result.mix];
 }
 
 // ADR-009 section 2 (decided part only): the host sets this off the

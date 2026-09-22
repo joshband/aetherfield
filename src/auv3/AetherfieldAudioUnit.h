@@ -16,4 +16,11 @@
 // only; never called concurrently with itself or the bridge controller.
 - (void)queueStateRestore:(double)decay damp:(double)damp mix:(double)mix;
 
+// ADR-011 Checkpoint 4: getState/setState for fullState persistence.
+// getState returns a dictionary with schemaVersion, normalized control values,
+// and fixture identity fields. setState parses the dictionary, validates it,
+// and queues a restore if valid. Both are control-thread only (host-called).
+- (NSDictionary *)getState;
+- (void)setState:(NSDictionary *)state;
+
 @end

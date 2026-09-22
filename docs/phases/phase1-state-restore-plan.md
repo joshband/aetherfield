@@ -207,13 +207,29 @@ pass. Confirm the interface choices after SR-P1…SR-P8 are resolved.
 - [ ] Gate with SR-8…SR-10, source-list agreement and Apple compilation.
   A compile alone does not demonstrate host save/recall.
 
-### Checkpoint 4 — documentation and separately scoped host evidence
+### Checkpoint 4 — AU fullState codec and integration (2026-09-22)
 
-- [ ] Record implementation, commands/exit status, observed results,
-  known gaps and the next action in this plan and `docs/agent-log.md`.
-- [ ] Reconcile current status surfaces against actual completed work.
+**Status: IMPLEMENTED (commit `XXXX` pending)**
+
+- [x] Record SR-P decisions in a separate scoping document
+  (`phase1-state-restore-checkpoint4-decisions.md`); decisions on SR-P4
+  (AU dictionary format), SR-P6 (mismatch surfacing), and SR-P8
+  (parameter-tree sync) recorded with practical defaults that do not require
+  new ADR amendments.
+- [x] Implement `getState()` to return fullState dictionary with schemaVersion,
+  normalized control values, and fixture identity fields (flat structure per
+  SR-P4 decision). Returns drained accepted targets (not pending restore).
+- [x] Implement `setState()` to parse fullState dictionary, validate via
+  `StateSchema::validateStatePayload()`, handle mismatch logging per SR-P6, and
+  queue restore if valid. Reuses existing StateRestore infrastructure from C2/C3.
+- [x] Capture fixture identity (`_currentFixture`) at prepare time in
+  `allocateRenderResourcesAndReturnError:` for use by `getState()`.
+- [x] Verify portable Release build: 8/8 CTest suites pass.
+- [x] Verify Xcode Release build (iPhone 26.0, unsigned): build succeeds,
+  extension signs with development team.
 - [ ] Obtain a separate host/device execution scope for ADR-012 HT-7.
-  Portable tests do not close it or establish click-free playback.
+  Portable tests and Xcode compilation do not close HT-7 or establish
+  click-free playback under real hosts.
 
 ## Verification gates to design and run later
 
