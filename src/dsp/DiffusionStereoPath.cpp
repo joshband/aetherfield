@@ -164,6 +164,12 @@ void DiffusionStereoPath::reset() noexcept {
     resetPending_ = false;
 }
 
+void DiffusionStereoPath::checkForNewTargets() noexcept {
+    if (state_) {
+        state_->automation.checkForNewTargets();
+    }
+}
+
 bool DiffusionStereoPath::isPrepared() const noexcept { return static_cast<bool>(state_); }
 
 std::size_t DiffusionStereoPath::inputDelaySamples(std::size_t index) const noexcept {

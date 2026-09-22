@@ -62,6 +62,15 @@ public:
     // Safe before preparation; allocation-free and noexcept.
     void reset() noexcept;
 
+    // ADR-011 Design note item 3: pre-render snap sequence helper. Checks
+    // for new targets from the owned ParameterAutomation (calling its
+    // checkForNewTargets()) so the immediately-following reset() snap sees
+    // the new published targets. This is the render-thread method, safe to
+    // call off the render thread only before any callbacks have been issued
+    // (allocateRenderResourcesAndReturnError context). Never called from the
+    // normal per-sample render path (that's handled by processSample/process).
+    void checkForNewTargets() noexcept;
+
     bool isPrepared() const noexcept;
     std::size_t inputDelaySamples(std::size_t index) const noexcept;
     std::size_t leftOutputDelaySamples(std::size_t index) const noexcept;

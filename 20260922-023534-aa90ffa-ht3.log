@@ -1,0 +1,107 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project platform/apple/Aetherfield.xcodeproj -scheme AetherfieldHarness -configuration Release -destination id=B12C4E38-24DA-551D-9AB4-E699CDCEEBC9 test -only-testing AetherfieldHarnessTests/AetherfieldPhysicalAcceptanceTests/testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates
+
+2026-09-21 22:35:58.906 xcodebuild[65779:512391] [MT] DVTAssertions: Warning in IDEFrameworks/IDEFoundation/Testing/IDETestRunSpecificationBuilder.m:463
+Details:  Test host (/Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Products/Release-iphoneos/AetherfieldHost.app/AetherfieldHost) for <Xcode3TargetProduct:0xb63b2fc00:AetherfieldHarnessTests.xctest blueprint:<Xcode3Target:0xb660b5540:AetherfieldHarnessTests>> was not found among the preferred buildables but a match was found in the workspace-wide search.
+Object:   <IDETestRunSpecificationBuilder>
+Method:   +hostBuildableProductForBuildable:buildParameters:workspace:preferredBuildables:
+Thread:   <_NSMainThread: 0x105062090>{number = 1, name = main}
+Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (3 targets)
+    Target 'AetherfieldHarnessTests' in project 'Aetherfield'
+        ➜ Explicit dependency on target 'AetherfieldHost' in project 'Aetherfield'
+    Target 'AetherfieldHost' in project 'Aetherfield'
+        ➜ Explicit dependency on target 'AetherfieldAUExtension' in project 'Aetherfield'
+    Target 'AetherfieldAUExtension' in project 'Aetherfield' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.0.sdk /Users/artbox/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos27.0-24A430-6c78b3cbc238196c85e1bf6c792c5915.sdkstatcache
+    cd /Users/artbox/Documents/Repos/aetherfield/platform/apple/Aetherfield.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS27.0.sdk -o /Users/artbox/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos27.0-24A430-6c78b3cbc238196c85e1bf6c792c5915.sdkstatcache
+
+CodeSign /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Products/Release-iphoneos/AetherfieldHost.app (in target 'AetherfieldHost' from project 'Aetherfield')
+    cd /Users/artbox/Documents/Repos/aetherfield/platform/apple
+    
+    Signing Identity:     "Apple Development: joshband@gmail.com (Q8RAXYZQK4)"
+    Provisioning Profile: "iOS Team Provisioning Profile: com.aetherfield.placeholder.AetherfieldHost"
+                          (20d27be8-13cb-4997-9da4-ca0015208434)
+    
+    /usr/bin/codesign --force --sign 627E3654EFB5CD119AA064491B4E60A7F157C6D4 --entitlements /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Intermediates.noindex/Aetherfield.build/Release-iphoneos/AetherfieldHost.build/AetherfieldHost.app.xcent --timestamp\=none --generate-entitlement-der /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Products/Release-iphoneos/AetherfieldHost.app
+/Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Products/Release-iphoneos/AetherfieldHost.app: replacing existing signature
+
+Validate /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Products/Release-iphoneos/AetherfieldHost.app (in target 'AetherfieldHost' from project 'Aetherfield')
+    cd /Users/artbox/Documents/Repos/aetherfield/platform/apple
+    builtin-validationUtility /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Products/Release-iphoneos/AetherfieldHost.app -shallow-bundle -infoplist-subpath Info.plist
+
+PruneExplicitPrecompiledModules /Users/artbox/Library/Developer/Xcode/DerivedData/SDKExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+PruneExplicitPrecompiledModules /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Build/Intermediates.noindex/ExplicitPrecompiledModules
+
+Test Suite 'Selected tests' started at 2026-09-21 22:36:01.193.
+Test Suite 'AetherfieldHarnessTests.xctest' started at 2026-09-21 22:36:01.193.
+Test Suite 'AetherfieldPhysicalAcceptanceTests' started at 2026-09-21 22:36:01.194.
+Test Case '-[AetherfieldPhysicalAcceptanceTests testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates]' started.
+2026-09-21 22:36:01.194467-0400 AetherfieldHost[19218:3827133] [AetherfieldHarness] HT-3 deterministic input seed=1664525/1013904223 frames=131072 signalFrames=65536 zeroTailFrames=65536
+2026-09-21 22:36:01.218087-0400 AetherfieldHost[19218:3827133] [i-aa]           IPCAUClient.cpp:129   IPCAUClient: bundle display name is nil
+2026-09-21 22:36:01.497082-0400 AetherfieldHost[19218:3827133] [AetherfieldHarness] HT-3 mismatch rate=44100.0 partitionSet=3 firstLeft=1193 firstRight=1399 sequenceCount=9 first=0
+/Users/artbox/Documents/Repos/aetherfield/platform/apple/AetherfieldHarnessTests/PhysicalAcceptanceTests.mm:370: error: -[AetherfieldPhysicalAcceptanceTests testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates] : ((leftEqual && rightEqual) is true) failed - Bit-exact partition mismatch at 44100.0 Hz set 3
+2026-09-21 22:36:01.698524-0400 AetherfieldHost[19218:3827133] [AetherfieldHarness] HT-3 mismatch rate=48000.0 partitionSet=3 firstLeft=1297 firstRight=1511 sequenceCount=9 first=0
+/Users/artbox/Documents/Repos/aetherfield/platform/apple/AetherfieldHarnessTests/PhysicalAcceptanceTests.mm:370: error: -[AetherfieldPhysicalAcceptanceTests testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates] : ((leftEqual && rightEqual) is true) failed - Bit-exact partition mismatch at 48000.0 Hz set 3
+Test Case '-[AetherfieldPhysicalAcceptanceTests testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates]' failed (0.506 seconds).
+Test Suite 'AetherfieldPhysicalAcceptanceTests' failed at 2026-09-21 22:36:01.699.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.506 (0.506) seconds
+Test Suite 'AetherfieldHarnessTests.xctest' failed at 2026-09-21 22:36:01.700.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.506 (0.506) seconds
+Test Suite 'Selected tests' failed at 2026-09-21 22:36:01.700.
+	 Executed 1 test, with 2 failures (0 unexpected) in 0.506 (0.507) seconds
+2026-09-21 22:36:02.115 xcodebuild[65779:512420]  IDETestOperationsObserverDebug: Failure collecting diagnostics from devices: Process exited with error 1:
+ ERROR: The operation couldn?t be completed. (CoreDeviceCLISupport.DiagnoseError error 0.)
+This tool generates files that allow Apple to investigate issues with your
+computer and help improve Apple products. The files might contain personal
+information found on your device or associated with your Apple Account(s),
+including but not limited to your name, serial numbers of your device,
+your device name, your device's location over the last one to two days,
+your attached peripheral devices, your user name, your email address and
+email settings, file paths, file names, Siri suggestions, your computer's
+IP addresses, and network connection information.
+
+This information is used by Apple in accordance with its privacy policy
+(www.apple.com/privacy) and is not shared with any other company. By using
+this tool and sending the results to Apple, you consent to Apple using the
+contents of these files to improve Apple products.
+
+An error occurred while running devicectl diagnose. Will archive the diagnostics collected thus far.
+Wrote file to /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Logs/Test/Test-AetherfieldHarness-2026.09.21_22-35-58--0400.xcresult/Staging/1_Test/Diagnostics/devicectl_diagnostics.zip
+Partial devicectl diagnose bundle located here: /Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Logs/Test/Test-AetherfieldHarness-2026.09.21_22-35-58--0400.xcresult/Staging/1_Test/Diagnostics/devicectl_diagnostics.zip
+
+2026-09-21 22:36:02.129 xcodebuild[65779:512391] [MT] IDETestOperationsObserverDebug: 2.808 elapsed -- Testing started completed.
+2026-09-21 22:36:02.129 xcodebuild[65779:512391] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-21 22:36:02.129 xcodebuild[65779:512391] [MT] IDETestOperationsObserverDebug: 2.808 sec, +2.808 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/artbox/Library/Developer/Xcode/DerivedData/Aetherfield-bmpuuhknfhxszvalsxinbuvnsjlw/Logs/Test/Test-AetherfieldHarness-2026.09.21_22-35-58--0400.xcresult
+
+Failing tests:
+	-[AetherfieldPhysicalAcceptanceTests testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates]
+	-[AetherfieldPhysicalAcceptanceTests testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates]
+
+** TEST FAILED **
+
+Testing started

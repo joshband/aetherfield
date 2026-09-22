@@ -11,6 +11,7 @@
 #include "wrapper/ParameterBridge.h"
 #include "wrapper/HybridBypassController.h"
 #include "wrapper/ResetRequest.h"
+#include "wrapper/StateSchema.h"
 
 #include <algorithm>
 #include <array>
@@ -110,6 +111,13 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // resizes.
     std::vector<float> _monoScratch;
     std::atomic<float*> _monoScratchData;
+
+    // ADR-011 state restore: a pending restore tuple queued via
+    // queueStateRestore(). Control-thread only, never concurrent with
+    // the bridge controller. Applied during allocateRenderResourcesAndReturnError
+    // (pre-render snap) or drained immediately if already allocated (live restore).
+    std::atomic<bool> _hasPendingRestore {false};
+    aetherfield::wrapper::RestoreTuple _pendingRestore {0.5, 0.0, 1.0};
 }
 @end
 
@@ -349,6 +357,16 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         return NO;
     }
 
+    // ADR-011 Design note item 3: pre-render snap sequence. If a restore is
+    // pending, apply it before the first render callback. The prepare() call
+    // has already happened (it's safe to call render-thread methods), and no
+    // render callbacks have been issued yet (no concurrent access to contend with).
+    if (_hasPendingRestore.exchange(false, std::memory_order_acq_rel)) {
+        _path->setAll(_pendingRestore.decay, _pendingRestore.damp, _pendingRestore.mix);
+        _path->checkForNewTargets();
+        _path->reset();
+    }
+
     // Real backing storage for the render block's pullInputBlock() call
     // -- AURenderPullInputBlock's `inputData` parameter is a caller-owned
     // `AudioBufferList *`, not an out-parameter the pull block allocates,
@@ -396,6 +414,14 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
 - (void)reset {
     [super reset];
     _resetRequest->requestFromAnyThread();
+}
+
+// ADR-011 state restore: queue a restore tuple for application at the next
+// allocateRenderResourcesAndReturnError (pre-render snap) or immediately if
+// already allocated (live restore via bridge drain). Control-thread only.
+- (void)queueStateRestore:(double)decay damp:(double)damp mix:(double)mix {
+    _pendingRestore = {decay, damp, mix};
+    _hasPendingRestore.store(true, std::memory_order_release);
 }
 
 // ADR-009 section 2 (decided part only): the host sets this off the
