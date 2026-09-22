@@ -359,7 +359,7 @@ HT-4/5/6/8/9/11/12 remain unrun; next session can execute HT-2/HT-10 or pivot if
 1. For HT-2: Run on physical iPhone 16 Pro Max (test is ready)
 2. For HT-10: Complete REAPER MCP bridge load step, then execute render procedure
 
-**Session 2026-09-22 (continuation): HT-2 execution and AU lifecycle fix**
+**Session 2026-09-22 (continuation): HT-2 execution, AU lifecycle fix, and HT-10 investigation**
 
 HT-2 execution on physical iPhone 16 Pro Max revealed a resource-cleanup bug in
 `allocateRenderResourcesAndReturnError`: when format validation failed after
@@ -372,9 +372,25 @@ on both sample-rate and channel-count validation failures (commit 43b2acc).
 - Recovery: Prior-config output preserved and exact after failed rate change
 - Tests both 48 kHz and 44.1 kHz as prior rates
 - Full test: 0.423 seconds, 1 executed, 0 failures
+- Commits: 43b2acc (AU fix), df702af (documentation)
+
+**HT-10 (Offline Determinism) — Infrastructure issues identified**
+- REAPER MCP bridge: ✅ Installed and running (`reaper_mcp_server.lua` active)
+- macOS AU Extension: ⚠️ Plugin discovery issue
+  - AU binary built and signed correctly
+  - Info.plist AudioComponent definition required manual `type: aufx` field addition
+  - REAPER fails to enumerate/load the AU despite valid configuration
+  - Root cause: xcodegen build configuration not generating Info.plist fields correctly
+  - Next: Either fix xcodegen config or rebuild using different approach
+- Deferred to next session: Investigation/resolution of macOS AU registration issue
 
 HT-1 (discovery/instantiation), HT-3 (render call), HT-2 (rate negotiation)
-now complete. HT-10 infrastructure ready; HT-4/5/6/8/9/11/12 deferred.
+now complete. HT-10 awaits AU discovery fix; HT-4/5/6/8/9/11/12 deferred.
+
+**Recommended next steps:**
+1. Fix xcodegen macOS AU Info.plist generation (or use iOS simulator AU with workaround)
+2. Complete HT-10 offline determinism test once AU is discoverable in REAPER
+3. Proceed with remaining golden-path or deferred tasks per roadmap
 
 **Follow-up investigation, same day, now complete as far as this project's
 own source can take it:** the identical leading-zero-frame scenario was
