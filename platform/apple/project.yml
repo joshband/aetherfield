@@ -100,7 +100,7 @@ targets:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
   AetherfieldAUExtensionMacOS:
-    type: app-extension
+    type: bundle
     platform: macOS
     deploymentTarget: "12.0"
     sources:
@@ -115,6 +115,7 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHostMacOS.AetherfieldAUExtensionMacOS
       DEVELOPMENT_TEAM: W2VVZU52J6
       CODE_SIGN_STYLE: Automatic
+      WRAPPER_EXTENSION: component
     info:
       path: ../../src/auv3/Info.plist
       properties:
