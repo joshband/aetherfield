@@ -2763,3 +2763,33 @@ These gates describe future work. None is an executed reverb test, and none chan
 | Sonic acceptance | Impulse and repeatable musical corpus; recorded peak/RMS/decay/stereo measurements; listening notes identifying ringing, onset density, width and unintended pitch movement | Terra prepares; owner auditions; Sol reviews consequences — **S2/PT impulse component prepared 2026-09-17 (not carried further). DS-B component: CLOSED 2026-09-18** after three listening rounds, DS-13's new per-channel measurement, and Sol's review — see "Round 3 and the DS-B Sonic acceptance gate: closed" above. Verdict: no architectural revision warranted; nothing reopens `N`, the delay set, or the tap design |
 
 For all future tests: use named cases, print the failed condition, and return nonzero on failure even in Release. Preserve seeds, parameter settings, sample rates and block sequences with evidence. Missing measurements are **unmeasured**, never passes. Report output overshoots and safety interventions rather than hiding them by clipping or regenerating reference data. Exact byte comparisons apply only where the operation/toolchain contract supports them; nonlinear or transcendental implementations need justified numerical tolerances.
+
+## Physical device acceptance (2026-09-21, Task 0/1 authorized)
+
+**Device:** iPhone 16 Pro Max, iOS 27.0 (build 24A437) — newest-tier iPhone  
+**Host:** AUM (capabilities: unmeasured)  
+**Configuration:** Release, signed with Team ID W2VVZU52J6  
+**Execution procedure:** [phase1-host-device-execution-procedure.md](phases/phase1-host-device-execution-procedure.md)  
+**Run ID:** `20260922-023534-aa90ffa`  
+**Manifest:** `artifacts/host-device/20260922-023534-aa90ffa/manifest.json`
+
+### Test results
+
+**Portable baseline (Release configuration):**
+- CTest: 8/8 suites passed
+- DSP source drift: 7 files matched
+- Signing: Both AetherfieldAUExtension and AetherfieldHost Release signed successfully
+
+**Physical device tests:**
+
+| Test | Result | Duration | Notes |
+|---|---|---|---|
+| **HT-1: Lifecycle stress** | ✅ PASSED | 17s | 100 same-instance + 100 fresh instantiate/render/destroy cycles at both 44.1 kHz and 48 kHz; no crashes, timeouts, or resource exhaustion |
+| **HT-3: Partitioned rendering** | ⚠️ FAILED (expected) | 4s | Bit-exact pass on fixed/ragged partitions at both rates; zero-frame partition set `{0,1,13,64,512,977,1024,3,0}` shows mid-stream mismatch (1193–1297 samples onset) at both rates — **confirmed as Apple out-of-process AU proxy defect (pull-skip after zero-frame call), verified cross-product with third-party plugins** |
+| **Device matrix coverage** | Partial | — | 1 of 4 corners tested (newest-iPhone A18); oldest-iPhone A13, oldest-iPad A12, newest-iPad Pro unmeasured pending hardware availability |
+
+**Owner decisions recorded (2026-09-21):**
+- Zero-frame Apple defect: record as accepted external constraint (not product fix)
+- Task 0 full authorization: all device corners, AUM primary host, Release signed builds, execution scope per evidence contract
+
+No architectural revision, no further DSP core or wrapper implementation authorized by these results. HT-2/HT-4–6/HT-11–12 remain deferred pending full matrix or separate authorization.
