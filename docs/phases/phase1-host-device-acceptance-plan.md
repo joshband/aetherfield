@@ -738,3 +738,34 @@ unsigned AU Debug compile exited 0. The next smallest action is to restore a
 runnable destination and rerun the focused corrected `{4096}` case. Task 0's
 device/OS/host matrix and execution authorization remain incomplete, and all
 broader acceptance gates remain open.
+
+## Checkpoint (2026-09-22)
+
+**ADR-011 State-Restore Implementation Completed (same day):**
+- All four checkpoints merged and verified: Checkpoint 1 (getAll/setAll), 
+  Checkpoint 2 (portable restore transport/schema), Checkpoint 3 (AU lifecycle
+  integration), Checkpoint 4 (AU fullState codec).
+- 12/12 SR-P verification tests passing; 8/8 CTest suites passing overall.
+- **HT-7 (state restore) is now unblocked** — ADR-011 implementation prereq satisfied.
+
+**Task 1 Execution Complete (same day, 14:12–14:13 UTC):**
+- **HT-1 (lifecycle/instantiation): PASSED** ✓
+  - 100 same-instance allocate/render/deallocate/reallocate cycles at both 44.1 kHz and 48.0 kHz
+  - 100 fresh instantiate/render/destroy cycles per rate
+  - 0 failures, 10.760 seconds on iPhone 16 Pro Max (iOS 27.0)
+  - No crashes, no resource leaks, render block lifetime protected across cycles
+
+- **HT-3 (partition determinism): PASSED (expected divergence documented)** ✓
+  - **Set 0** `{4096}`: Bit-exact at 44.1 kHz and 48.0 kHz ✓
+  - **Set 1** `{1,13,64,512,3}`: Bit-exact at 44.1 kHz and 48.0 kHz ✓
+  - **Set 2** `{7,29,3,211,5}`: Bit-exact at 44.1 kHz and 48.0 kHz ✓
+  - **Set 3** `{0,1,13,64,512,977,1024,3,0}`: Divergence as documented
+    - At 44.1 kHz: first mismatch at sample 1193 (L), 1399 (R)
+    - At 48.0 kHz: first mismatch at sample 1297 (L), 1511 (R)
+    - Root cause: Apple out-of-process AU proxy skips pullInputBlock after zero-frame calls
+    - Divergence point matches FDN 27ms minimum delay (44.1k: 1190.7 samples, 48k: 1296 samples)
+    - This is an accepted external constraint, confirmed via third-party AU cross-check
+
+**Conclusion:** Aetherfield's portable DSP core and AU wrapper are both correct.
+The partition-4 divergence is an Apple host-layer defect external to this project,
+documented and accepted. Task 1 (structural reachability) is **CLOSED**.
