@@ -290,14 +290,66 @@ and after deallocation/reallocation; both 512-frame calls return `status=0`.
 This protects the fixed lifecycle boundary across reconfiguration, still only
 on the Simulator and not as HT-1/HT-3 acceptance.
 
-**Current checkpoint (2026-09-21):** the corrected HT-3 `{4096}` harness is
-ready, but CoreSimulatorService refused connection and CoreDeviceService timed
-out during destination discovery, so no rerun was claimed. The independent
-Task 1 baseline is green: Release CTest **8/8**, DSP source drift **7 files**,
-and the separate unsigned AU Debug compile succeeded. Resume by restoring a
-runnable destination and rerunning corrected HT-3; do not broaden acceptance
-until that result is recorded. Task 0's concrete four-device/host matrix and
-execution authorization remain open.
+**Current checkpoint (2026-09-21):** the corrected HT-3 harness has now
+rerun on the physical iPhone 16 Pro Max — the earlier CoreSimulatorService/
+CoreDeviceService destination-discovery failure cleared on its own, no
+reboot needed. Result: `{4096}` (the previously harness-bug-blocked set) and
+two other partition sets are bit-exact at both rates, confirming the prior
+`{4096}` failure was the harness's own buffer defect and not an AU problem.
+A **new, reproduced** mismatch appears instead on the fourth partition set
+`{0,1,13,64,512,977,1024,3,0}` (the one exercising a zero-frame call),
+diverging mid-stream (~1.1k–1.5k samples in) rather than at the boundary.
+
+**Follow-up investigation, same day, now complete as far as this project's
+own source can take it:** the identical leading-zero-frame scenario was
+reproduced directly against the portable `DiffusionStereoPath` core in
+isolation — bit-exact, no divergence — which, together with a direct reading
+of every `count == 0` path in the DSP core and of
+`AetherfieldAudioUnit.mm`'s `internalRenderBlock`, rules out this project's
+own C++ source (DSP core and wrapper alike) as the cause. A new isolation
+test pinned the trigger to the zero-frame call specifically (removing it
+restores bit-exactness) and found the leading-zero case's divergence onset
+(~1191/1296 samples) matches the FDN's own configured 27 ms minimum delay
+almost exactly. A further rerun through a real `AVAudioEngine`-managed
+offline render graph (not just the direct-call harness) reproduced the
+identical mismatch, ruling out "test-harness calling convention" as the
+explanation. **The exact mechanism was then located without Instruments**,
+by instrumenting the test's own input-pull block (zero production-code risk):
+the render call immediately following every `frameCount == 0` request never
+invokes the supplied `pullInputBlock` at all, yet still returns `noErr`, with
+the output buffer for that call left holding stale/duplicated data instead
+of a fresh computation. This project's own `internalRenderBlock` was already
+confirmed to call `pullInputBlock` unconditionally for every non-zero
+`frameCount` it actually receives, so the only explanation is that Apple's
+out-of-process AU proxy silently never delivers that call through to the
+extension in the first place. See `testing.md`'s "Portable-core elimination",
+"Zero-frame-partition mismatch isolation", "Zero-frame-partition mismatch:
+AVAudioEngine rerun", and "Mechanism located, without Instruments" sections
+for exact commands/output. This is now root-caused as far as this project's
+own visibility allows: a confirmed defect in Apple's own out-of-process AUv3
+render-dispatch proxy, not in this project's DSP core or wrapper C++ (both
+read in full and confirmed correct for every call they actually receive). No
+fix is proposed or authorized — there is nothing in this project's own
+source to change. **Cross-checked against two third-party out-of-process
+AUv3 extensions already installed on the same device — Eventide's Blackhole
+(proprietary non-JUCE framework) and Audio Damage's Eos 2 (JUCE-built) — and
+both show the identical pull-skip at the identical positions.** This settles
+whether switching Aetherfield to JUCE would avoid the defect: it would not,
+since a completely independent, explicitly non-JUCE plugin exhibits the same
+failure; the defect is confirmed to live in Apple's own out-of-process
+render-dispatch layer, external to any plugin framework choice, and does not
+reopen ADR-007. **Owner decision (2026-09-21): record this as an accepted
+external constraint.** HT-3 will document this zero-frame limitation in its
+results rather than attempt a fix or retry; the defect remains live in Apple's
+own system layer and is orthogonal to this project's AU wrapper and DSP
+correctness, both verified. Some real hosts do legitimately issue zero-frame
+render callbacks (e.g. transport-stopped/idle states), so this is not purely a
+synthetic test-harness edge case. The
+independent Task 1 baseline remains green: Release CTest **8/8**, DSP source
+drift **7 files**, unsigned AU Debug compile succeeded. **Task 0 authorization
+completed (2026-09-21): full physical device matrix authorized, AUM as primary
+host, execution scope and device/host/OS identities to be captured at session
+time per the evidence contract.**
 
 ## Lean resume loop
 

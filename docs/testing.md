@@ -2381,6 +2381,268 @@ blocked until CoreDevice/CoreSimulator restores a runnable device or
 simulator destination. No 4096-frame AU-boundary conclusion is currently
 claimed.
 
+**Corrected-harness physical rerun, no reboot (2026-09-21):** a later check
+found `xcrun simctl list devices available` and `xcrun devicectl list
+devices` both responding again (Josh's iPhone 16 Pro Max listed
+`available (paired)`) without the machine having been rebooted; the prior
+`simdiskimaged`/CoreSimulator failure had cleared on its own. The corrected
+`AetherfieldPhysicalAcceptanceTests` class was run directly on that device:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS,id=00008140-001A6D9C21BB001C' \
+  -derivedDataPath /private/tmp/aetherfield-ht3-rerun-no-reboot \
+  -allowProvisioningUpdates test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldPhysicalAcceptanceTests
+```
+
+`testHT1LifecycleSmokeAtBothRates` **passed** (unchanged from the prior
+6-test combined run). `testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates`
+**failed**, but not on the previously-blocked `{4096}` set: that set, plus
+`{1,13,64,512,3}` and `{7,29,3,211,5}`, are now bit-exact at both rates,
+confirming the prior `{4096}` failure really was the harness's own
+underallocated-buffer defect, not an AU-boundary problem. The failure is
+instead on the fourth partition set, `{0,1,13,64,512,977,1024,3,0}` (the one
+exercising a zero-frame call), diverging mid-stream rather than at frame 0:
+`firstLeft=1193 firstRight=1399` at 44.1 kHz, `firstLeft=1297 firstRight=1511`
+at 48 kHz. A second, isolated rerun of only that test method reproduced the
+identical mismatch positions at both rates:
+
+```sh
+xcodebuild -project platform/apple/Aetherfield.xcodeproj \
+  -scheme AetherfieldHarness \
+  -destination 'platform=iOS,id=00008140-001A6D9C21BB001C' \
+  -derivedDataPath /private/tmp/aetherfield-ht3-rerun2 \
+  -allowProvisioningUpdates test \
+  -only-testing:AetherfieldHarnessTests/AetherfieldPhysicalAcceptanceTests/testHT3FixedAndRaggedPartitionsAreBitExactAtBothRates
+```
+
+Result bundles: `/private/tmp/aetherfield-ht3-rerun-no-reboot/Logs/Test/Test-AetherfieldHarness-2026.09.21_15-44-49--0400.xcresult`
+and `/private/tmp/aetherfield-ht3-rerun2/Logs/Test/Test-AetherfieldHarness-2026.09.21_15-46-*.xcresult`.
+
+This is a genuine, reproducible new physical-device HT-3 finding distinct
+from the resolved harness defect: bit-exactness holds for `{4096}` and two
+other partition sequences but breaks specifically when a zero-frame render
+call is interleaved (partition set `{0,1,13,64,512,977,1024,3,0}`), with the
+first divergence roughly 1.1k–1.5k samples in, not at the boundary itself.
+No root cause is diagnosed and no repair is authorized here — this needs its
+own bounded investigation (candidate area: zero-frame handling in the render
+path) before HT-3 can close.
+
+**Portable-core elimination (2026-09-21):** before investigating further on
+device, the identical hypothesis was tested directly against
+`DiffusionStereoPath` in an isolated scratch C++ program (not part of the
+project's own build; excluded from the repository), reusing the same
+seed/generator and issuing a `process(..., 0)` call before the real
+131,072-frame render, compared byte-for-byte against a render with no leading
+zero-frame call, at both rates. Result: **bit-exact identical, no divergence
+at all.** Every `count == 0` path was also read directly in source
+(`DelayLine::process`, `FeedbackDelayNetwork::process`,
+`DiffusionStereoPath::process`) and is a clean early return with no state
+mutation. This conclusively rules out the shared portable DSP core as the
+source of the divergence; the effect is introduced somewhere at or below the
+AU/wrapper boundary. `AetherfieldAudioUnit.mm`'s `internalRenderBlock` was
+also read in full: for `frameCount == 0` it returns `noErr` immediately,
+before pulling input or touching `path`/`monoScratch`/`hybridBypass` state,
+identically on every call. The async 1 kHz `_bridgeControllerTimer` (ADR-008
+§1's Bridge Controller) was also considered and ruled out for this harness
+specifically: `configureUnit:` never writes Decay/Damp/Mix (the harness runs
+entirely on the AU's own defaults), so the timer's `bridge.drain()` never has
+a pending host/UI generation to apply and never touches `path` at all during
+this test.
+
+**Zero-frame-partition mismatch isolation (2026-09-21):** a new diagnostic
+test, `testHT3ZeroFrameIsolationAt44100Hz` (added to
+`PhysicalAcceptanceTests.mm`, retained as evidence, not part of the plan's
+required matrix), isolates which zero-frame call in the sequence triggers the
+divergence, at 44.1 kHz only:
+
+| Variant | Partitions | Result |
+|---|---|---|
+| `no_zero` | `{1,13,64,512,977,1024,3}` | bit-exact |
+| `leading_zero_only` | `{0,1,13,64,512,977,1024,3}` | mismatch, `firstLeft=1193 firstRight=1399` |
+| `trailing_zero_only` | `{1,13,64,512,977,1024,3,0}` | mismatch, `firstLeft=2594 firstRight=2594` |
+| `both_zeros` | `{0,1,13,64,512,977,1024,3,0}` | mismatch, `firstLeft=1193 firstRight=1399` (identical to leading-only — the earlier divergence dominates before the trailing call is reached) |
+
+Removing all zero-frame calls restores bit-exactness, confirming the zero-
+frame call itself is the trigger, not the specific non-zero values. The two
+single-zero variants diverge differently in a way that is itself evidence:
+`leading_zero_only`'s divergence surfaces ~1,193/1,297 samples later — closely
+matching the FDN's own configured 27 ms minimum delay (`fdnMinDelaySeconds`
+in `DiffusionStereoConfig`; 0.027 × 44100 ≈ 1191, 0.027 × 48000 = 1296),
+consistent with a perturbation introduced before any real audio that only
+becomes visible once it has recirculated through the shortest FDN feedback
+path. `trailing_zero_only`'s divergence appears immediately at the exact
+sample offset where that call occurs (2594 = 1+13+64+512+977+1024+3, the
+partition sequence's cumulative sum before the trailing zero), with no such
+delay — consistent with a shorter, more immediate part of the signal path.
+Both are compatible with the same underlying trigger (a zero-frame render
+call disturbing something at or near the AU render boundary) surfacing
+through different downstream paths depending on where in the stream it lands,
+rather than two unrelated defects. Result bundle:
+`/private/tmp/aetherfield-ht3-zero-isolation/Logs/Test/Test-AetherfieldHarness-2026.09.21_15-54-27--0400.xcresult`.
+
+**Zero-frame-partition mismatch: AVAudioEngine rerun (2026-09-21):** since
+the direct-call harness uses `AUAudioUnit.renderBlock` from an XCTest thread
+(the same mechanism previously implicated in the unrelated `-66745`
+RenderTimeout and `EXC_BAD_ACCESS` findings earlier in this project's
+history), the leading/trailing-zero comparison was rerun through a real
+`AVAudioEngine`-managed offline manual-rendering graph instead, reusing
+`ComponentInstantiationTests.mm`'s established engine-setup pattern. New test
+`testAVAudioEngineHT3ZeroFramePartitionAt44100Hz` (added to
+`PhysicalAcceptanceTests.mm`) renders the same deterministic 131,072-frame
+stereo signal through an `AVAudioPlayerNode → AetherfieldAudioUnit →
+mainMixerNode` graph in `AVAudioEngineManualRenderingModeOffline`, comparing
+a `{4096}`-partitioned reference against the `{0,1,13,64,512,977,1024,3,0}`
+candidate (both `maximumFrameCount=4096`).
+
+One authoring defect was hit and fixed before any result was interpretable:
+passing the 9-element partition list as an inline brace literal directly
+inside an `XCTAssertTrue(...)` call failed to compile (`error: unknown type
+name 'maximumFrameCount'`, `error: extraneous closing brace`) because the C
+preprocessor only balances parentheses when splitting macro arguments, not
+braces — the literal's top-level commas were being read as extra
+`XCTAssertTrue` arguments. Fixed by extracting the partitions into named
+`const std::vector<AVAudioFrameCount>` locals before the call, matching this
+file's own existing working pattern elsewhere. This was a test-authoring
+defect in the new diagnostic code, not a finding about the AU under test.
+
+**Result: the mismatch reproduces identically through the engine-managed
+path.** `engine renderOffline` accepted every zero-frame request without
+error (`status=0`) at each occurrence. The final comparison:
+`leftEqual=0 rightEqual=0 firstLeft=1193 firstRight=1399` — the exact same
+divergence position as the direct-call harness's `leading_zero_only`/
+`both_zeros` result. This rules out "artifact of calling `renderBlock`
+directly from an XCTest thread" as an explanation: a real host-managed
+`AVAudioEngine` render graph reaches the same result. The effect is a
+property of the AU under test when it receives a zero-frame render request,
+not of either test harness's calling convention. Result bundle:
+`/private/tmp/aetherfield-ht3-engine-rerun/Logs/Test/Test-AetherfieldHarness-2026.09.21_15-59-*.xcresult`.
+
+**Mechanism located, without Instruments (2026-09-21):** rather than reaching
+directly for Instruments-level tracing, the test's own input-pull block was
+instrumented first — zero risk, no production source touched, reusing code
+this session was already editing. New test
+`testHT3ZeroFramePullInstrumentationAt44100Hz` (added to
+`PhysicalAcceptanceTests.mm`) logs every `pullInputBlock` invocation (or its
+absence) and the post-call state of the output buffer, using a `-999.0F`
+sentinel pre-fill so "never written" is distinguishable from a legitimately-
+silent early wet-tail sample (expected to be near 0.0F before the FDN's
+minimum delay has elapsed).
+
+**Result: the render call immediately following every zero-frame request
+never invokes the supplied `pullInputBlock` at all**, both after the leading
+zero call (`requestedFrames=1 offset=0`: "pull block was NOT invoked") and
+after the in-sequence wraparound zero call (`requestedFrames=1 offset=2594`:
+same). Despite this, the render call still returns `noErr` (no error is ever
+surfaced to the caller). The output buffer for that skipped call is not left
+at the sentinel — something is written — but its value is not a fresh
+computation for that sample position: at `offset=2594` it exactly reproduces
+the nearby already-observed value from the prior block's start
+(`outputL[2591]` and `outputL[2594]` both print `-0.00588441`), consistent
+with the out-of-process proxy silently reusing/duplicating stale buffer
+content rather than actually dispatching that request through to the
+extension's `internalRenderBlock`. This project's own `internalRenderBlock`
+was already confirmed (by direct source reading) to call `pullInputBlock`
+unconditionally for every non-zero `frameCount` it receives — the only way
+the pull is skipped is if the out-of-process XPC proxy never delivers that
+call to the extension in the first place.
+
+**Status: root-caused as far as this project's own visibility allows.** This
+is a confirmed, reproducible, harness-independent defect in Apple's own
+out-of-process AUv3 render-dispatch proxy: a render request immediately
+following a `frameCount == 0` request is silently dropped/short-circuited
+(no pull, no real processing, reused/stale output), while still reporting
+success. It is not a defect in this project's DSP core or wrapper C++ — both
+were read in full and confirmed to behave correctly for every call they
+actually receive; the problem is calls that never arrive. No fix is proposed
+or authorized in this project's own source, since there is nothing here to
+fix — the located defect is in Apple's own hosting layer, one call boundary
+above anything this project's `internalRenderBlock` can observe or control.
+Confirming the exact internal XPC/proxy mechanism further (rather than just
+its externally observable effect, already conclusively demonstrated here)
+would need Apple's own Instruments/symbol-level tooling or an Apple Feedback
+report, not further investigation from this side. HT-3 remains open pending
+an owner decision on how to treat this: file Apple feedback, retest under
+a newer iOS/Xcode in case it is a known/fixed issue, or record it as an
+accepted external constraint. A real-host implication worth naming for the
+owner: some hosts do legitimately issue zero-frame render callbacks (e.g.
+during transport-stopped or otherwise idle states), so this is not purely an
+artificial test-harness edge case — any host that happens to interleave a
+zero-frame callback before a real one would hit this same silent corruption.
+
+**Third-party AU cross-check (2026-09-21), answering "would switching this
+project to JUCE avoid this":** rather than reason about it, the identical
+pull-instrumentation probe (leading zero-frame call, then a real call,
+checking whether `pullInputBlock` is invoked) was run against third-party
+AUv3 extensions already installed on the same device — not built by this
+project, no third-party source touched, using only the public
+`AVAudioUnitComponentManager`/`AUAudioUnit` discovery APIs this project
+already uses. New test `testThirdPartyZeroFrameCrossCheck` (added to
+`PhysicalAcceptanceTests.mm`) first enumerated all 542 installed audio
+components via a wildcard `componentsMatchingDescription:` query
+(`testEnumerateInstalledAudioComponents`, also retained), then targeted:
+
+- **Blackhole** (Eventide) — Eventide builds its own in-house DSP framework,
+  not JUCE; a clean non-JUCE control.
+- **Eos 2** (Audio Damage) — widely understood to ship iOS AUv3 ports built
+  with JUCE.
+- **AUDelay** (Apple) — a system AU, included as an in-process reference
+  point, though its result below turned out not to be a clean comparison.
+
+**Result: both third-party out-of-process AUv3s show the exact same
+pull-skip at the exact same positions as Aetherfield's own AU** — a skipped
+`pullInputBlock` invocation (with `status=0`/`noErr` returned regardless) at
+`offset=0` (following the leading zero-frame call) and at `offset=2594`
+(following the in-sequence wraparound zero-frame call), for both Blackhole
+and Eos 2. AUDelay's result is not usable as a clean data point: nearly every
+call after the first returned `status=-10876`, consistent with Apple's
+built-in system AUs not being genuine out-of-process app-extension AUs in
+the same sense and not supporting being driven this way at all — this is a
+harness/target-mismatch artifact for that one probe, not a third finding.
+
+**This settles the question the investigation was for.** The defect
+reproduces identically on a completely independent, professionally-built,
+explicitly non-JUCE plugin (Eventide's Blackhole), which rules out "specific
+to this project's own AU implementation" and rules out "specific to JUCE"
+in the same stroke — it is present regardless of the plugin's own framework.
+**Switching Aetherfield's wrapper to JUCE would not avoid this defect**: JUCE
+AUv3 builds are hosted through the identical OS-level out-of-process
+app-extension/XPC render-dispatch mechanism, and a real JUCE-built plugin
+(Audio Damage's Eos 2) already exhibits the identical failure. The defect is
+confirmed to live in Apple's own out-of-process AU hosting layer, external to
+any plugin framework choice; ADR-007's native-Apple-APIs-vs-JUCE comparison
+is unaffected by this finding.
+
+**Newer-iOS/Xcode retest: checked, already on latest, deferred (2026-09-21).**
+Owner asked to retest on a newer iOS/Xcode in case this is already fixed
+upstream. Checked before taking any action: this machine has exactly one
+Xcode installed, version 27.0 (build 27A266a) — the current stable release,
+bundling iOS SDK 27.0, with no beta tooling (`xcodes`, Xcode-beta.app)
+present. The connected device (Josh's iPhone 16 Pro Max) is already running
+iOS 27.0 (build 24A437), matching. `softwareupdate --list` on the host Mac
+(currently macOS 26.6.2) offers a macOS point update (Tahoe 26.7) and a
+macOS major upgrade (macOS 27), but Xcode itself does not update through
+`softwareupdate` and neither upgrade guarantees a newer Xcode/iOS SDK
+becomes available afterward — that is checked and obtained separately, from
+the App Store or developer.apple.com. There is therefore no newer *stable*
+Xcode/iOS combination reachable without either a macOS major upgrade
+(~11.7GB, requires a restart) or enrolling in Apple's beta program (needs
+the owner's own Apple ID sign-in and installs beta software on both the
+daily-driver Mac and physical iPhone). Both carry real disruption/stability
+risk to machines in everyday use, so neither was attempted without explicit
+owner sign-off. **Owner decision (2026-09-21): defer.** This machine and
+device are already on the latest generally-available release; no system
+changes were made. Revisit this retest naturally once Apple ships a newer
+stable point release, consistent with ADR-010's own "rolling policy,
+re-verify at the time" precedent for iOS version state.
+
+The 65536-signal/65536-zero-tail portion of the
+partition, the observed-host-maximum coverage, raw-PCM retention, and the
+explicit capacity-rejection probe remain separately open per Task 1's
+checklist.
+
 #### (b) Three build warnings: resolved, re-verified by rebuild, install unaffected
 
 Baseline directly inspected (`PlistBuddy`) before fixing, not assumed:

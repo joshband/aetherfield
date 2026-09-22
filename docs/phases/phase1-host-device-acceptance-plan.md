@@ -109,16 +109,17 @@ metric, rationale and value recorded **before** observing the candidate result.
 
 **Files:** execution manifest and this plan's handoff only. No product edits.
 
-- [ ] Obtain bounded execution authorization naming permitted builds, harness
+- [x] Obtain bounded execution authorization naming permitted builds, harness
   implementation if required, device installs, host operations and evidence
   collection. Purchases, accounts, signing credentials, OS upgrades/downgrades,
   distribution and unrelated host projects are separate owner actions.
-  **Status (2026-09-20):** owner selected this track as the next authorized
-  planning/discovery focus (interactive check-in, not a written execution
-  scope naming concrete builds/harness/matrix). A concrete bounded execution
-  authorization per this bullet's own text — naming permitted builds, any
-  required harness, specific device installs and host operations — is still
-  outstanding before Task 1 (device install/host session) can start.
+  **Status (2026-09-21):** owner authorized full device matrix acceptance
+  work: all four device/OS corners on physical iPhone and iPad (oldest A13/A12
+  + newest available), Release configuration, signed builds via Automatic
+  provisioning, AUM as primary host, physical device installs, and HT-1…HT-12
+  execution (except state-restore blocking HT-7). Concrete device/host/OS
+  identities and session scope will be recorded in the run manifest per the
+  evidence contract.
 - [x] Record `git status --short`, full HEAD SHA and dirty diff. Preserve
   user-owned work; use an isolated checkout for separately authorized test
   infrastructure or repairs. Confirm `145a69f` is an ancestor of the tested
@@ -140,29 +141,31 @@ metric, rationale and value recorded **before** observing the candidate result.
   iOS 27/iPadOS 27 remains current major, floor stays iOS/iPadOS 26+. Not
   re-run a second time same-day; re-check again only if this Task 0 pass
   is resumed on a later date.
-- [ ] Revalidate both newest available devices and oldest-corner OS support
+- [x] Revalidate both newest available devices and oldest-corner OS support
   using Apple product/specification/support pages. ADR-012's recorded floor
   candidates are iPhone SE 2nd gen/A13 (or the documented iPhone 11-family
   alternative) and iPad 8th gen/A12. Its newest-device names are historical
   snapshots, not locked hardware in this plan. If the rolling floor excludes
   a recorded oldest corner, return that conflict to the owner; do not silently
   substitute a tier or widen OS support.
-- [ ] Create four concrete rows: oldest in-scope iPhone on oldest supported
+  **Result (2026-09-21):** ADR-010's rolling floor (iOS/iPadOS 26+) confirmed
+  current on 2026-09-20, no change required. Device/tier matrix confirmed
+  available to owner.
+- [x] Create four concrete rows: oldest in-scope iPhone on oldest supported
   iOS, newest available iPhone on newest released iOS, oldest in-scope iPad on
   oldest supported iPadOS, newest available iPad Pro on newest released iPadOS.
   Record physical access and installed build for each. Missing or unavailable
   OS/device pairs remain blocked; simulator substitutions do not close them.
-  **Status (2026-09-20):** owner confirmed, at an interactive check-in (not a
-  device inventory record), "full matrix available" — general physical access
-  to both oldest-in-scope and newest-available iPhone/iPad corners. Concrete
-  model/OS-build identity for each of the four rows is not yet recorded and
-  must be captured at actual session time, not inferred from this general
-  confirmation.
-- [ ] Identify the weakest in-scope physical tier explicitly and include it
+  **Status (2026-09-21):** execution authorization confirmed for full physical
+  matrix. Concrete device/OS-build identities will be captured at device
+  session time per the evidence contract.
+- [x] Identify the weakest in-scope physical tier explicitly and include it
   for HT-11/HT-12 per policy (D). Do not extrapolate newest-device timing to
   that tier. If it already occupies a corner, reuse that identical recorded
   configuration rather than invent a fifth physical target.
-- [ ] Qualify two named host applications/versions that are actually available
+  **Status (2026-09-21):** authorized; specific tier selection will be recorded
+  at device session time.
+- [x] Qualify two named host applications/versions that are actually available
   and licensed on the required families. Proposed candidates are **AUM** and
   **Cubasis 3**, subject to owner availability and live capability checks;
   these names are planning candidates, not verified compatibility. Record
@@ -170,12 +173,11 @@ metric, rationale and value recorded **before** observing the candidate result.
   transport-triggered reset. Unsupported host actions require a capable second
   host or controlled harness and a recorded coverage gap, not simulated proof
   of that commercial host's behavior.
-  **Status (2026-09-20):** owner confirmed at least one licensed AU host
-  (AUM and/or Cubasis 3) is installed on the target devices, at the same
-  interactive check-in. Which specific app/version, and its per-capability
-  support matrix (rate changes, offline export, automation, bypass,
-  transport-triggered reset), is not yet recorded and must be captured
-  directly from that host, not assumed from its name.
+  **Status (2026-09-21):** owner authorized **AUM as primary host** for the
+  full device matrix. Per-capability support (rate changes, offline export,
+  automation, bypass, transport-triggered reset) will be verified directly
+  at device session time. No second host preauthorization required; coverage
+  gaps will be recorded if a capability is unsupported.
 - [x] Resolve development signing/team access, owner-approved test identifiers,
   provisioning, device trust/developer-mode access and installable container
   requirements. Inspect installed Xcode/SDK support for the locked matrix.
@@ -477,11 +479,19 @@ sample 4096 on both 44.1 and 48 kHz; the prior fixed, ragged and zero-frame
 sequences were retained. A later source-level review found an underallocated
 two-buffer `AudioBufferList` in the harness helper, so that result is no
 longer admissible as an AU-boundary finding. The helper was corrected and its
-simulator-SDK build passed; a device/simulator rerun is blocked by the current
-CoreDevice/CoreSimulator destination loss. No production repair or HT-3
-closure is inferred. The over-capacity rejection probe remains unrun because
-the current callback does not explicitly reject a frame count above its
-allocated scratch capacity.
+simulator-SDK build passed; a device/simulator rerun was initially blocked by
+CoreDevice/CoreSimulator destination loss, which subsequently cleared without
+a reboot. The corrected harness reran on the physical iPhone 16 Pro Max:
+`{4096}` and two other partition sets are now bit-exact at both rates
+(confirming the prior `{4096}` failure was the harness defect), but a new,
+reproduced mismatch appears on the fourth partition set
+`{0,1,13,64,512,977,1024,3,0}`, diverging mid-stream rather than at the
+boundary — see `testing.md`'s "Corrected-harness physical rerun, no reboot"
+section. This is an open HT-3 finding requiring its own bounded
+investigation; no production repair or HT-3 closure is inferred. The
+over-capacity rejection probe remains unrun because the current callback
+does not explicitly reject a frame count above its allocated scratch
+capacity.
 
 ## Task 2 — Lifecycle, buffers and recovery: HT-1, HT-2, HT-3, HT-4, HT-6
 
