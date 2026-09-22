@@ -47,6 +47,21 @@ public:
     // with h in [0,1] cannot go negative).
     bool prepare(const FeedbackDelayNetwork& network, double sampleRate, double dMaxDb);
 
+    // Sets all three normalized [0,1] targets atomically (ADR-011 §4).
+    // A non-finite value in any parameter is REJECTED as a unit:
+    // all three published coefficients and generation remain unchanged,
+    // nonFiniteRejectionCount is incremented once, and false is returned.
+    // Each finite out-of-range value is CLAMPED to [0,1] independently
+    // (matching individual setters' contract). On acceptance: derives the
+    // full coefficient set in double from the (possibly just-clamped)
+    // values and the same capture-the-other-two pattern as individual
+    // setters, but calls publish() exactly ONCE (not three times), stores
+    // all three derived targets into the atomic arrays in a single publish,
+    // and updates all three last*_ members together afterward.
+    // Single-writer, control-thread only; never called concurrently with
+    // setDecay/setDamp/setMix/itself.
+    bool setAll(double decay, double damp, double mix) noexcept;
+
     // ---- Control-thread API (ADR-004 (b), (d)) ----
     // Sets a new normalized [0,1] target. A non-finite value is REJECTED:
     // the published coefficient set and generation are left unchanged,

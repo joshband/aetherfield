@@ -195,6 +195,27 @@ bool ParameterAutomation::setMix(double normalized) noexcept {
     return true;
 }
 
+bool ParameterAutomation::setAll(double decay, double damp, double mix) noexcept {
+    // Whole-triple reject on any non-finite field (ADR-011 §4).
+    if (!std::isfinite(decay) || !std::isfinite(damp) || !std::isfinite(mix)) {
+        ++nonFiniteRejectionCount_;
+        return false;
+    }
+    // Clamp each finite-but-out-of-range value independently.
+    const double clampedDecay = clamp01(decay);
+    const double clampedDamp = clamp01(damp);
+    const double clampedMix = clamp01(mix);
+    // Publish once with all three clamped values.
+    if (!publish(lineCount_, clampedDecay, clampedDamp, clampedMix)) {
+        return false;
+    }
+    // Update all three last*_ members together on success.
+    lastDecay_ = clampedDecay;
+    lastDamp_ = clampedDamp;
+    lastMix_ = clampedMix;
+    return true;
+}
+
 void ParameterAutomation::checkForNewTargets() noexcept {
     const std::uint64_t generation = generation_.load(std::memory_order_acquire);
     if (generation == consumedGeneration_) {
