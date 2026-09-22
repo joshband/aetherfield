@@ -2835,6 +2835,34 @@ xcodebuild test -scheme AetherfieldHarness -destination 'generic/platform=iOS' \
 
 **HT-10:** Execute via MCP once bridge is loaded and AU is discoverable.
 
+## Session 2026-09-22 (continuation): HT-2 execution and AU lifecycle fix
+
+**HT-2 rate negotiation — PASSED on iPhone 16 Pro Max**
+
+A resource-cleanup bug in `allocateRenderResourcesAndReturnError` was discovered
+during HT-2 execution. When format validation (sample rate or channel count) failed
+after the parent class's allocation succeeded, resources were left in an allocated
+state. This corrupted the AU's internal state, causing the subsequent format
+reconfiguration (back to the prior supported rate) to fail with error code -10868.
+
+**Fix (commit 43b2acc):** Added explicit `[self deallocateRenderResources]` calls
+before returning NO from format validation failures (both sample rate and channel
+count checks). This ensures the AU is in a consistent state for reconfiguration.
+
+**Test results:**
+- Command: `xcodebuild test -scheme AetherfieldHarness -destination 'id=00008140-001A6D9C21BB001C' -only-testing AetherfieldHarnessTests/AetherfieldPhysicalAcceptanceTests/testHT2RateNegotiationRejectsUnsupportedRateAndPreservesPriorOutput`
+- Device: Josh's iPhone (27.0) — iPhone 16 Pro Max
+- Duration: 0.423 seconds
+- Result: **1 test, 0 failures**
+- Log excerpts:
+  - At 48 kHz: unsupported-rate rejection (96 kHz) = PASS, prior-config recovery = PASS
+  - At 44.1 kHz: unsupported-rate rejection (96 kHz) = PASS, prior-config recovery = PASS
+  - NSError domain: NSOSStatusErrorDomain; code: -10868 (kAudioUnitErr_FormatNotSupported); description: "Aetherfield supports 48kHz and 44.1kHz only"
+
+**Status: HT-1, HT-3, HT-2 now complete (iPhone 16 Pro Max, commit 43b2acc)**
+Remaining: HT-10 infrastructure ready (awaiting REAPER MCP bridge load);
+HT-4/5/6/8/9/11/12 deferred.
+
 ### Deferred
 
 - HT-4, HT-5, HT-6, HT-8, HT-9, HT-11, HT-12 remain unrun (out of golden-path scope)

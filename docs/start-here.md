@@ -359,6 +359,23 @@ HT-4/5/6/8/9/11/12 remain unrun; next session can execute HT-2/HT-10 or pivot if
 1. For HT-2: Run on physical iPhone 16 Pro Max (test is ready)
 2. For HT-10: Complete REAPER MCP bridge load step, then execute render procedure
 
+**Session 2026-09-22 (continuation): HT-2 execution and AU lifecycle fix**
+
+HT-2 execution on physical iPhone 16 Pro Max revealed a resource-cleanup bug in
+`allocateRenderResourcesAndReturnError`: when format validation failed after
+parent-class allocation succeeded, resources were left allocated. This corrupted
+the AU state for subsequent reconfigurations. Fixed by adding deallocate calls
+on both sample-rate and channel-count validation failures (commit 43b2acc).
+
+**HT-2: ✅ PASSED** on iPhone 16 Pro Max
+- Rate negotiation: 96 kHz rejection works, returns correct NSError
+- Recovery: Prior-config output preserved and exact after failed rate change
+- Tests both 48 kHz and 44.1 kHz as prior rates
+- Full test: 0.423 seconds, 1 executed, 0 failures
+
+HT-1 (discovery/instantiation), HT-3 (render call), HT-2 (rate negotiation)
+now complete. HT-10 infrastructure ready; HT-4/5/6/8/9/11/12 deferred.
+
 **Follow-up investigation, same day, now complete as far as this project's
 own source can take it:** the identical leading-zero-frame scenario was
 reproduced directly against the portable `DiffusionStereoPath` core in
