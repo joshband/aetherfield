@@ -78,3 +78,50 @@ Add a row here at the same time a milestone-level commit lands, sourcing it
 from that commit's own body (which remains the primary record) plus any
 metrics the harness reported during that session. Do not backfill a metric
 that was not actually measured just to avoid a blank cell.
+
+## Session 2026-09-22 (third session): HT-10 macOS AU discovery issue — Root cause fixed
+
+**Tool:** Claude Haiku 4.5
+**Scope:** Diagnosis and fix of macOS AU bundle type misconfiguration blocking HT-10 execution
+
+### Root Cause Investigation (Phase 1)
+Verified AU not discoverable to macOS via pluginkit (no results) despite being installed at ~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.appex. Compared against working system AU plugins:
+- System AUs use .component bundles (e.g., Acid V.component)
+- Aetherfield was generating .appex (iOS app-extension format)
+- .appex bundles have CFBundlePackageType: "XPC!", missing PkgInfo file
+- .component bundles have CFBundlePackageType: "BNDL", include PkgInfo (BNDL????)
+
+### Root Cause Identified
+xcodegen target type: app-extension generates .appex bundles (iOS extensions). macOS AU plugins require .component bundles (type: bundle with WRAPPER_EXTENSION: component).
+
+### Pattern Analysis (Phase 2)
+Compared iOS target (correct app-extension) vs macOS target (incorrect):
+- iOS: app-extension → .appex (embedded in container)
+- macOS: should be bundle → .component (standalone plugin)
+
+### Fix Applied (Phase 3-4)
+Changed platform/apple/project.yml:
+- AetherfieldAUExtensionMacOS: type: app-extension → type: bundle
+- Added settings: WRAPPER_EXTENSION: component
+
+### Verification
+✅ Xcode project regenerated via `xcodegen generate`
+✅ AU builds as AetherfieldAUExtensionMacOS.component
+✅ Bundle structure correct: Contents/MacOS, Contents/Info.plist, Contents/PkgInfo
+✅ Code signature valid (codesign -vv passes)
+✅ Info.plist has proper AudioComponent definition
+✅ All 9 portable CTest suites pass (no regression)
+✅ AU installed at ~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component
+
+### Commits
+- 698aedd: Fix macOS AU bundle type: component instead of app-extension
+- eeccc89: Update start-here.md: HT-10 macOS AU bundle type fix complete
+
+### Handoff for Next Session
+HT-10 (Offline Determinism) AU infrastructure is now complete. Next session:
+1. Load MCP bridge in REAPER (Actions → Load ReaScript → reaper_mcp_server.lua)
+2. Rescan audio units in REAPER
+3. Verify AU discovery via MCP fx_list_installed tool
+4. Execute HT-10 render/compare procedure (see HT10_REAPER_MCP_SETUP.md)
+
+Status: Ready for REAPER MCP testing. No code changes to AU core needed; configuration/build issue resolved.
