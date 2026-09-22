@@ -64,8 +64,8 @@ finished product sound quality.
 ## Public showcase
 
 A dual-audience GitHub Pages site lives under [`docs/`](docs/) (`index.html` +
-`engineering.html`): hiring skim, listening evidence, and engineering proof
-with honest shipped-vs-deferred boundaries.
+`engineering.html`): hiring skim and engineering case study with honest
+shipped-vs-deferred boundaries.
 
 - Local: open [`docs/index.html`](docs/index.html)
 - Public URL (after Pages is enabled from `/docs`):

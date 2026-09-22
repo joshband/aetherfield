@@ -3,9 +3,11 @@
 Aetherfield is a portable C++ audio-DSP project progressing toward an iOS/iPadOS ambient reverb. The [product specification](../AETHERFIELD_SPEC.md) defines product intent; it is not evidence that a feature exists. The [roadmap](roadmap.md) defines the currently authorized continuation. Architecture is recorded in the [ADR index](decisions/index.md); implementation plans and verification evidence are separate sources of truth.
 
 Public hiring/engineering showcase (GitHub Pages from `/docs`):
-[index.html](index.html) · [engineering.html](engineering.html) ·
-https://joshband.github.io/aetherfield/ (enable Pages from branch `/docs`).
-The former Field Notes page (`docs/site/`) is retired.
+[index.html](index.html) (hiring skim) · [engineering.html](engineering.html)
+(engineering case study) · https://joshband.github.io/aetherfield/ (enable
+Pages from branch `/docs`). Listen/audio players are not on the public site
+for now; `docs/audio/` clips may remain on disk unused. The former Field Notes
+page (`docs/site/`) is retired.
 
 ## What is implemented
 

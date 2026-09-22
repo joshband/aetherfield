@@ -1074,9 +1074,10 @@ Milestone-scoped implementation task plans and verification-case specifications 
 ### Public showcase (`docs/index.html`, `docs/engineering.html`)
 
 Hand-authored GitHub Pages site (source: `/docs`) that presents Josh Band +
-Aetherfield to hiring and engineering audiences: narrative, curated listening
-evidence under `docs/audio/`, system diagrams, and links into the durable
-markdown records. It replaces the former Field Notes page at
+Aetherfield to hiring and engineering audiences: narrative, system diagrams,
+boundary honesty, and links into the durable markdown records. Curated clips
+under `docs/audio/` may return later; they are not linked from the public
+pages today. It replaces the former Field Notes page at
 `docs/site/index.html` (retired). Status numbers on the site must track
 `docs/start-here.md` / `docs/testing.md`; deep evidence stays in those
 documents, not duplicated as a second source of truth. Public URL when Pages

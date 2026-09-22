@@ -24,29 +24,6 @@
     });
   }
 
-  // Single-player listen focus: pause others, mark active card
-  var cards = document.querySelectorAll(".listen-card");
-  cards.forEach(function (card) {
-    var audio = card.querySelector("audio");
-    if (!audio) return;
-    audio.addEventListener("play", function () {
-      cards.forEach(function (other) {
-        var otherAudio = other.querySelector("audio");
-        if (otherAudio && otherAudio !== audio) {
-          otherAudio.pause();
-          other.classList.remove("is-playing");
-        }
-      });
-      card.classList.add("is-playing");
-    });
-    audio.addEventListener("pause", function () {
-      if (audio.ended || audio.paused) card.classList.remove("is-playing");
-    });
-    audio.addEventListener("ended", function () {
-      card.classList.remove("is-playing");
-    });
-  });
-
   // Homogeneous FDN decay law visualization (ADR-002/003): gamma^n
   var canvas = document.getElementById("decayCanvas");
   if (canvas && canvas.getContext) {
