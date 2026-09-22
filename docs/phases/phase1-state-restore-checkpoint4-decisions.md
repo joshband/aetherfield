@@ -84,8 +84,7 @@ This document records practical defaults for SR-P4, SR-P6, and SR-P8, enabling C
 
 ## Remaining Open Items (Defer to Future)
 
-- **SR-P1/SR-P2/SR-P3:** Transport/atomicity/lifecycle proofs remain documented in code comments and test coverage, not formal ownership proof. Sufficient for Checkpoint 4; full proof deferred to HT-7 host/device evidence.
-- **Realized delay set in fixture stamp (SR-P7):** Optional per ADR-011. Deferred; future SchemaVersion 2 can add `m_min`/`m_max` if needed.
+- **Realized delay set in fixture stamp (SR-P7):** DEFERRED TO VERSION 2. Optional per ADR-011. The current five fields (N, t_min, t_max, f_s, D_max) do not detect a changed delay derivation rule with identical inputs. Adding `m_min`/`m_max` (or a hash of the realized delay set) would close this edge case but adds payload complexity. Decision: Version 1 accepts this limitation; future SchemaVersion 2 can add realized delays if the derivation rule becomes a product decision.
 - **Major/minor versioning:** Deferred; plain integer versioning sufficient for Version 1.
 - **Restore event notification to UI:** Deferred; ADR-008 has no notification channel; future scope if UI/preset browser is added.
 
