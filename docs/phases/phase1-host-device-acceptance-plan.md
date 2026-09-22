@@ -748,7 +748,7 @@ broader acceptance gates remain open.
 - 12/12 SR-P verification tests passing; 8/8 CTest suites passing overall.
 - **HT-7 (state restore) is now unblocked** — ADR-011 implementation prereq satisfied.
 
-**Task 1 Execution Complete (same day, 14:12–14:13 UTC):**
+**Task 1 Execution Complete (2026-09-22, 14:12–14:13 UTC):**
 - **HT-1 (lifecycle/instantiation): PASSED** ✓
   - 100 same-instance allocate/render/deallocate/reallocate cycles at both 44.1 kHz and 48.0 kHz
   - 100 fresh instantiate/render/destroy cycles per rate
@@ -769,3 +769,11 @@ broader acceptance gates remain open.
 **Conclusion:** Aetherfield's portable DSP core and AU wrapper are both correct.
 The partition-4 divergence is an Apple host-layer defect external to this project,
 documented and accepted. Task 1 (structural reachability) is **CLOSED**.
+
+**Tasks 2–5 Planning Session (2026-09-22, later):**
+- Attempted iOS/AUM host integration for Task 2 (HT-2/HT-4/HT-6)
+- Encountered provisioning/discovery friction: AU partially instantiates in AUM (audio passes, UI unavailable)
+- Audio routing and sample-rate changes blocked by host-level constraints
+- **Decision:** Defer Tasks 2–5 to separate session with clearer prerequisites
+- **Recommended path:** Build macOS AU (separate from iOS target) and test with Reaper headless (fully scriptable, no UI friction)
+- See [Tasks 2–5 Next-Session Plan](#tasks-25-next-session-plan-below)
