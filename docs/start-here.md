@@ -2,6 +2,11 @@
 
 Aetherfield is a portable C++ audio-DSP project progressing toward an iOS/iPadOS ambient reverb. The [product specification](../AETHERFIELD_SPEC.md) defines product intent; it is not evidence that a feature exists. The [roadmap](roadmap.md) defines the currently authorized continuation. Architecture is recorded in the [ADR index](decisions/index.md); implementation plans and verification evidence are separate sources of truth.
 
+Public hiring/engineering showcase (GitHub Pages from `/docs`):
+[index.html](index.html) · [engineering.html](engineering.html) ·
+https://joshband.github.io/aetherfield/ (enable Pages from branch `/docs`).
+The former Field Notes page (`docs/site/`) is retired.
+
 ## What is implemented
 
 Phase 0 is a portable CMake/C++20 loop with a gain processor, deterministic tests, and a mono offline WAV renderer. Phase 1 has four implemented bounded increments:

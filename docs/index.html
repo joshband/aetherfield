@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aetherfield · Josh Band</title>
+  <meta name="description" content="Aetherfield is a portable C++ ambient-reverb DSP foundation toward AUv3, built by Josh Band with evidence-driven, agentic engineering.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <div class="site-shell">
+    <nav class="site-nav" aria-label="Primary">
+      <a class="nav-brand" href="index.html">
+        <span class="product">Aether<em>field</em></span>
+        <span class="builder">Josh Band</span>
+      </a>
+      <ul class="nav-links">
+        <li class="nav-hide-sm"><a href="#listen">Listen</a></li>
+        <li><a href="engineering.html">Engineering</a></li>
+        <li><a class="nav-cta" href="https://github.com/joshband/aetherfield" rel="noopener noreferrer">GitHub</a></li>
+      </ul>
+    </nav>
+
+    <header class="hero">
+      <div class="hero-plane" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <div class="hero-brands">
+          <span class="product-name">Aether<em>field</em></span>
+          <span class="builder-name">Josh Band</span>
+        </div>
+        <h1>Ambient reverb as a measured portable foundation.</h1>
+        <p class="lede">
+          Full-stack ownership of a hard audio system — portable DSP, AUv3 path,
+          written decisions, and independent verification — practiced with
+          human-gated agentic engineering.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#listen">Listen</a>
+          <a class="btn btn-secondary" href="engineering.html">Engineering</a>
+          <a class="btn btn-ghost" href="https://github.com/joshband/aetherfield" rel="noopener noreferrer">GitHub</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section reveal" id="proves" aria-labelledby="proves-heading">
+        <p class="eyebrow">What this proves</p>
+        <h2 id="proves-heading">Ownership across the whole chain</h2>
+        <p class="lede">
+          Not a demo sketch — a portable signal path with contracts, measurements,
+          and an honest boundary between what ships in code and what remains deferred.
+        </p>
+        <div class="claim-grid">
+          <article class="claim">
+            <div class="n">01 · Portable DSP</div>
+            <h3>Realtime-safe foundation</h3>
+            <p>
+              Fixed FDN late network, damping and decay law, Mix automation,
+              input/output diffusion, and stereo evaluation path — verified under
+              deterministic CTest.
+            </p>
+          </article>
+          <article class="claim">
+            <div class="n">02 · Host-bound path</div>
+            <h3>AUv3 without fiction</h3>
+            <p>
+              Minimal <code class="mono">AUAudioUnit</code> wrapper, parameter bridge,
+              lifecycle mapping, and hybrid bypass exist in tree. Host/device HT-1…12
+              remain unrun — acceptance is open, not claimed closed.
+            </p>
+          </article>
+          <article class="claim">
+            <div class="n">03 · Evidence discipline</div>
+            <h3>AI-fluent ownership</h3>
+            <p>
+              Decisions, plans, and verification live on disk. Models supply
+              role-matched labor; the owner gates architecture and status claims
+              against recorded suites and listening rounds.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section reveal" id="method" aria-labelledby="method-heading">
+        <p class="eyebrow">Agentic engineering practice</p>
+        <h2 id="method-heading">Human-gated, evidence-driven delivery</h2>
+        <p class="lede">
+          Multi-agent coding is the delivery system — not the product brand.
+          Written contracts first; independent re-verification from disk before
+          anything is called done.
+        </p>
+        <div class="method-flow">
+          <div class="method-step">
+            <div class="step-label">Decide</div>
+            <p>ADRs lock topology, safety, parameters, bus policy, and acceptance catalogs before code expands scope.</p>
+          </div>
+          <div class="method-step">
+            <div class="step-label">Plan</div>
+            <p>Interface-level milestone plans name tests, non-goals, and owner gates — authorization is separate from design acceptance.</p>
+          </div>
+          <div class="method-step">
+            <div class="step-label">Implement</div>
+            <p>Bounded increments against the plan: portable DSP, then bridge, then AUv3 lifecycle — no silent scope creep.</p>
+          </div>
+          <div class="method-step">
+            <div class="step-label">Verify</div>
+            <p>Independent re-derivation of evidence: CTest suites, measurement contracts, listening rounds, Sol-level architecture review when warranted.</p>
+          </div>
+        </div>
+        <p class="method-note">
+          The owner remains the gate for product claims and architectural revision.
+          Agent roles are execution metadata recorded in the agent log — they are not
+          part of the public brand or navigation.
+        </p>
+      </section>
+
+      <section class="section reveal" id="listen" aria-labelledby="listen-heading">
+        <p class="eyebrow">Listen</p>
+        <h2 id="listen-heading">Engineering listening evidence</h2>
+        <p class="sub">
+          Short clips from offline DS-B listening renders. These support sonic
+          acceptance of the stereo evaluation path — not finished product polish.
+        </p>
+        <div class="listen-grid">
+          <article class="listen-card">
+            <h3>Short decay impulse</h3>
+            <p class="caption">Short decay impulse isolation (Decay=0.1); DS-B listening evidence</p>
+            <audio controls preload="metadata" src="audio/decay-short.mp3">
+              Your browser does not support the audio element.
+            </audio>
+          </article>
+          <article class="listen-card">
+            <h3>Long decay impulse</h3>
+            <p class="caption">Long decay impulse (Decay=0.9), first 12s of ~90s render; DS-B listening evidence</p>
+            <audio controls preload="metadata" src="audio/decay-long.mp3">
+              Your browser does not support the audio element.
+            </audio>
+          </article>
+          <article class="listen-card">
+            <h3>Pluck chord corpus</h3>
+            <p class="caption">Synthetic pluck-chord corpus at wrapper defaults; DS-B listening evidence</p>
+            <audio controls preload="metadata" src="audio/pluck-chord.mp3">
+              Your browser does not support the audio element.
+            </audio>
+          </article>
+          <article class="listen-card">
+            <h3>Sustained pad corpus</h3>
+            <p class="caption">Synthetic sustained-pad corpus at wrapper defaults; DS-B listening evidence</p>
+            <audio controls preload="metadata" src="audio/sustained-pad.mp3">
+              Your browser does not support the audio element.
+            </audio>
+          </article>
+        </div>
+        <p class="honesty">
+          Captions describe measurement and listening context. This is not a claim
+          of App Store readiness, commercial host validation, or final product sound.
+        </p>
+      </section>
+
+      <section class="section reveal" id="system" aria-labelledby="system-heading">
+        <p class="eyebrow">System at a glance</p>
+        <h2 id="system-heading">What exists in the signal path today</h2>
+        <p class="sub">
+          Solid path is implemented and measured. Dashed items exist partially or
+          remain deferred — see the boundary section.
+        </p>
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 920 220" role="img" aria-labelledby="path-title path-desc">
+            <title id="path-title">Aetherfield signal path</title>
+            <desc id="path-desc">Input flows into DiffusionStereoPath, through the FDN, to stereo out. Dashed boxes show AUv3 host validation, UI, and Freeze Bloom Texture as not complete.</desc>
+            <defs>
+              <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6fa8b5"/>
+              </marker>
+            </defs>
+            <rect x="20" y="78" width="100" height="48" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="70" y="107" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="13">Input</text>
+            <line x1="120" y1="102" x2="168" y2="102" stroke="#6fa8b5" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="170" y="62" width="220" height="80" rx="2" fill="#1a222d" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="280" y="92" text-anchor="middle" fill="#c9956c" font-family="IBM Plex Mono,monospace" font-size="11">DiffusionStereoPath</text>
+            <text x="280" y="114" text-anchor="middle" fill="#9aa3b2" font-family="Sora,sans-serif" font-size="12">implemented · measured</text>
+            <line x1="390" y1="102" x2="438" y2="102" stroke="#6fa8b5" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="440" y="78" width="100" height="48" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="490" y="107" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="13">FDN</text>
+            <line x1="540" y1="102" x2="588" y2="102" stroke="#6fa8b5" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+            <rect x="590" y="78" width="120" height="48" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="650" y="107" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="13">Stereo out</text>
+
+            <rect x="170" y="168" width="160" height="36" rx="2" fill="transparent" stroke="#6b7382" stroke-width="1.25" stroke-dasharray="5 4"/>
+            <text x="250" y="191" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="11">AUv3 host validation</text>
+
+            <rect x="350" y="168" width="70" height="36" rx="2" fill="transparent" stroke="#6b7382" stroke-width="1.25" stroke-dasharray="5 4"/>
+            <text x="385" y="191" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="11">UI</text>
+
+            <rect x="440" y="168" width="200" height="36" rx="2" fill="transparent" stroke="#6b7382" stroke-width="1.25" stroke-dasharray="5 4"/>
+            <text x="540" y="191" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="11">Freeze / Bloom / Texture</text>
+          </svg>
+          <div class="diagram-legend">
+            <span class="solid">Implemented path</span>
+            <span class="dashed">Deferred or unvalidated</span>
+          </div>
+        </div>
+        <figure class="viz-panel">
+          <canvas id="decayCanvas" width="800" height="160" aria-label="Homogeneous FDN decay envelope visualization"></canvas>
+          <figcaption>
+            Homogeneous FDN decay law (γⁿ) — illustrative of ADR-002/003 envelope behavior, not a live plugin meter.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section reveal" id="boundary" aria-labelledby="boundary-heading">
+        <p class="eyebrow">Boundary</p>
+        <h2 id="boundary-heading">Shipped proof vs deferred work</h2>
+        <p class="sub">
+          Status numbers match the on-disk records in start-here and testing
+          at publish time.
+        </p>
+        <div class="boundary-grid">
+          <div class="boundary-col shipped">
+            <h3>In tree &amp; evidenced</h3>
+            <ul>
+              <li><span class="mono">8/8</span> CTest suites passed (portable Release / hybrid-bypass reconcile)</li>
+              <li>DS-B Sonic acceptance closed — three listening rounds + architecture review</li>
+              <li>DiffusionStereoPath: diffusion, FDN taps, Mix, fault recovery</li>
+              <li>AUv3 wrapper + hybrid bypass implementation (unsigned Release build)</li>
+              <li>Parameter bridge PB-1…PB-8 mechanism checks</li>
+            </ul>
+          </div>
+          <div class="boundary-col deferred">
+            <h3>Open or deferred</h3>
+            <ul>
+              <li>HT-1…HT-12 host/device acceptance unrun</li>
+              <li>Commercial host validation, App Store readiness</li>
+              <li>UI, modulation, Freeze / Bloom / Texture</li>
+              <li>State restore productization; final product tuning</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section reveal" id="about" aria-labelledby="about-heading">
+        <p class="eyebrow">About / contact</p>
+        <h2 id="about-heading">Builder + product</h2>
+        <div class="about-row">
+          <div>
+            <p>
+              <strong>Josh Band</strong> builds Aetherfield as an evidence-driven
+              audio-DSP prototype: decide, plan, implement, and re-verify from disk
+              — including with agentic coding as disciplined labor under owner gates.
+            </p>
+            <p>
+              Looking for roles where realtime audio, systems craft, and clear
+              engineering judgment matter. Drill into the
+              <a href="engineering.html">Engineering</a> page or the
+              <a href="https://github.com/joshband/aetherfield" rel="noopener noreferrer">repository</a>
+              for contracts and proof.
+            </p>
+          </div>
+          <ul class="contact-list">
+            <li>
+              <span class="label">GitHub</span>
+              <a href="https://github.com/joshband/aetherfield" rel="noopener noreferrer">joshband/aetherfield</a>
+            </li>
+            <li>
+              <span class="label">LinkedIn</span>
+              <span class="placeholder">LinkedIn URL — placeholder</span>
+            </li>
+            <li>
+              <span class="label">Email</span>
+              <span class="placeholder">email@example.com — placeholder</span>
+            </li>
+            <li>
+              <span class="label">Public site</span>
+              <a href="https://joshband.github.io/aetherfield/">joshband.github.io/aetherfield</a>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Aetherfield · Josh Band</span>
+      <span>Status claims track <a href="https://github.com/joshband/aetherfield/blob/main/docs/start-here.md">docs/start-here.md</a></span>
+    </footer>
+  </div>
+  <script src="assets/site.js" defer></script>
+</body>
+</html>

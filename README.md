@@ -61,6 +61,18 @@ Generated build products and render artifacts are ignored by Git. The renderers
 produce engineering evidence and listening material; they are not a claim of
 finished product sound quality.
 
+## Public showcase
+
+A dual-audience GitHub Pages site lives under [`docs/`](docs/) (`index.html` +
+`engineering.html`): hiring skim, listening evidence, and engineering proof
+with honest shipped-vs-deferred boundaries.
+
+- Local: open [`docs/index.html`](docs/index.html)
+- Public URL (after Pages is enabled from `/docs`):
+  https://joshband.github.io/aetherfield/
+
+Enable with: GitHub → Settings → Pages → Deploy from branch → `/docs`.
+
 ## Read next
 
 - [Current state and task routing](docs/start-here.md)

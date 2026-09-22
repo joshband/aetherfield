@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engineering · Aetherfield</title>
+  <meta name="description" content="Engineering case study for Aetherfield: architecture, hard realtime problems, proof table, and decision discipline.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+  <div class="site-shell">
+    <nav class="site-nav" aria-label="Primary">
+      <a class="nav-brand" href="index.html">
+        <span class="product">Aether<em>field</em></span>
+        <span class="builder">Josh Band</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="engineering.html" aria-current="page">Engineering</a></li>
+        <li><a class="nav-cta" href="https://github.com/joshband/aetherfield" rel="noopener noreferrer">GitHub</a></li>
+      </ul>
+    </nav>
+
+    <header class="hero" style="min-height: min(58vh, 520px);">
+      <div class="hero-plane" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <p class="eyebrow">Engineering case study</p>
+        <h1>From portable FDN to AUv3 path</h1>
+        <p class="lede">
+          Architecture, hard realtime problems, measured proof, and the decision
+          discipline that keeps agentic delivery honest.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#proof">Proof table</a>
+          <a class="btn btn-secondary" href="https://github.com/joshband/aetherfield/blob/main/docs/testing.md" rel="noopener noreferrer">testing.md</a>
+          <a class="btn btn-ghost" href="index.html#listen">Listen on Home</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="section reveal" id="thesis" aria-labelledby="thesis-heading">
+        <p class="eyebrow">Problem / thesis</p>
+        <h2 id="thesis-heading">Spacious ambient reverb without hand-waving</h2>
+        <p class="lede">
+          Build a portable C++20 late-reverb foundation that can survive realtime
+          constraints, then bind it to AUv3 with explicit lifecycle and parameter
+          contracts — while recording what is measured versus what is still open.
+        </p>
+        <p class="method-note">
+          Product intent lives in the charter; existence claims live in source and
+          <a href="https://github.com/joshband/aetherfield/blob/main/docs/testing.md">testing.md</a>.
+          An accepted ADR authorizes design, not automatic implementation.
+        </p>
+      </section>
+
+      <section class="section reveal" id="architecture" aria-labelledby="arch-heading">
+        <p class="eyebrow">Architecture</p>
+        <h2 id="arch-heading">Layered path: DSP → bridge → AUv3</h2>
+        <div class="diagram-wrap">
+          <svg viewBox="0 0 920 260" role="img" aria-labelledby="eng-path-title eng-path-desc">
+            <title id="eng-path-title">Layered Aetherfield architecture</title>
+            <desc id="eng-path-desc">Input to DiffusionStereoPath and FDN to stereo out; wrapper bridge and AUv3 sit above; dashed UI and Freeze Bloom Texture and host validation.</desc>
+            <defs>
+              <marker id="arrow2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6fa8b5"/>
+              </marker>
+            </defs>
+            <text x="20" y="28" fill="#c9956c" font-family="IBM Plex Mono,monospace" font-size="11" letter-spacing="0.08em">AUDIO THREAD PATH</text>
+            <rect x="20" y="48" width="90" height="44" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="65" y="75" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="12">Input</text>
+            <line x1="110" y1="70" x2="150" y2="70" stroke="#6fa8b5" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+            <rect x="152" y="40" width="200" height="60" rx="2" fill="#1a222d" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="252" y="66" text-anchor="middle" fill="#c9956c" font-family="IBM Plex Mono,monospace" font-size="11">DiffusionStereoPath</text>
+            <text x="252" y="84" text-anchor="middle" fill="#9aa3b2" font-family="Sora,sans-serif" font-size="11">diffusion · taps · Mix</text>
+            <line x1="352" y1="70" x2="392" y2="70" stroke="#6fa8b5" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+            <rect x="394" y="48" width="90" height="44" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="439" y="75" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="12">FDN</text>
+            <line x1="484" y1="70" x2="524" y2="70" stroke="#6fa8b5" stroke-width="1.5" marker-end="url(#arrow2)"/>
+
+            <rect x="526" y="48" width="110" height="44" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="581" y="75" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="12">Stereo out</text>
+
+            <text x="20" y="140" fill="#c9956c" font-family="IBM Plex Mono,monospace" font-size="11" letter-spacing="0.08em">CONTROL / HOST</text>
+            <rect x="20" y="156" width="200" height="44" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="120" y="183" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="12">Parameter bridge</text>
+
+            <rect x="240" y="156" width="200" height="44" rx="2" fill="#141a22" stroke="#6fa8b5" stroke-width="1.5"/>
+            <text x="340" y="183" text-anchor="middle" fill="#ebe7de" font-family="Sora,sans-serif" font-size="12">AUv3 + hybrid bypass</text>
+
+            <rect x="460" y="156" width="180" height="44" rx="2" fill="transparent" stroke="#6b7382" stroke-width="1.25" stroke-dasharray="5 4"/>
+            <text x="550" y="183" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="12">Host validation (HT)</text>
+
+            <rect x="660" y="156" width="100" height="44" rx="2" fill="transparent" stroke="#6b7382" stroke-width="1.25" stroke-dasharray="5 4"/>
+            <text x="710" y="183" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="12">UI</text>
+
+            <rect x="780" y="156" width="120" height="44" rx="2" fill="transparent" stroke="#6b7382" stroke-width="1.25" stroke-dasharray="5 4"/>
+            <text x="840" y="175" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="11">Freeze /</text>
+            <text x="840" y="191" text-anchor="middle" fill="#6b7382" font-family="Sora,sans-serif" font-size="11">Bloom / Texture</text>
+          </svg>
+          <div class="diagram-legend">
+            <span class="solid">Implemented</span>
+            <span class="dashed">Deferred or unrun acceptance</span>
+          </div>
+        </div>
+        <p class="method-note" style="margin-top:1.25rem;">
+          Deep docs:
+          <a href="https://github.com/joshband/aetherfield/blob/main/docs/architecture.md">architecture.md</a> ·
+          <a href="https://github.com/joshband/aetherfield/blob/main/docs/dsp-design.md">dsp-design.md</a> ·
+          <a href="https://github.com/joshband/aetherfield/blob/main/AETHERFIELD_SPEC.md">AETHERFIELD_SPEC.md</a>
+        </p>
+      </section>
+
+      <section class="section reveal" id="hard" aria-labelledby="hard-heading">
+        <p class="eyebrow">Hard parts</p>
+        <h2 id="hard-heading">Where correctness is expensive</h2>
+        <div class="hard-grid">
+          <article class="hard-item">
+            <h3>Realtime numerical safety</h3>
+            <p>
+              Denormals, cessation bounds, and whole-path fault detection with
+              next-block recovery — NS cases and DS-propagated bounds recorded
+              before claiming the stereo path closed.
+            </p>
+          </article>
+          <article class="hard-item">
+            <h3>Parameter bridging</h3>
+            <p>
+              Control-thread mailbox and reset-flag design (ADR-008) keep host
+              events off the audio thread’s critical path; PB-1…PB-8 are mechanism
+              checks, not host proof.
+            </p>
+          </article>
+          <article class="hard-item">
+            <h3>Hybrid bypass</h3>
+            <p>
+              <code class="mono">T_silence</code>-bounded hybrid bypass merges dry
+              passthrough with DSP lifecycle so mute/unmute does not leave stale
+              energy — implementation exists; HT matrix still open.
+            </p>
+          </article>
+          <article class="hard-item">
+            <h3>Measurement contracts</h3>
+            <p>
+              DS-1…13 cover energy, echo density, decay, coherence, mono
+              compatibility, magnitude response, determinism, and cost — sonic
+              acceptance closed for DS-B without rewriting architecture.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section reveal" id="proof" aria-labelledby="proof-heading">
+        <p class="eyebrow">Proof</p>
+        <h2 id="proof-heading">Evidence at a glance</h2>
+        <p class="sub">
+          Numbers match <a href="https://github.com/joshband/aetherfield/blob/main/docs/start-here.md">start-here.md</a>
+          / <a href="https://github.com/joshband/aetherfield/blob/main/docs/testing.md">testing.md</a>.
+          Agentic delivery shows up as: plan on disk → implement → independent
+          re-verify — not as a claim that models replace ownership.
+        </p>
+        <table class="proof-table">
+          <thead>
+            <tr>
+              <th>Evidence</th>
+              <th>Status</th>
+              <th>Where</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>CTest suites</td>
+              <td><span class="mono">8/8</span> passed (hybrid-bypass reconcile Release tree)</td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/testing.md">testing.md</a></td>
+            </tr>
+            <tr>
+              <td>DS-B Tasks 1–4</td>
+              <td>All plan checkboxes closed; DS-1…13 measured</td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/phases/phase1-ds-integration-plan.md">DS-B plan</a></td>
+            </tr>
+            <tr>
+              <td>DS-B Sonic acceptance</td>
+              <td>Closed — 3 listening rounds + Sol-level architecture review; no ADR-006 revisit trigger</td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/testing.md">testing.md</a></td>
+            </tr>
+            <tr>
+              <td>Wrapper bridge</td>
+              <td>PB-1…PB-8 pass under <code class="mono">aetherfield_wrapper_tests</code></td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/phases/phase1-wrapper-skeleton-plan.md">wrapper plan</a></td>
+            </tr>
+            <tr>
+              <td>AUv3 + hybrid bypass</td>
+              <td>In tree; unsigned Release build; no auval/host/device pass recorded</td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/phases/phase1-hybrid-bypass-plan.md">hybrid bypass plan</a></td>
+            </tr>
+            <tr>
+              <td>HT-1…HT-12</td>
+              <td>Catalog decided (ADR-012); cases unrun</td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/decisions/ADR-012-host-device-acceptance-catalog.md">ADR-012</a></td>
+            </tr>
+            <tr>
+              <td>UI / Freeze / Bloom / Texture</td>
+              <td>Deferred — not in shipped proof set</td>
+              <td><a href="https://github.com/joshband/aetherfield/blob/main/docs/roadmap.md">roadmap.md</a></td>
+            </tr>
+          </tbody>
+        </table>
+        <figure class="viz-panel">
+          <canvas id="decayCanvas" width="800" height="160" aria-label="Homogeneous FDN decay envelope visualization"></canvas>
+          <figcaption>
+            Homogeneous FDN decay law visualization (γⁿ) — engineering illustration aligned with ADR-002/003, not live metering.
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section reveal" id="decisions" aria-labelledby="decisions-heading">
+        <p class="eyebrow">Decision discipline</p>
+        <h2 id="decisions-heading">Selected ADR highlights</h2>
+        <div class="adr-list">
+          <article class="adr-item">
+            <div class="id">ADR-001</div>
+            <div>
+              <h3>Portable core</h3>
+              <p>CMake/C++20 DSP core without host headers in the hot path — host binding is a separate layer.</p>
+            </div>
+          </article>
+          <article class="adr-item">
+            <div class="id">ADR-002/003</div>
+            <div>
+              <h3>Late network + numerical safety</h3>
+              <p>Fixed FDN topology and damping/decay/denormal contracts that bound what “safe silence” means.</p>
+            </div>
+          </article>
+          <article class="adr-item">
+            <div class="id">ADR-006</div>
+            <div>
+              <h3>Diffusion / stereo baseline</h3>
+              <p>Evaluation architecture for diffusion and stereo taps; Tasks 1–4 measured; sonic acceptance closed without forced redesign.</p>
+            </div>
+          </article>
+          <article class="adr-item">
+            <div class="id">ADR-008–010</div>
+            <div>
+              <h3>Bridge, bus, lifecycle</h3>
+              <p>Parameter mailbox, production bus policy, and device lifecycle matrix before wrapper expansion.</p>
+            </div>
+          </article>
+          <article class="adr-item">
+            <div class="id">ADR-012</div>
+            <div>
+              <h3>Host/device catalog</h3>
+              <p>HT-1…12 methodology exists as a catalog; execution remains the open acceptance gate.</p>
+            </div>
+          </article>
+        </div>
+        <p class="method-note" style="margin-top:1.25rem;">
+          Full index:
+          <a href="https://github.com/joshband/aetherfield/blob/main/docs/decisions/index.md">docs/decisions/index.md</a>
+        </p>
+      </section>
+
+      <section class="section reveal" id="agentic" aria-labelledby="agentic-heading">
+        <p class="eyebrow">Delivery system</p>
+        <h2 id="agentic-heading">Agentic method without cosplay</h2>
+        <p class="lede">
+          Models accelerate drafting and mechanical verification. Ownership stays
+          with the human who accepts ADRs, authorizes plans, and refuses status
+          claims that outrun disk evidence.
+        </p>
+        <p class="method-note">
+          Provenance for milestones is recorded in
+          <a href="https://github.com/joshband/aetherfield/blob/main/docs/agent-log.md">agent-log.md</a>
+          and commit messages — useful for process honesty, not a public brand roster.
+        </p>
+      </section>
+
+      <section class="section reveal" id="next" aria-labelledby="next-heading">
+        <p class="eyebrow">What’s next</p>
+        <h2 id="next-heading">Open acceptance work</h2>
+        <div class="boundary-grid">
+          <div class="boundary-col shipped">
+            <h3>Ready to resume from</h3>
+            <ul>
+              <li><a href="https://github.com/joshband/aetherfield/blob/main/docs/start-here.md">start-here.md</a> current state</li>
+              <li><a href="https://github.com/joshband/aetherfield/blob/main/docs/roadmap.md">roadmap.md</a> authorization boundary</li>
+              <li>Host/device execution procedure &amp; HT catalog</li>
+            </ul>
+          </div>
+          <div class="boundary-col deferred">
+            <h3>Still open</h3>
+            <ul>
+              <li>Run and record HT-1…HT-12 evidence</li>
+              <li>Commercial host / auval validation</li>
+              <li>UI and Freeze / Bloom / Texture when authorized</li>
+            </ul>
+          </div>
+        </div>
+        <div class="cta-row" style="margin-top:2rem;">
+          <a class="btn btn-primary" href="index.html">Back to Home</a>
+          <a class="btn btn-secondary" href="https://github.com/joshband/aetherfield" rel="noopener noreferrer">Open repository</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Engineering · Aetherfield · Josh Band</span>
+      <span><a href="index.html">Home</a> · <a href="https://joshband.github.io/aetherfield/">GitHub Pages</a></span>
+    </footer>
+  </div>
+  <script src="assets/site.js" defer></script>
+</body>
+</html>
