@@ -125,3 +125,28 @@ HT-10 (Offline Determinism) AU infrastructure is now complete. Next session:
 4. Execute HT-10 render/compare procedure (see HT10_REAPER_MCP_SETUP.md)
 
 Status: Ready for REAPER MCP testing. No code changes to AU core needed; configuration/build issue resolved.
+
+### Critical Follow-up: Info.plist Structure Issue Identified and Fixed
+
+**Issue:** AU was not discoverable even with .component bundle format.
+
+**Root cause 2:** AudioComponents nested in NSExtension (iOS AUv3 format) instead of top-level.
+- iOS AUv3 plugins use: NSExtension → NSExtensionPointIdentifier: com.apple.AudioUnit
+- macOS traditional AU plugins use: AudioComponents at top-level
+- Comparison: Acid V.component has AudioComponents at top-level, matching our previous implementation
+
+**Fix 2 (commit 320b760):** Restructured Info.plist properties:
+- Removed NSExtension wrapper
+- Moved AudioComponents array to top-level
+- Matches traditional macOS AU format (pre-AUv3)
+
+**Result:** 
+✅ Generated Info.plist now matches working macOS AUs (Acid V structure)
+✅ All 9 CTest suites still pass
+✅ Code signature valid
+✅ AU ready for REAPER discovery
+
+## Summary of Both Fixes
+1. **Bundle type:** app-extension → bundle (WRAPPER_EXTENSION: component)
+2. **Info.plist:** AudioComponents nested in NSExtension → top-level
+3. Both required to match macOS traditional AU plugin format
