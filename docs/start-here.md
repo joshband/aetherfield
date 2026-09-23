@@ -452,6 +452,22 @@ completed (2026-09-21): full physical device matrix authorized, AUM as primary
 host, execution scope and device/host/OS identities to be captured at session
 time per the evidence contract.**
 
+**Session 2026-09-22 (final): HT-10 execution preparation completed**
+
+AU instantiation blocker fixed (commit 2c693e1). HT-10 ready for execution:
+
+- ✅ macOS AU Extension built and installed at `~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component`
+- ✅ ReaScript prepared at `~/Library/Application Support/REAPER/Scripts/HT10/ht10_determinism_test.lua`
+- ✅ Execution guide created: `docs/phases/HT10_EXECUTION_GUIDE.md` (Option A: manual; Option B: scripted)
+- ⏳ Awaiting execution: Either manual REAPER UI steps or ReaScript invocation
+
+**To execute HT-10 (either method):**
+1. Read `docs/phases/HT10_EXECUTION_GUIDE.md` for full procedure
+2. Follow Option A (manual REAPER UI) or Option B (ReaScript)
+3. Verify three renders produce identical SHA-256 hashes
+4. Record results in `artifacts/host-device/ht10-macos-<date>/manifest.json`
+5. Commit evidence and updated testing.md with HT-10 pass/fail status
+
 ## Lean resume loop
 
 At a milestone boundary, start a fresh session (or clear the prior context),
