@@ -22,6 +22,7 @@
 		4AA805EEC5629B685DF8BC9F /* StateSchema.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DC95ED37398CE0EA79FD92F6 /* StateSchema.cpp */; };
 		4BB472F70474A00A21E6BA9D /* DiffusionStereoPath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F622EFADC14CAE2CE4296CB0 /* DiffusionStereoPath.cpp */; };
 		4C58702F05EBD6286A48592D /* HybridBypassController.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C3C436A00E4136C976BAD09C /* HybridBypassController.cpp */; };
+		70277E9488A22DB675FD3009 /* AetherfieldAUExtensionMacOS.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 85B394F308851EA1D00867E4 /* AetherfieldAUExtensionMacOS.bundle */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		709ED9793B4BFA767B805B89 /* SchroederAllpass.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 0EFD5630D708FA5AC671DEB6 /* SchroederAllpass.cpp */; };
 		71F32DFE8D56830E66C7A018 /* GainProcessor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A5288C9A2006160A2E9DCB62 /* GainProcessor.cpp */; };
 		87A8A9AADE6F3DF09C3ACFFA /* FeedbackDelayNetwork.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A6CF260DE45E599105691A88 /* FeedbackDelayNetwork.cpp */; };
@@ -40,7 +41,6 @@
 		EED8153AC86E2CAA714D8E99 /* DiffusionStereoPath.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F622EFADC14CAE2CE4296CB0 /* DiffusionStereoPath.cpp */; };
 		EFE61A7CC28332676E4C99AF /* ParameterBridge.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1AADC5CC31D5DF03F1EED13B /* ParameterBridge.cpp */; };
 		F050184691C72948E5199906 /* ParameterAutomation.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42253EA05AF86F52D1685BB0 /* ParameterAutomation.cpp */; };
-		F24D6142C8F8DEF2A4CC91EC /* AetherfieldAUExtensionMacOS.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7217ADFB1B9467F077C8A6E8 /* AetherfieldAUExtensionMacOS.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F5611A362CEC756757140153 /* ParameterAutomation.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 42253EA05AF86F52D1685BB0 /* ParameterAutomation.cpp */; };
 		F61D4C5D69340E1ACD968995 /* TailSilenceBound.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3BBACEA85801F967435CB0D8 /* TailSilenceBound.cpp */; };
 /* End PBXBuildFile section */
@@ -81,17 +81,6 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		C3468486A3C35ED1E2231411 /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				F24D6142C8F8DEF2A4CC91EC /* AetherfieldAUExtensionMacOS.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -108,8 +97,8 @@
 		524BD4A66A9403766D2C3738 /* AetherfieldAUExtension.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AetherfieldAUExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5635F1CD47204A98E15D1F92 /* AetherfieldHost.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AetherfieldHost.entitlements; sourceTree = "<group>"; };
 		7071010A5E190AEBB0A57986 /* AetherfieldAudioUnit.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AetherfieldAudioUnit.mm; sourceTree = "<group>"; };
-		7217ADFB1B9467F077C8A6E8 /* AetherfieldAUExtensionMacOS.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AetherfieldAUExtensionMacOS.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C8F7AC8725793A3EF188531 /* AetherfieldAudioUnitFactory.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AetherfieldAudioUnitFactory.mm; sourceTree = "<group>"; };
+		85B394F308851EA1D00867E4 /* AetherfieldAUExtensionMacOS.bundle */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AetherfieldAUExtensionMacOS.bundle; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A11718656B2B296F3A3431D /* AetherfieldAudioUnit.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AetherfieldAudioUnit.h; sourceTree = "<group>"; };
 		8F60FE0F194B1CC22EE1F7FD /* ComponentInstantiationTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ComponentInstantiationTests.mm; sourceTree = "<group>"; };
 		94B83A0B53353563D3DD2AD8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -191,7 +180,7 @@
 			isa = PBXGroup;
 			children = (
 				524BD4A66A9403766D2C3738 /* AetherfieldAUExtension.appex */,
-				7217ADFB1B9467F077C8A6E8 /* AetherfieldAUExtensionMacOS.appex */,
+				85B394F308851EA1D00867E4 /* AetherfieldAUExtensionMacOS.bundle */,
 				0B19F1DCAEEAF2D835061292 /* AetherfieldHarnessTests.xctest */,
 				2BEA7780F4A0CB045D139389 /* AetherfieldHost.app */,
 				1678B3CC89D5E1109CDA4E0F /* AetherfieldHostMacOS.app */,
@@ -282,15 +271,15 @@
 			packageProductDependencies = (
 			);
 			productName = AetherfieldAUExtensionMacOS;
-			productReference = 7217ADFB1B9467F077C8A6E8 /* AetherfieldAUExtensionMacOS.appex */;
-			productType = "com.apple.product-type.app-extension";
+			productReference = 85B394F308851EA1D00867E4 /* AetherfieldAUExtensionMacOS.bundle */;
+			productType = "com.apple.product-type.bundle";
 		};
 		C5DA8B36C2ECBAFB91736C1C /* AetherfieldHostMacOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6922A921E1A5B926C0B3C015 /* Build configuration list for PBXNativeTarget "AetherfieldHostMacOS" */;
 			buildPhases = (
 				9D0C3D2857E6DAEF00B17281 /* Sources */,
-				C3468486A3C35ED1E2231411 /* Embed Foundation Extensions */,
+				3CD15457FE52BAC2BFEEEF9B /* Resources */,
 			);
 			buildRules = (
 			);
@@ -394,6 +383,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3CD15457FE52BAC2BFEEEF9B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				70277E9488A22DB675FD3009 /* AetherfieldAUExtensionMacOS.bundle in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		3B82ED00F67E8602D6DB4658 /* Sources */ = {
@@ -519,11 +519,11 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aetherfield.placeholder.AetherfieldHostMacOS.AetherfieldAUExtensionMacOS;
 				SDKROOT = macosx;
+				WRAPPER_EXTENSION = component;
 			};
 			name = Release;
 		};
@@ -631,11 +631,11 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
-					"@executable_path/../../../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.aetherfield.placeholder.AetherfieldHostMacOS.AetherfieldAUExtensionMacOS;
 				SDKROOT = macosx;
+				WRAPPER_EXTENSION = component;
 			};
 			name = Debug;
 		};

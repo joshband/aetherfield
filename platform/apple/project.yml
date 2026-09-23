@@ -133,7 +133,7 @@ targets:
               - Effects
         NSExtension:
           NSExtensionPointIdentifier: com.apple.AudioUnit
-          NSExtensionPrincipalClass: AetherfieldAudioUnitFactory
+          NSExtensionPrincipalClass: AetherfieldAudioUnitFactoryImpl
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework

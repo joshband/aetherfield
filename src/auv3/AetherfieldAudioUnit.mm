@@ -134,13 +134,42 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
 - (instancetype)initWithComponentDescription:(AudioComponentDescription)description
                                       options:(AudioComponentInstantiationOptions)options
                                         error:(NSError **)outError {
+    NSLog(@"[Aetherfield AU] initWithComponentDescription: start");
     self = [super initWithComponentDescription:description options:options error:outError];
-    if (self == nil) return nil;
+    if (self == nil) {
+        NSLog(@"[Aetherfield AU] super initWithComponentDescription failed");
+        return nil;
+    }
+    NSLog(@"[Aetherfield AU] super initWithComponentDescription succeeded");
 
-    _path = std::make_unique<DiffusionStereoPath>();
-    _bridge = std::make_unique<ParameterBridge>();
-    _resetRequest = std::make_unique<ResetRequest>();
-    _hybridBypass = std::make_unique<HybridBypassController>();
+    @try {
+        NSLog(@"[Aetherfield AU] Creating C++ objects...");
+        _path = std::make_unique<DiffusionStereoPath>();
+        NSLog(@"[Aetherfield AU] Created _path");
+        _bridge = std::make_unique<ParameterBridge>();
+        NSLog(@"[Aetherfield AU] Created _bridge");
+        _resetRequest = std::make_unique<ResetRequest>();
+        NSLog(@"[Aetherfield AU] Created _resetRequest");
+        _hybridBypass = std::make_unique<HybridBypassController>();
+        NSLog(@"[Aetherfield AU] Created _hybridBypass");
+    } @catch (NSException *exception) {
+        NSLog(@"[Aetherfield AU] Exception creating C++ objects: %@", exception);
+        if (outError != nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FailedInitialization
+                                         userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithFormat:@"C++ initialization failed: %@", exception.reason]}];
+        }
+        return nil;
+    } @catch (...) {
+        NSLog(@"[Aetherfield AU] Unknown exception creating C++ objects");
+        if (outError != nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FailedInitialization
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Unknown C++ exception during initialization"}];
+        }
+        return nil;
+    }
+    NSLog(@"[Aetherfield AU] Initializing atomic values");
     _lastDecay = 0.5F; // matches DiffusionStereoPath/ParameterAutomation's own prepare()-time default
     _lastDamp = 0.0F;
     _lastMix = 1.0F;
@@ -150,9 +179,24 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     _hasPendingRestore.store(false, std::memory_order_relaxed);
     _pendingRestore = {0.5, 0.0, 1.0};
     _currentFixture = {0, 0.0, 0.0, 0.0, 0.0};
+    NSLog(@"[Aetherfield AU] Atomic values initialized");
 
+    NSLog(@"[Aetherfield AU] Creating audio format");
     AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:48000.0 channels:2];
+    if (format == nil) {
+        NSLog(@"[Aetherfield AU] Failed to create AVAudioFormat");
+        if (outError != nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FailedInitialization
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Failed to create AVAudioFormat"}];
+        }
+        return nil;
+    }
+    NSLog(@"[Aetherfield AU] Audio format created: sampleRate=%.0f channels=%u", format.sampleRate, format.channelCount);
+
+    NSLog(@"[Aetherfield AU] Creating input bus");
     _inputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:outError];
+    NSLog(@"[Aetherfield AU] Creating output bus");
     _outputBus = [[AUAudioUnitBus alloc] initWithFormat:format error:outError];
     // AUAudioUnitBus's initializer can fail and return nil (e.g. an
     // invalid format); inserting nil into an @[...] array literal below
@@ -161,6 +205,7 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
     // into outError is propagated as-is, with a fallback generic error
     // if it left outError untouched.
     if (_inputBus == nil || _outputBus == nil) {
+        NSLog(@"[Aetherfield AU] Failed to create AUAudioUnitBus(es): input=%@, output=%@", _inputBus, _outputBus);
         if (outError != nil && *outError == nil) {
             *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
                                              code:kAudioUnitErr_FailedInitialization
@@ -168,24 +213,56 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
         }
         return nil;
     }
+    NSLog(@"[Aetherfield AU] Buses created successfully");
     // ADR-009 section 1 (decided): stereo-in/stereo-out.
+    NSLog(@"[Aetherfield AU] Creating bus arrays");
     _inputBusArray = [[AUAudioUnitBusArray alloc] initWithAudioUnit:self
                                                              busType:AUAudioUnitBusTypeInput
                                                               busses:@[_inputBus]];
     _outputBusArray = [[AUAudioUnitBusArray alloc] initWithAudioUnit:self
                                                               busType:AUAudioUnitBusTypeOutput
                                                                busses:@[_outputBus]];
+    NSLog(@"[Aetherfield AU] Bus arrays created");
 
+    NSLog(@"[Aetherfield AU] Building parameter tree");
     [self buildParameterTree];
+    NSLog(@"[Aetherfield AU] Parameter tree built");
 
+    NSLog(@"[Aetherfield AU] Creating dispatch queue");
     _bridgeControllerQueue = dispatch_queue_create("com.aetherfield.bridgecontroller", DISPATCH_QUEUE_SERIAL);
+    if (_bridgeControllerQueue == nullptr) {
+        NSLog(@"[Aetherfield AU] Failed to create dispatch queue");
+        if (outError != nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FailedInitialization
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Failed to create dispatch queue"}];
+        }
+        return nil;
+    }
+    NSLog(@"[Aetherfield AU] Dispatch queue created");
+
     // Marks this queue with kBridgeControllerQueueKey so -dealloc can
     // detect, via dispatch_get_specific, whether it is already executing
     // on this exact queue -- see -dealloc's dispatch_sync guard below.
     dispatch_queue_set_specific(_bridgeControllerQueue, kBridgeControllerQueueKey, (void *)kBridgeControllerQueueKey, NULL);
+    NSLog(@"[Aetherfield AU] Queue specific set");
+
     _bridgeControllerTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, _bridgeControllerQueue);
+    if (_bridgeControllerTimer == nullptr) {
+        NSLog(@"[Aetherfield AU] Failed to create dispatch timer source");
+        if (outError != nil) {
+            *outError = [NSError errorWithDomain:NSOSStatusErrorDomain
+                                             code:kAudioUnitErr_FailedInitialization
+                                         userInfo:@{NSLocalizedDescriptionKey: @"Failed to create dispatch timer source"}];
+        }
+        return nil;
+    }
+    NSLog(@"[Aetherfield AU] Dispatch timer created");
+
     dispatch_source_set_timer(_bridgeControllerTimer, dispatch_time(DISPATCH_TIME_NOW, 0),
                                1 * NSEC_PER_MSEC, 0);
+    NSLog(@"[Aetherfield AU] Timer configured");
+
     __weak AetherfieldAudioUnit *weakSelf = self;
     dispatch_source_set_event_handler(_bridgeControllerTimer, ^{
         // ADR-008 section 1: the Bridge Controller drain-and-apply step,
@@ -205,8 +282,12 @@ static const void *const kBridgeControllerQueueKey = &kBridgeControllerQueueKey;
             }
         }
     });
-    dispatch_activate(_bridgeControllerTimer);
+    NSLog(@"[Aetherfield AU] Event handler set");
 
+    dispatch_activate(_bridgeControllerTimer);
+    NSLog(@"[Aetherfield AU] Timer activated");
+
+    NSLog(@"[Aetherfield AU] initWithComponentDescription: complete");
     return self;
 }
 
