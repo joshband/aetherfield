@@ -131,6 +131,9 @@ targets:
             sandboxSafe: true
             tags:
               - Effects
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.AudioUnit
+          NSExtensionPrincipalClass: AetherfieldAudioUnitFactory
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
