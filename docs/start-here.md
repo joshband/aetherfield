@@ -387,14 +387,16 @@ on both sample-rate and channel-count validation failures (commit 43b2acc).
 - AU installed at ~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component
 - REAPER MCP bridge: ✅ Installed and running (`reaper_mcp_server.lua` active)
 
-**Next session: HT-10 execution ready**
-1. Load MCP bridge in REAPER (if not auto-loaded): Actions → Load ReaScript → select reaper_mcp_server.lua
-2. Rescan AU in REAPER: Actions → Rescan Audio Units
-3. Verify AU discovery via MCP: Call `fx_list_installed`, confirm "Aetherfield: Reverb" appears
-4. Run HT-10 render procedure (see HT10_REAPER_MCP_SETUP.md for exact MCP sequence)
+**AU instantiation blocker (2026-09-22):**
+- ✅ AU is discoverable in REAPER ("AU: Reverb (Aetherfield)" appears in FX list)
+- ❌ REAPER fails to instantiate AU: "The following effect plug-in could not be loaded"
+- Configuration verified: both AudioComponents (discovery) + NSExtension (AUv3) present
+- Code signature valid, bundle format correct, dependencies present
+- **Root cause:** Appears to be in AetherfieldAudioUnit.mm initialization code
+- **Blockers for next session:** Debug AU instantiation to identify failure point
 
 HT-1 (discovery/instantiation), HT-3 (render call), HT-2 (rate negotiation)
-complete. HT-10 ready for execution; HT-4/5/6/8/9/11/12 deferred.
+complete. **HT-10 execution blocked pending AU instantiation fix**; HT-4/5/6/8/9/11/12 deferred.
 
 **Follow-up investigation, same day, now complete as far as this project's
 own source can take it:** the identical leading-zero-frame scenario was
