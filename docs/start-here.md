@@ -387,13 +387,16 @@ on both sample-rate and channel-count validation failures (commit 43b2acc).
 - AU installed at ~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component
 - REAPER MCP bridge: ✅ Installed and running (`reaper_mcp_server.lua` active)
 
-**AU instantiation blocker (2026-09-22):**
-- ✅ AU is discoverable in REAPER ("AU: Reverb (Aetherfield)" appears in FX list)
-- ❌ REAPER fails to instantiate AU: "The following effect plug-in could not be loaded"
-- Configuration verified: both AudioComponents (discovery) + NSExtension (AUv3) present
-- Code signature valid, bundle format correct, dependencies present
-- **Root cause:** Appears to be in AetherfieldAudioUnit.mm initialization code
-- **Blockers for next session:** Debug AU instantiation to identify failure point
+**AU instantiation blocker (2026-09-22) — FIXED (2026-09-22 20:37 UTC):**
+- Root cause: macOS AU system uses dlsym to load factory function, requiring C-linkage symbol
+- Problem: Objective-C class name cannot be resolved by dlsym
+- Solution: Export C wrapper function `extern "C" AetherfieldAudioUnitFactory()`
+  - Renamed Objective-C factory class to AetherfieldAudioUnitFactoryImpl
+  - C wrapper instantiates impl class and calls its createAudioUnitWithComponentDescription method
+  - Updated project.yml: NSExtensionPrincipalClass → AetherfieldAudioUnitFactoryImpl
+  - Restored factoryFunction in AudioComponents (pointing to C function)
+- Verification: auval successfully instantiates AU with full initialization logging
+- Result: AU instantiation now working. HT-10 execution unblocked
 
 HT-1 (discovery/instantiation), HT-3 (render call), HT-2 (rate negotiation)
 complete. **HT-10 execution blocked pending AU instantiation fix**; HT-4/5/6/8/9/11/12 deferred.
