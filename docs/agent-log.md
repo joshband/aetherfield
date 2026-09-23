@@ -150,3 +150,29 @@ Status: Ready for REAPER MCP testing. No code changes to AU core needed; configu
 1. **Bundle type:** app-extension → bundle (WRAPPER_EXTENSION: component)
 2. **Info.plist:** AudioComponents nested in NSExtension → top-level
 3. Both required to match macOS traditional AU plugin format
+
+## Session 2026-09-22 (continuation 2): HT-10 AU instantiation blocker
+
+**Current status:** AU is discoverable but fails to instantiate in REAPER
+
+**Investigation completed:**
+✅ Bundle format: .component (correct for macOS)
+✅ Info.plist has both AudioComponents + NSExtension
+✅ Code signature valid
+✅ Binary architecture arm64 (correct)
+✅ All framework dependencies present
+✅ AU factory (AetherfieldAudioUnitFactory) properly compiled
+
+**Issue remaining:** REAPER loads AU but fails during instantiation with "could not be loaded" error
+
+**Root cause:** Appears to be in AetherfieldAudioUnit.mm initialization code (AetherfieldAudioUnitFactory::createAudioUnitWithComponentDescription: or initWithComponentDescription:)
+
+**Blockers for next session:**
+1. Debug AU initialization - add logging/exceptions to track where instantiation fails
+2. Test with minimal AU implementation to isolate code vs config issue
+3. Check if iOS AUv3 test harness works (to confirm AU core is sound)
+4. Consider if macOS AUv3 has different lifecycle/protocol requirements than iOS
+
+**HT-10 status:** Cannot execute offline determinism test until AU loads successfully in REAPER
+
+Commits: 698aedd, 320b760, 3013949, a3d11b5, 48a410a
