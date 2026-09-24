@@ -485,6 +485,27 @@ mismatch fixed. Extension installed at `/Applications/AetherfieldHostMacOS.app/
 Contents/PlugIns/AetherfieldAUExtensionMacOS.appex`. Next session: rescan
 plugins in REAPER and attempt render per HT10_EXECUTION_GUIDE.md Option A or B.
 
+**Session 2026-09-24 (continued): HT-10 executed — PASS.** Two more blockers
+surfaced and were fixed after the ABI fix above: (1) a stale legacy
+`.component` bundle at `~/Library/Audio/Plug-Ins/Components/` was shadowing
+the new AUv3 extension and reproducing the same crash — deleted; (2) macOS
+PlugInKit (`pkd`) was silently rejecting the extension for lacking
+`com.apple.security.app-sandbox` (confirmed via `log show`) — fixed by adding
+`platform/apple/AetherfieldAUExtensionMacOS/AetherfieldAUExtensionMacOS.entitlements`
+and wiring it via `CODE_SIGN_ENTITLEMENTS` in `project.yml` (commit `003a60a`).
+Full detail in `docs/agent-log.md`. With both fixed, REAPER inserted "AU: Reverb
+(Aetherfield)" without crashing; 3x render at 48 kHz (Decay/Damp/Mix ≈ 0.499)
+produced identical SHA-256 hashes once REAPER's BWF-metadata timestamp
+embedding was disabled. **HT-10: PASS** — evidence at
+`artifacts/host-device/ht10-macos-2026-09-24/`.
+
+**HT-10 reproducibility:** All three root causes are now committed (ABI mismatch
+`45270ee`, macOS host app `c6c0340`, sandbox entitlement `003a60a`). A clean
+checkout of HEAD can now execute HT-10 with the same result.
+
+**Remaining HT tests deferred:** HT-4/5/6/8/9/11/12 remain unrun. Next
+authorized task awaits owner decision.
+
 ## Lean resume loop
 
 At a milestone boundary, start a fresh session (or clear the prior context),
