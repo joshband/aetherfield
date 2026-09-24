@@ -176,3 +176,210 @@ Status: Ready for REAPER MCP testing. No code changes to AU core needed; configu
 **HT-10 status:** Cannot execute offline determinism test until AU loads successfully in REAPER
 
 Commits: 698aedd, 320b760, 3013949, a3d11b5, 48a410a
+
+## Session 2026-09-24: HT-10 execution attempted — AU crashes REAPER on instantiation (root cause identified)
+
+**Tool:** Claude (Cowork, computer-use/screen-control session against live REAPER on macOS)
+**Scope:** Attempt HT-10 execution per `HT10_EXECUTION_GUIDE.md` Option A; diagnose blocker found
+
+### AU discovery: now working
+Rescanned plugins in REAPER's FX browser ("Scan for new plugins"). The Aetherfield
+AU is now discoverable — appears as **"AU: Reverb (Aetherfield)"** (not
+"Aetherfield: Reverb" as earlier docs assumed; REAPER lists it as
+`<type>: <name> (<manufacturer/vendor label>)`). This confirms the bundle-type
+and Info.plist top-level-AudioComponents fixes from the 2026-09-22 sessions are
+effective — the AU registers with macOS/REAPER correctly.
+
+### Blocker: inserting the AU crashes REAPER (reproduced 2/2)
+Adding "AU: Reverb (Aetherfield)" to a track's FX chain (Track → FX → search
+"Aetherfield" → Add) crashes REAPER outright — the whole app quits and
+relaunches (splash screen, fresh unsaved project, track gone). Reproduced twice,
+back-to-back, identical result both times. macOS also surfaced a "REAPER quit
+unexpectedly" notification on the second attempt.
+
+Crash reports: `~/Library/Logs/DiagnosticReports/REAPER-2026-09-24-130302.ips`
+and `REAPER-2026-09-24-130355.ips` (both on the real macOS host, outside this
+repo). Both show the identical signature:
+
+```
+EXC_BAD_ACCESS (SIGSEGV) KERN_INVALID_ADDRESS at 0x0000000000000000
+```
+
+Crashing thread (main thread) stack, top frames:
+
+```
+REAPER: do_insert → add_to_chain → fxadd_add_recs_to_chain
+  → FxChain::addDspToChain → FxDsp::FxDsp → AU_Plugin::AU_Plugin
+  → __OpenComponent → AudioComponentInstanceNew (AudioToolboxCore)
+  → APComponent::newInstance
+  → [pc = 0x0 — jump through a null function pointer]
+```
+
+### Root cause (source-level)
+
+`src/auv3/AetherfieldAudioUnitFactory.mm:45`:
+
+```objc
+extern "C" AUAudioUnit* AetherfieldAudioUnitFactory(AudioComponentDescription inDesc, NSError** outError) {
+```
+
+`platform/apple/project.yml:88` and `:130` both point the `factoryFunction:`
+key (for the iOS AUv3 target *and* the macOS `AetherfieldAUExtensionMacOS`
+`.component` target) at this same symbol name.
+
+The signature mismatch: this function returns an Objective-C `AUAudioUnit*`
+and reports errors via `NSError**` — the shape of the `AUAudioUnitFactory`
+protocol method, meant to be called by a real AUv3 extension host process.
+But `AetherfieldAUExtensionMacOS` is packaged as a legacy, in-process
+`.component` bundle (`WRAPPER_EXTENSION: component`, no actual `.appex`/host
+process — see `platform/apple/project.yml:102-136`). macOS's classic Component
+Manager path (`APComponent::newInstance`, which is exactly where this crashes)
+calls a `factoryFunction` symbol expecting the *legacy* ABI —
+`void* Factory(const AudioComponentDescription*)` returning a raw
+`AudioComponentPlugInInterface*` — not the AUv3-protocol-shaped function
+actually exported under that name. Calling through that ABI mismatch is
+undefined behavior; in practice it manifests as a jump through a null/garbage
+pointer inside AudioToolboxCore, matching the observed crash exactly.
+
+This is consistent with the back-and-forth documented in the 2026-09-22
+sessions above (698aedd → 320b760 → 48a410a): the target has been flip-flopped
+between "traditional `.component`" and "AUv3 extension" packaging and is
+currently stuck in an inconsistent middle state — packaged as the former,
+implemented as the latter (it still declares both a top-level
+`AudioComponents`/`factoryFunction` *and* an `NSExtension`/
+`NSExtensionPrincipalClass: AetherfieldAudioUnitFactoryImpl` in the same
+Info.plist — see `platform/apple/project.yml:74-89` and `:120-136`).
+
+### Options for next session (architecture decision, not a one-line patch)
+
+1. **Ship as a real AUv3 `.appex`** hosted by `AetherfieldHostMacOS.app`: let
+   the OS instantiate `AetherfieldAudioUnitFactoryImpl` the normal AUv3 way
+   (via the extension/XPC mechanism), and drop the legacy top-level
+   `AudioComponents`/`factoryFunction` entry for the macOS target entirely.
+2. **Keep it a true legacy `.component`**: write a real Component-Manager-ABI
+   factory (typically via AUSDK's `AUSDK_COMPONENT_ENTRY` machinery, or a
+   hand-written C factory returning `AudioComponentPlugInInterface*`) instead
+   of wrapping the AUAudioUnit-style factory function.
+
+Either fixes the ABI mismatch; which one depends on whether this project wants
+in-process (traditional) or out-of-process (AUv3 extension) hosting for the
+macOS build specifically — that's the call to make before touching code.
+`ADR-007` (AUv3 integration comparison) may already speak to this trade-off
+for the wider project; worth checking before deciding.
+
+**HT-10 status:** Still cannot execute — the AU cannot be inserted into a
+REAPER track without crashing the host. No render was attempted (nothing to
+render if the plugin can't stay loaded).
+
+Commits: none (diagnosis only, no code changes made this session)
+
+## Session 2026-09-24 (continued): HT-10 root causes fixed — test executed and PASSED
+
+Continuation of the same session above. Josh applied an external fix
+(commits `45270ee` + `c6c0340`) converting `AetherfieldAUExtensionMacOS` to a
+true AUv3 `app-extension` target, which addressed the ABI-mismatch root cause
+documented above. Picking up from "Next session: rescan plugins in REAPER and
+attempt the offline determinism test", two further blockers were found and
+fixed before HT-10 could actually run:
+
+### Blocker #2: stale legacy `.component` shadowing the new AUv3 extension
+
+After launching the newly-built `AetherfieldHostMacOS.app` and rescanning in
+REAPER, inserting "Aetherfield: Reverb" crashed REAPER again with the
+**identical** `EXC_BAD_ACCESS SIGSEGV at 0x0` stack as before. The crash
+report's `usedImages` path field showed REAPER was still loading
+`~/Library/Audio/Plug-Ins/Components/AetherfieldAUExtensionMacOS.component`
+— a stale legacy bundle from before the AUv3 conversion that was never
+removed from disk, and which shared the same type/subtype/manufacturer
+identity as the new extension, so REAPER preferred/found the broken old one.
+**Fix:** deleted the stale `.component` via Finder (moved to Trash).
+
+### Blocker #3: missing App Sandbox entitlement (macOS PlugInKit rejection)
+
+With the stale component gone, "Aetherfield" no longer appeared in REAPER's
+FX browser AU list *at all* (not even the broken version). Diagnosis:
+
+- `pluginkit -m -v -i com.aetherfield.placeholder.AetherfieldHostMacOS.AetherfieldAUExtensionMacOS`
+  → no match (exit 1), despite the `.appex` existing on disk and being validly
+  code-signed (`codesign -dv --verbose=4` confirmed a valid Apple Development
+  signature, team `W2VVZU52J6`).
+- `pluginkit -a <path>` "succeeded" (exit 0) but still didn't register it.
+- `log show --predicate 'subsystem == "com.apple.pluginkit" OR process == "pkd"' --style compact --last 5m | grep -i aether`
+  surfaced the actual reason directly from the PlugInKit daemon:
+
+  ```
+  pkd[...]: [com.apple.PlugInKit:discovery] ... rejecting; Ignoring
+  mis-configured plugin at [.../AetherfieldAUExtensionMacOS.appex]:
+  plug-ins must be sandboxed
+  ```
+
+  Root cause: unlike iOS (sandboxed by default), macOS App Extensions must
+  explicitly declare `com.apple.security.app-sandbox = true` via
+  `CODE_SIGN_ENTITLEMENTS`. `AetherfieldAUExtensionMacOS` in
+  `platform/apple/project.yml` had no `CODE_SIGN_ENTITLEMENTS` key at all (the
+  only entitlements file in the repo,
+  `AetherfieldHost/AetherfieldHost.entitlements`, belongs to the iOS host and
+  only sets the unrelated `inter-app-audio` key).
+
+  **Fix (uncommitted this session — see note below):**
+  - Added `platform/apple/AetherfieldAUExtensionMacOS/AetherfieldAUExtensionMacOS.entitlements`
+    with `com.apple.security.app-sandbox = true`.
+  - Added `CODE_SIGN_ENTITLEMENTS: AetherfieldAUExtensionMacOS/AetherfieldAUExtensionMacOS.entitlements`
+    to the `AetherfieldAUExtensionMacOS` target's `settings:` block in
+    `platform/apple/project.yml`.
+  - Ran `xcodegen generate` and rebuilt `AetherfieldHostMacOS` (Release) via
+    `xcodebuild`; verified the new `.appex`'s embedded entitlements via
+    `codesign -d --entitlements - ...appex` (confirmed
+    `com.apple.security.app-sandbox = true` present).
+  - Replaced `/Applications/AetherfieldHostMacOS.app` with the freshly built
+    version; relaunched it; `pluginkit -m -v` then showed the extension
+    registered, and a fresh `log show` grep for "aether" over the pkd/lsd
+    subsystems returned no rejection.
+
+### HT-10 execution and result: **PASS**
+
+With both blockers fixed, REAPER was fully quit and relaunched (REAPER
+enumerates AudioComponents once at startup and does not pick up newly
+`pkd`-registered extensions from a running instance), a "Clear cache and
+re-scan VST paths for all plug-ins" was run from Preferences, and
+"AU: Reverb (Aetherfield)" appeared in the FX browser and inserted onto a
+track without crashing REAPER.
+
+Procedure: project sample rate explicitly set to 48000 Hz; Decay/Damp/Mix set
+to ~0.499 (generic AU parameter sliders in this REAPER build don't accept
+direct numeric entry, so values were set by precision mouse drag); rendered a
+5-second custom time range (empty project → silence through the reverb) three
+times to `render1.wav`/`render2.wav`/`render3.wav`.
+
+First attempt at a 3x render (with REAPER's default "Write BWF metadata" on)
+produced *different* SHA-256 hashes despite identical file sizes — a byte
+diff isolated the difference to the WAV `bext` chunk's origination
+timestamp (e.g. `15-42-16` vs `15-43-11`), i.e. wall-clock metadata, not
+audio non-determinism. Disabled "Write BWF metadata" and re-rendered all
+three; this time:
+
+```
+a8132ffcabf2b0886fcf0a37ea34caf5c1ef6aadd5672b1e86be6a375ecbb9bb  render1.wav
+a8132ffcabf2b0886fcf0a37ea34caf5c1ef6aadd5672b1e86be6a375ecbb9bb  render2.wav
+a8132ffcabf2b0886fcf0a37ea34caf5c1ef6aadd5672b1e86be6a375ecbb9bb  render3.wav
+```
+
+All three hashes identical. **HT-10: PASS.** Evidence (manifest.json + 3 WAV
+files) recorded at `artifacts/host-device/ht10-macos-2026-09-24/`.
+
+**Important caveat on commit state:** base commit `c6c0340` (the AUv3
+conversion) was necessary but not sufficient. The stale-`.component` removal
+was a local filesystem cleanup (no code change). The sandbox-entitlement fix
+*is* a code/config change (new `.entitlements` file +
+`CODE_SIGN_ENTITLEMENTS` line in `project.yml`) and **is not yet committed**
+— it exists only as an uncommitted working-tree change plus the regenerated
+`project.pbxproj`. Per this session's standing instruction, no commit is made
+without Josh's explicit request. `git status --short` at time of writing
+shows `platform/apple/project.yml`, `platform/apple/Aetherfield.xcodeproj/project.pbxproj`,
+`src/auv3/Info.plist`, plus this doc and `testing.md`, as modified, and
+`platform/apple/AetherfieldAUExtensionMacOS/` as untracked. **Reproducing
+this pass from a clean checkout of `c6c0340` alone will hit Blocker #3
+again** — the entitlements fix needs to be committed for HT-10 to stay green.
+
+Commits: none (fix applied to working tree only; awaiting explicit commit
+instruction).
