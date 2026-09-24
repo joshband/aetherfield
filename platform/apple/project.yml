@@ -100,7 +100,7 @@ targets:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
   AetherfieldAUExtensionMacOS:
-    type: bundle
+    type: app-extension
     platform: macOS
     deploymentTarget: "12.0"
     sources:
@@ -115,25 +115,25 @@ targets:
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHostMacOS.AetherfieldAUExtensionMacOS
       DEVELOPMENT_TEAM: W2VVZU52J6
       CODE_SIGN_STYLE: Automatic
-      WRAPPER_EXTENSION: component
     info:
       path: ../../src/auv3/Info.plist
       properties:
         CFBundleDisplayName: Aetherfield
-        AudioComponents:
-          - type: aufx
-            subtype: Aeth
-            manufacturer: Josh
-            name: "Aetherfield: Reverb"
-            description: "Aetherfield ambient reverb (AUv3 macOS)"
-            version: 1
-            factoryFunction: AetherfieldAudioUnitFactory
-            sandboxSafe: true
-            tags:
-              - Effects
         NSExtension:
           NSExtensionPointIdentifier: com.apple.AudioUnit
           NSExtensionPrincipalClass: AetherfieldAudioUnitFactoryImpl
+          NSExtensionAttributes:
+            AudioComponents:
+              - type: aufx
+                subtype: Aeth
+                manufacturer: Josh
+                name: "Aetherfield: Reverb"
+                description: "Aetherfield ambient reverb (AUv3 macOS extension)"
+                version: 1
+                factoryFunction: AetherfieldAudioUnitFactory
+                sandboxSafe: true
+                tags:
+                  - Effects
     dependencies:
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
@@ -142,9 +142,9 @@ targets:
     platform: macOS
     deploymentTarget: "12.0"
     sources:
-      - path: AetherfieldHost
+      - path: AetherfieldHostMacOS
     info:
-      path: AetherfieldHost/Info.plist
+      path: AetherfieldHostMacOS/Info.plist
       properties: {}
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.aetherfield.placeholder.AetherfieldHostMacOS
