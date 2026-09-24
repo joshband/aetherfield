@@ -461,12 +461,29 @@ AU instantiation blocker fixed (commit 2c693e1). HT-10 ready for execution:
 - ✅ Execution guide created: `docs/phases/HT10_EXECUTION_GUIDE.md` (Option A: manual; Option B: scripted)
 - ⏳ Awaiting execution: Either manual REAPER UI steps or ReaScript invocation
 
-**To execute HT-10 (either method):**
-1. Read `docs/phases/HT10_EXECUTION_GUIDE.md` for full procedure
-2. Follow Option A (manual REAPER UI) or Option B (ReaScript)
-3. Verify three renders produce identical SHA-256 hashes
-4. Record results in `artifacts/host-device/ht10-macos-<date>/manifest.json`
-5. Commit evidence and updated testing.md with HT-10 pass/fail status
+**Session 2026-09-24: HT-10 execution attempted — ABI mismatch root-caused and fixed**
+
+Initial attempt revealed AU discoverable but crashes REAPER on insertion
+(`EXC_BAD_ACCESS` at `0x0`, reproduced 2/2). Root cause (detailed in
+`docs/agent-log.md`): AetherfieldAUExtensionMacOS was packaged as legacy
+`.component` bundle but used AUv3-protocol factory function — two incompatible
+ABIs. macOS legacy Component Manager expected `void* Factory(const
+AudioComponentDescription*)` but received AUv3-shaped `AUAudioUnit*
+AetherfieldAudioUnitFactory(...)`.
+
+**Fix applied (commit 45270ee):** Converted to true AUv3 extension per Option 1
+analysis — `type: app-extension` (`.appex`), removed legacy AudioComponents/
+factoryFunction, moved AudioComponents under NSExtensionAttributes, set
+NSExtensionPrincipalClass to AetherfieldAudioUnitFactoryImpl (actual
+Objective-C factory class implementing AUAudioUnitFactory protocol). Created
+macOS-specific host app (platform/apple/AetherfieldHostMacOS/) with Cocoa-
+based main.m, since shared iOS host uses UIKit. Build verified Release macOS
+AetherfieldHostMacOS.app with embedded AetherfieldAUExtensionMacOS.appex.
+
+**HT-10 status: ✅ Ready for REAPER instantiation test.** AU packaging/ABI
+mismatch fixed. Extension installed at `/Applications/AetherfieldHostMacOS.app/
+Contents/PlugIns/AetherfieldAUExtensionMacOS.appex`. Next session: rescan
+plugins in REAPER and attempt render per HT10_EXECUTION_GUIDE.md Option A or B.
 
 ## Lean resume loop
 
