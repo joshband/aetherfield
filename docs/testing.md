@@ -2868,3 +2868,67 @@ HT-4/5/6/8/9/11/12 deferred.
 - HT-4, HT-5, HT-6, HT-8, HT-9, HT-11, HT-12 remain unrun (out of golden-path scope)
 - Full device matrix coverage (1 of 4 corners tested in prior session)
 
+
+## Session 2026-09-24: HT-10 execution attempted — blocked on AU/host crash
+
+**HT-10 (Offline Determinism) — BLOCKED, not run**
+
+Attempted Option A (manual REAPER UI) from `HT10_EXECUTION_GUIDE.md`, driven
+via live screen control against REAPER on Josh's Mac.
+
+- AU rescan in REAPER's FX browser ("Scan for new plugins") now finds the AU:
+  lists as **"AU: Reverb (Aetherfield)"**. This confirms the bundle-type and
+  Info.plist fixes from the 2026-09-22 sessions did work — the AU is
+  discoverable, which is real progress from the prior "AU not discoverable"
+  state.
+- Inserting "AU: Reverb (Aetherfield)" onto a track **crashes REAPER**
+  (`EXC_BAD_ACCESS`/`SIGSEGV` at address `0x0`, main thread, inside
+  `AudioComponentInstanceNew` → `APComponent::newInstance`). Reproduced twice
+  in a row, identical stack both times.
+- Root cause: an ABI mismatch between the `AUAudioUnitFactory`-protocol-shaped
+  C function exported as `AetherfieldAudioUnitFactory`
+  (`src/auv3/AetherfieldAudioUnitFactory.mm:45`) and the legacy Component
+  Manager `factoryFunction` ABI that a non-extension `.component` bundle
+  (`WRAPPER_EXTENSION: component`) is actually invoked with. Full stack trace,
+  source references, and the two fix options considered are recorded in
+  `docs/agent-log.md`, session "2026-09-24: HT-10 execution attempted — AU
+  crashes REAPER on instantiation".
+- No render was attempted — the AU cannot stay loaded in the host, so there is
+  nothing to render yet.
+
+**Status: HT-10 still not executed. Blocked on the factory-ABI/packaging fix
+described in `docs/agent-log.md` (2026-09-24 session) — an architecture
+decision (real AUv3 `.appex` vs. true legacy-ABI factory) is needed before the
+next execution attempt.**
+
+## Session 2026-09-24 (continued): HT-10 executed — PASS
+
+Following the AUv3-conversion fix (commits `45270ee`/`c6c0340`) and two
+further fixes applied this session (stale `.component` removal; missing
+`com.apple.security.app-sandbox` entitlement on `AetherfieldAUExtensionMacOS`
+— see `docs/agent-log.md` for full root-cause detail on both), HT-10 was
+executed successfully:
+
+- REAPER (7.80) fully restarted, AU cache cleared/rescanned; "AU: Reverb
+  (Aetherfield)" now discoverable and inserts onto a track without crashing
+  the host.
+- Project: 48000 Hz, empty (no media items), 5-second custom render range.
+- Decay/Damp/Mix set to ~0.499 (generic AU UI in this REAPER build has no
+  direct numeric entry; set via precision slider drag).
+- Rendered 3x to WAV (24-bit PCM, 48000 Hz, stereo). First attempt (with
+  REAPER's "Write BWF metadata" enabled) produced non-matching hashes due to
+  an embedded wall-clock origination timestamp in the WAV header, **not**
+  audio non-determinism (confirmed via byte diff of the differing region).
+  Disabled "Write BWF metadata" and re-rendered; all three renders then
+  produced identical SHA-256 hashes.
+
+**HT-10 (Offline Determinism) — PASS.** Evidence:
+`artifacts/host-device/ht10-macos-2026-09-24/manifest.json` +
+`audio/render{1,2,3}.wav`.
+
+**Reproducibility:** All three root causes are now committed:
+- AUv3 ABI mismatch fix: commit `45270ee`
+- macOS host app container: commit `c6c0340`
+- Sandbox entitlement: commit `003a60a`
+
+A clean checkout of HEAD can reproduce HT-10 with identical results.
