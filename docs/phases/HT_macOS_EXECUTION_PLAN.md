@@ -1,6 +1,11 @@
 # HT Tests Execution Plan — macOS/REAPER (HT-4, 5, 6, 7, 8, 9)
 
-**Status:** Ready to execute  
+**Status:** partly superseded 2026-09-24 — see
+[HT_AUTOMATION_LIMITS.md](HT_AUTOMATION_LIMITS.md) and
+[HT_PARAMETER_BRIDGE_FINDING.md](HT_PARAMETER_BRIDGE_FINDING.md). The §HT-4 and
+§HT-6 Part 2 procedures below do not exercise the gates they name, §HT-8 Part 1
+cannot observe its gate, and §HT-7/§HT-9 are blocked by a parameter-path defect.
+§HT-5 and §HT-6 Part 1 were executed and PASS.  
 **Baseline commit:** HEAD (after HT-10 pass)  
 **Build config:** Release  
 **Platform:** macOS (arm64) via REAPER AU  

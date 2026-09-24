@@ -503,8 +503,63 @@ embedding was disabled. **HT-10: PASS** — evidence at
 `45270ee`, macOS host app `c6c0340`, sandbox entitlement `003a60a`). A clean
 checkout of HEAD can now execute HT-10 with the same result.
 
-**Remaining HT tests deferred:** HT-4/5/6/8/9/11/12 remain unrun. Next
-authorized task awaits owner decision.
+**Session 2026-09-24 (continued): HT automation harness built; HT-5 and HT-6
+executed; a parameter-path defect found that blocks HT-7 and HT-9.**
+
+A REAPER automation harness now exists at `scripts/ht_reaper/` (see its README).
+It drives REAPER through the MCP bridge's file mailbox directly, so it needs only
+REAPER plus `reaper_mcp_bridge.lua` — no MCP client. ReaScripts render; a separate
+`analyze.py` computes every gate and writes the manifest, so verdicts can be
+recomputed from stored audio. `selftest.py` verifies the analyzer against
+synthetic renders and needs neither REAPER nor the AU.
+
+- **HT-5: PASS, both parts.** Under host bypass the AU is bit-exact against a
+  no-AU reference — both hash to the input signal's own payload SHA-256, max
+  sample difference 0.0 over 144,000 frames. Part 2's originally reported 0.491
+  transition delta was investigated same-day (owner-directed) and found to be a
+  measurement-window artifact, not a real discontinuity: `analyze.py` now
+  locates the true automation-crossing sample against the dry reference instead
+  of scanning a blind ±5 ms window, and the true transition-boundary deltas
+  (0.129/0.020 engage, 0.033/0.334 release) show no anomaly — exactly the
+  value-swap an uncrossfaded host-level bypass switch is expected to produce.
+  PT-7's 0.354 is also judged not to be a meaningful baseline for this
+  mechanism (it measures an unrelated internal parameter-smoothing sweep, not
+  a host-level bypass swap). See `testing.md`'s HT-5 "Correction" note.
+- **HT-6: PASS on the silence half.** Control render shows a real tail (peak
+  0.0836 in 1.5–3.0 s); the post-reset render of that window is exactly 0.0. The
+  fault-counter and non-finite-input halves are not observable from a render.
+- **HT-4 and HT-8: not automatable against REAPER.** HT-4's gate needs
+  `pullInputBlock` to return an error, which no REAPER project can cause; HT-8's
+  gate cannot be observed by a CPU meter. The execution plan's procedures for both
+  would have produced manifests that look like evidence without exercising the
+  named gate. See [HT_AUTOMATION_LIMITS.md](phases/HT_AUTOMATION_LIMITS.md).
+- **HT-7 and HT-9: blocked by a product defect, not by tooling.** The AU exposes
+  its parameters to the host by name and range, but **every host read returns 0.0
+  and every host write has no effect on rendered audio** — four renders differing
+  only by `SetParamNormalized` calls (including Mix 0.0 vs 1.0) are byte-identical.
+  A control run of the identical harness code against Apple's in-process
+  `AUMatrixReverb` round-trips correctly, so REAPER's API, the scripts and the
+  render settings are all correct. The mechanism is **not** determined; the
+  `parameterTree` getter override was checked and eliminated (SDK-sanctioned).
+  HT-7 would pass vacuously and `getState` would persist `decay: 0, damp: 0,
+  mix: 0`; HT-9 would compare two instances holding identical defaults. Neither
+  was run. **This contradicts the earlier "ADR-011 complete ⇒ HT-7 UNBLOCKED"
+  conclusion:** the portable core is verified, the AU's host-facing path is not.
+  Full write-up, raw probe output and six comparison renders:
+  [HT_PARAMETER_BRIDGE_FINDING.md](phases/HT_PARAMETER_BRIDGE_FINDING.md) and
+  `artifacts/host-device/ht-macos-2026-09-24/parameter-defect/`.
+
+HT-10's own gate (determinism across repeated renders) is unaffected, but its
+recorded "Decay/Damp/Mix ≈ 0.499" is not supported by this evidence.
+
+No fix, instrumentation or AU change was made; this session is measurement and
+record-keeping only. **Next decision (owner): whether to authorize investigating
+and fixing the AU parameter path.** Until then HT-7 and HT-9 stay blocked, and
+HT-4/HT-8 need an instrumented offline harness rather than REAPER.
+
+**Remaining HT status:** HT-1/2/3/5/10 pass, HT-6 passes on one gate half,
+HT-7/HT-9 blocked by the defect above, HT-4/HT-8 not REAPER-automatable,
+HT-11/HT-12 deferred to iOS devices.
 
 ## Lean resume loop
 

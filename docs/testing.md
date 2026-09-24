@@ -2932,3 +2932,120 @@ executed successfully:
 - Sandbox entitlement: commit `003a60a`
 
 A clean checkout of HEAD can reproduce HT-10 with identical results.
+
+---
+
+## HT macOS/REAPER automation harness, and a parameter-bridge defect (2026-09-24)
+
+A REAPER automation harness was built for the macOS HT subset
+(`scripts/ht_reaper/`, documented in its README). It drives REAPER through the
+MCP bridge's file mailbox directly (`bridge.py`), so it needs REAPER plus
+`reaper_mcp_bridge.lua` and no MCP client process. Renders and verdicts are kept
+separate: the ReaScripts only render; `analyze.py` computes every gate and writes
+the manifest, so a verdict can be recomputed from stored audio at any time.
+
+`selftest.py` exercises `analyze.py` against synthetic renders with known
+answers — good, broken, missing, no-tail and wrong-format cases — and passes.
+It requires neither REAPER nor the AU.
+
+Two improvements over HT-10's method are built in. Parameters are set with
+`TrackFX_SetParamNormalized` and the read-back is recorded, rather than
+mouse-dragged to 0.499. Hashes cover the WAV `data` payload only, so REAPER's BWF
+`bext` timestamp — which cost HT-10 a full render round — cannot produce a false
+mismatch, and "Write BWF metadata" no longer has to be off.
+
+### Results
+
+**HT-5 (bypass and tail): PASS.** With host bypass engaged the AU is bit-exact
+against a no-AU reference: both render to payload SHA-256
+`fb80096ef982689c…`, which is the input signal's own payload hash — a perfect dry
+passthrough, max sample difference 0.0 over 144,000 frames.
+
+Part 2 is **recorded for review, not failed**: the maximum sample-to-sample delta
+across the bypass transitions is **0.491** (ch1, at t = 0.701 s), above PT-7's
+0.354 precedent. PT-7's number is this project's own parameter-transition
+precedent, not an ADR-012 threshold, so the harness records it rather than
+auto-failing. Note the AU rendered at its default Mix = 1.0 (fully wet), so the
+wet↔dry step at each transition is the worst case.
+
+**Correction (2026-09-24, same-day investigation): the 0.491 figure above was a
+measurement artifact, not a transition discontinuity.** `analyze.py`'s original
+`max_step` scanned a blind ±5 ms window around the labeled automation times
+(0.70 s / 0.85 s) and reported the largest sample-to-sample jump found anywhere
+in it. On this test's noise-burst input signal, that window is wide enough to
+contain the burst's own natural volatility, unrelated to the bypass mechanism.
+Locating the true automation-crossing sample against the dry reference (REAPER
+applies `:bypass` automation at block boundaries, which lagged the labeled time
+by 134–349 samples, ~3–7 ms, on this render — also inverted this record's
+original "active → bypassed @0.70 s → active @0.85 s" label: the verified
+behavior is bypassed → active @0.70 s → bypassed @0.85 s, the `:bypass`
+parameter's 1.0 is bypassed, not active) and measuring the delta exactly at that
+sample gives: engage transition 0.129/0.020 (ch0/ch1), release transition
+0.033/0.334. All four are below both the old 0.491 figure and PT-7's 0.354
+precedent.
+
+Separately, **PT-7 is judged not to be a meaningful baseline for this
+transition at all**: PT-7 measures a smoothed internal Damp-parameter sweep in
+the portable DSP core (`ParameterAutomation` ramping one parameter across its
+full range over many samples); HT-5 Part 2 measures an instantaneous,
+uncrossfaded host-level bypass swap (REAPER's own `:bypass` envelope, square
+shape) with no smoothing mechanism at that layer at all. Comparing the two
+treats unlike mechanisms as if they were the same kind of transition. The
+actual transition-boundary values found are exactly what an uncrossfaded
+host-level swap is expected to produce — the sample the live wet signal held,
+replaced by the sample the dry input held, at the same instant — with no
+overshoot, ringing, clipping, or other anomaly at either boundary.
+
+`analyze.py`, `ht5_bypass.lua`'s comments/log, and `selftest.py` are fixed to
+locate the true boundary and report it (new `transitionBoundaryMaxDelta`,
+`engageTransition`, `releaseTransition` keys; the window-scan figure is kept
+as `windowWorstDelta_notGating` for visibility only). `manifest.json` is
+updated in place. **HT-5 Part 2 is now recorded `pass`, not `review`.**
+
+**HT-6 (reset clears state, silence half): PASS.** Control render confirms a real
+tail in 1.5–3.0 s (peak 0.0836); the post-reset render of that same window is
+exactly 0.0. The harness reports `inconclusive` rather than `pass` when no control
+tail is present, so this is not a vacuous result. The fault-counter half and the
+non-finite-input half of HT-6's dual gate are not observable from a render and are
+recorded as `notCovered`.
+
+Evidence: `artifacts/host-device/ht-macos-2026-09-24/`.
+
+### HT-7 and HT-9 are blocked by a product defect
+
+Building the harness surfaced this: **the AU exposes its parameters to the host by
+name and range, but every host read returns 0.0 and every host write has no effect
+on rendered audio.** Four renders differing only by `SetParamNormalized` calls
+(including Mix 0.0 vs 1.0) are byte-identical. A control run of the identical
+harness code against Apple's in-process `AUMatrixReverb` round-trips parameters
+correctly and changes the audio, so REAPER's API, the scripts, the render settings
+and the 32-bit-float format are all correct.
+
+The mechanism is **not** determined. The `parameterTree` getter override was
+checked and eliminated (the SDK header documents it as the intended approach). A
+concrete but unverified suspect — the `decay.value = 0.5` assignments happening
+while each `AUParameter` is still an orphan, before `createTreeWithChildren:` and
+before the implementor blocks exist — is recorded, along with the evidence it does
+*not* explain.
+
+Consequences: HT-7 would pass vacuously (both renders would use defaults, and
+`getState` serialises the same dead cache, so saved state would read
+`decay: 0, damp: 0, mix: 0`); HT-9 would compare two instances holding identical
+defaults. Neither was run. HT-10's own gate is unaffected, but its recorded
+"Decay/Damp/Mix ≈ 0.499" is not supported by this evidence.
+
+Full detail, raw probe output and all six comparison renders:
+[HT_PARAMETER_BRIDGE_FINDING.md](phases/HT_PARAMETER_BRIDGE_FINDING.md) and
+`artifacts/host-device/ht-macos-2026-09-24/parameter-defect/`.
+
+### HT-4 and HT-8 are not automatable against REAPER
+
+Recorded separately in
+[HT_AUTOMATION_LIMITS.md](phases/HT_AUTOMATION_LIMITS.md): HT-4's gate needs
+`pullInputBlock` to return an error, which no REAPER project can cause; HT-8's
+gate (≤3 mailbox writes, 0 allocations, 0 locks per callback) cannot be observed
+by a CPU meter. The execution plan's proposed procedures for both would have
+produced manifests that look like evidence without exercising the named gate.
+
+No fix, instrumentation or AU change was made. All of the above is measurement and
+record-keeping only.

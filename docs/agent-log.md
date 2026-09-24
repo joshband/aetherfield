@@ -383,3 +383,183 @@ again** — the entitlements fix needs to be committed for HT-10 to stay green.
 
 Commits: none (fix applied to working tree only; awaiting explicit commit
 instruction).
+
+---
+
+## 2026-09-24 — HT automation harness; parameter-bridge defect found
+
+**Task:** automate the macOS/REAPER HT subset (owner chose: automate only the
+gates a render can genuinely decide; defer HT-4/HT-6b/HT-8 as unautomatable).
+
+**Built:** `scripts/ht_reaper/` — `make_test_signal.py`, `ht_common.lua`, four
+per-test ReaScripts, `wavio.py`, `analyze.py`, `selftest.py`, `bridge.py`, README.
+Plus `docs/phases/HT_AUTOMATION_LIMITS.md` and
+`docs/phases/HT_PARAMETER_BRIDGE_FINDING.md`.
+
+**Verification run:** Release CTest 9/9 passed. `selftest.py` passed (analyzer
+checked against known-good/broken/missing/no-tail/wrong-format synthetic renders).
+
+**Environment notes for the next session:**
+- REAPER had exited; relaunching it re-runs `Scripts/__startup.lua`, which starts
+  `reaper_mcp_bridge.lua` automatically. The bridge was alive while the *MCP
+  server* side still reported `CONNECTION_REFUSED`, so the MCP tools are not a
+  reliable liveness signal. `scripts/ht_reaper/bridge.py ping` talks to the
+  bridge's file mailbox directly and is the authoritative check.
+- A ReaScript that closes a project tab raises REAPER's modal "QuerySave unsaved
+  project before closing?" dialog, which blocks REAPER's main thread and therefore
+  the bridge. The harness scripts never close tabs; they open a new tab per run and
+  leave it. If the bridge does hang, the dialog can be read and dismissed through
+  System Events (Accessibility works in this environment even though
+  `screencapture` does not).
+- `TrackFX_AddByName` succeeds under all four tested name spellings and each call
+  inserts another instance and opens its window; `H.add_au` inserts once and hides
+  both windows.
+- REAPER render format blob `ZXZhdyAAAAA=` is confirmed to produce 48 kHz stereo
+  32-bit float WAV. `analyze.py` asserts the actual format of every file it reads.
+
+**Results:** HT-5 PASS (bit-exact dry passthrough; transition delta 0.491 recorded
+for review against PT-7's 0.354). HT-6 PASS on the silence half.
+
+**Defect found:** the AU ignores host parameter writes and reports 0.0 for every
+host parameter read, while exposing correct names and ranges. Confirmed by
+byte-identical renders across Mix 0.0/1.0 and Decay 0.95, and by an Apple
+in-process AU control that round-trips correctly through the identical harness
+code. Mechanism undetermined; the `parameterTree` getter override was eliminated
+as a cause (SDK-sanctioned). Blocks HT-7 and HT-9, which were not run because both
+would pass vacuously. Full write-up in `HT_PARAMETER_BRIDGE_FINDING.md`.
+
+**Commits:** none. Per this log's standing instruction, no commit is made without
+Josh's explicit request. Pre-existing uncommitted changes to
+`platform/apple/project.yml`, `platform/apple/Aetherfield.xcodeproj/project.pbxproj`
+and `src/auv3/Info.plist` were left untouched.
+
+**Next decision (owner):** whether to authorize investigating and fixing the
+parameter path. HT-7 and HT-9 stay blocked until it is resolved — by a product
+defect, not by tooling.
+
+---
+
+## 2026-09-24 (continued) — HT-5 transition-delta investigation (owner-directed)
+
+**Task:** owner reviewed the HT automation handoff and directed investigation of
+HT-5 Part 2's 0.491 transition delta before treating it as closed, rather than
+accepting it as recorded.
+
+**Finding: the 0.491 figure was a measurement-window artifact, not a real
+discontinuity.** `analyze.py`'s `max_step` scanned a blind ±5 ms window around
+the labeled automation times (0.70 s / 0.85 s) for the largest sample-to-sample
+jump. The test's input signal is a noise burst across exactly this span
+(0.5–1.0 s, by design, so both transitions have "real signal on each side").
+That means the ±5 ms window is wide enough to contain the burst's own natural
+volatility, which has nothing to do with the bypass mechanism.
+
+Direct inspection (comparing the envelope render against the dry reference
+sample-by-sample) located the true automation-crossing samples precisely:
+33792 (engage) and 40960 (release) — 134–349 samples (~3–7 ms) away from where
+the previously reported worst-case deltas actually occurred. Along the way,
+found the ReaScript's own comment/log ("active → bypassed @0.70 s → active
+@0.85 s") had the states inverted: REAPER's `:bypass` parameter is 1.0 =
+bypassed, 0.0 = active, so the verified sequence is bypassed → active @0.70 s
+→ bypassed @0.85 s. This did not affect the automation itself or the gate
+computation, only the human-readable label.
+
+Measuring the delta exactly at the true boundary samples gives 0.129/0.020
+(engage, ch0/ch1) and 0.033/0.334 (release) — all below both the old 0.491
+figure and PT-7's 0.354 precedent. No overshoot, ringing, clipping, or other
+anomaly at either boundary: the values found are exactly the wet-sample-for-
+dry-sample swap an uncrossfaded host-level bypass switch is expected to
+produce (REAPER's `:bypass` automation has no crossfade of its own on a square
+envelope). Separately, PT-7 is judged not to be a meaningful baseline for this
+transition regardless of the number: PT-7 measures a smoothed internal
+Damp-parameter sweep in the portable DSP core, not a host-level bypass swap —
+comparing them treats two unrelated mechanisms as the same kind of transition.
+
+**Fixed:** `scripts/ht_reaper/analyze.py` (new `find_boundary`/`boundary_delta`
+helpers locate the true transition sample against the dry reference instead of
+scanning a blind window; `part2_transition` now reports
+`transitionBoundaryMaxDelta`, `engageTransition`, `releaseTransition`, keeps the
+old window-scan figure as `windowWorstDelta_notGating` for visibility only, and
+records `result: "pass"`). `scripts/ht_reaper/ht5_bypass.lua` (corrected the
+inverted active/bypassed comment and log line). `scripts/ht_reaper/selftest.py`
+(updated the renamed assertion key). `artifacts/host-device/ht-macos-2026-09-24/manifest.json`
+(HT-5 result entry replaced with the corrected analysis, re-derived from the
+same stored audio — no re-render). `docs/testing.md`, `docs/start-here.md`,
+`docs/phases/HT_STATUS_SUMMARY.md`, `scripts/ht_reaper/COWORK_PROMPT.md`
+updated to match; `testing.md` keeps the original recorded figure with a
+"Correction" note appended rather than rewritten, per this project's own
+practice of not silently reconciling recorded numbers.
+
+**Verification:** `python3 -m py_compile scripts/ht_reaper/analyze.py` clean.
+`python3 scripts/ht_reaper/selftest.py` — all synthetic cases pass, including
+the renamed assertion. Re-ran the fixed analyzer against the existing stored
+evidence audio (`artifacts/host-device/ht-macos-2026-09-24/audio/ht5_*.wav`,
+via a temp renders directory mirroring the expected layout) and confirmed the
+manifest splice matches a fresh `analyze.py --tests ht5` run byte-for-byte.
+
+**Result: HT-5 Part 2 is now recorded `pass`, not `review`.** Recommending to
+the owner that HT-5 be treated as fully closed (both parts pass); flagged for
+his confirmation rather than closed unilaterally in `start-here.md`'s "Current
+focus," since only "PASS, both parts" language was added there, not a new
+closure claim beyond what the corrected evidence supports.
+
+**Commits:** none. Per this log's standing instruction, no commit is made
+without Josh's explicit request. All changes above are working-tree only.
+
+---
+
+## 2026-09-24 (continued) — AU parameter-bridge defect: investigation authorized, static analysis only
+
+**Task:** owner authorized investigating (not fixing) the parameter-bridge
+mechanism defect found earlier today (HT_PARAMETER_BRIDGE_FINDING.md).
+
+**Environment constraint discovered:** this session's device-bridge shell
+(`device_bash`) is a sandboxed Linux VM on the user's Mac with folder access
+only — no Xcode, `xcodebuild`, `xcodegen`, `pluginkit`, or REAPER are
+reachable from it (`which` fails for all four). It can read/edit repository
+files but cannot rebuild the AU, install it, or drive REAPER. The rebuild/
+install/probe cycle this defect needs requires a session with real Mac shell
+access (native Claude Code, or the owner directly).
+
+**Static code review completed instead.** Read
+`src/auv3/AetherfieldAudioUnit.mm`'s `buildParameterTree`,
+`implementorValueObserver`/`implementorValueProvider`,
+`-initWithComponentDescription:`'s `_lastDecay/_lastDamp/_lastMix` seeding,
+the 1 kHz bridge-controller timer's `_bridge->drain(*_path)` call, and
+`-getState`. Findings, full detail in `HT_PARAMETER_BRIDGE_FINDING.md`'s new
+"Refined analysis" section:
+
+- The previously recorded leading suspect (orphan `AUParameter.value`
+  assignment before tree creation) does not hold: `implementorValueProvider`
+  reads `_lastDecay` et al., not the `AUParameter`'s own storage, and those
+  atomics are correctly seeded (0.5/0.0/1.0) before `buildParameterTree` even
+  runs. If the provider ran against a live instance, it would return 0.5 for
+  Decay, not 0.0 — contradicting the observed evidence. Retiring this as the
+  leading theory.
+- Two more specific, code-grounded alternatives fit all observed evidence
+  exactly and are indistinguishable without running the code: (1) `weakSelf`
+  resolves `nil` inside both blocks when invoked from the host/XPC boundary
+  (both fall through to a hardcoded 0.0/no-op); (2) `parameter.address`
+  doesn't match `Parameter::Decay/Damp/Mix` by the time the block runs (the
+  `switch` has no `default:`, so any mismatch falls through to the same
+  0.0). Either matches "correct names/ranges, every read exactly 0.0,
+  every write inert" precisely, and either would be a second instance of
+  this project's already-confirmed class of defect (Apple's out-of-process
+  AUv3 proxy silently failing to deliver calls into the extension — see the
+  zero-frame `pullInputBlock` finding from 2026-09-21).
+- `ParameterBridge::drain()`, which the observer feeds via `_bridge->writeUi`,
+  is independently verified correct by PB-1…PB-8 at the portable C++ level
+  with no AUParameterTree/XPC involved — narrowing the defect to these two
+  blocks or their invocation, not the bridge or DSP downstream of them.
+
+**Diagnostic instrumentation added (uncommitted, unbuilt, unrun):** `NSLog`
+calls in both blocks in `AetherfieldAudioUnit.mm`, marked `[DIAG]` and
+commented as temporary/not-authorized-as-permanent, reporting
+`parameter.address`, whether `strongSelf` resolved, and which switch case (if
+any) matched. Distinguishes both hypotheses above in one probe call. Next
+step (needs a session with real Xcode/REAPER access) is spelled out in
+`HT_PARAMETER_BRIDGE_FINDING.md`'s "Refined analysis" section.
+
+**No fix implemented or proposed**, per the owner's authorization boundary
+(investigation only). HT-7/HT-9 remain blocked.
+
+**Commits:** none.
